@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Claude Code local settings (machine-specific)
+.claude/
+
+# Binary project files (track separately if needed)
+*.xlsm
+*.xlsx
+*.xls
