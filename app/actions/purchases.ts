@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { Purchase, Flower, Supplier } from "@/lib/supabase/types"
-import { findOrCreateSupplier } from "@/lib/services/purchaseService"
+import { findOrCreateSupplier, validateAndDeleteInventoryBatch } from "@/lib/services/purchaseService"
 
 export type PurchaseWithSupplier = Purchase & { suppliers: { name: string } | null }
 
@@ -239,19 +239,10 @@ export async function deletePurchaseItem(
   const supabase = await createClient()
 
   if (inventoryItemId) {
-    const { data: inv } = await supabase
-      .from("inventory_items")
-      .select("quantity_in, quantity_remaining")
-      .eq("id", inventoryItemId)
-      .single()
-
-    if (inv && inv.quantity_remaining < inv.quantity_in) {
-      const used = inv.quantity_in - inv.quantity_remaining
-      return { error: `Нельзя удалить — из этой партии уже использовано ${used} шт.` }
+    const result = await validateAndDeleteInventoryBatch(supabase, inventoryItemId)
+    if (!result.ok) {
+      return { error: `Нельзя удалить — из этой партии уже использовано ${result.usedCount} шт.` }
     }
-
-    await supabase.from("stock_movements").delete().eq("inventory_item_id", inventoryItemId)
-    await supabase.from("inventory_items").delete().eq("id", inventoryItemId)
   }
 
   await supabase.from("purchase_items").delete().eq("id", itemId)
@@ -284,18 +275,10 @@ export async function deletePurchase(purchaseId: string): Promise<{ error?: stri
 
   for (const item of items ?? []) {
     if (item.inventory_item_id) {
-      const { data: inv } = await supabase
-        .from("inventory_items")
-        .select("quantity_in, quantity_remaining")
-        .eq("id", item.inventory_item_id)
-        .single()
-
-      if (inv && inv.quantity_remaining < inv.quantity_in) {
+      const result = await validateAndDeleteInventoryBatch(supabase, item.inventory_item_id)
+      if (!result.ok) {
         return { error: "Нельзя удалить поставку — часть товаров уже продана или использована" }
       }
-
-      await supabase.from("stock_movements").delete().eq("inventory_item_id", item.inventory_item_id)
-      await supabase.from("inventory_items").delete().eq("id", item.inventory_item_id)
     }
     await supabase.from("purchase_items").delete().eq("id", item.id)
   }
@@ -350,19 +333,10 @@ export async function updatePurchase(
       .single()
 
     if (pi?.inventory_item_id) {
-      const { data: inv } = await supabase
-        .from("inventory_items")
-        .select("quantity_in, quantity_remaining")
-        .eq("id", pi.inventory_item_id)
-        .single()
-
-      if (inv && inv.quantity_remaining < inv.quantity_in) {
-        const used = inv.quantity_in - inv.quantity_remaining
-        return { error: `Нельзя удалить позицию — из партии уже использовано ${used} шт.` }
+      const result = await validateAndDeleteInventoryBatch(supabase, pi.inventory_item_id)
+      if (!result.ok) {
+        return { error: `Нельзя удалить позицию — из партии уже использовано ${result.usedCount} шт.` }
       }
-
-      await supabase.from("stock_movements").delete().eq("inventory_item_id", pi.inventory_item_id)
-      await supabase.from("inventory_items").delete().eq("id", pi.inventory_item_id)
     }
 
     await supabase.from("purchase_items").delete().eq("id", deletedId)

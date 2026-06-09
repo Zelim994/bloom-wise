@@ -2,6 +2,27 @@ import type { createClient } from "@/lib/supabase/server"
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 
+export type BatchDeleteResult = { ok: true } | { ok: false; usedCount: number }
+
+export async function validateAndDeleteInventoryBatch(
+  supabase: SupabaseClient,
+  inventoryItemId: string
+): Promise<BatchDeleteResult> {
+  const { data: inv } = await supabase
+    .from("inventory_items")
+    .select("quantity_in, quantity_remaining")
+    .eq("id", inventoryItemId)
+    .single()
+
+  if (inv && inv.quantity_remaining < inv.quantity_in) {
+    return { ok: false, usedCount: inv.quantity_in - inv.quantity_remaining }
+  }
+
+  await supabase.from("stock_movements").delete().eq("inventory_item_id", inventoryItemId)
+  await supabase.from("inventory_items").delete().eq("id", inventoryItemId)
+  return { ok: true }
+}
+
 /**
  * Finds an existing supplier by name (case-insensitive) within the organization,
  * or creates a new one. Returns supplierId (null if name is empty) or an error.
