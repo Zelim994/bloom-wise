@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, User, Phone, MapPin, CreditCard, MessageSquare, Scissors } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createOrder, updateOrder, type BouquetPayload, type OrderWithCustomer } from "@/app/actions/orders"
+import { createOrder, updateOrder, searchCustomers, type BouquetPayload, type OrderWithCustomer, type CustomerSearchResult } from "@/app/actions/orders"
 import { BuilderLayout } from "@/components/bouquet-builder/BuilderLayout"
 import type { FlowerForBuilder, BouquetData } from "@/components/bouquet-builder/BuilderLayout"
 
@@ -50,7 +50,9 @@ export function OrderForm({ flowers, initialData }: Props) {
   const [customerPhone, setCustomerPhone] = useState(initialData?.customers?.phone ?? "")
   const [customerName, setCustomerName] = useState(initialData?.customers?.full_name ?? "")
   const [customerFound, setCustomerFound] = useState<boolean | null>(null)
-  const [lookingUp, setLookingUp] = useState(false)
+  const [searchResults, setSearchResults] = useState<CustomerSearchResult[]>([])
+  const [showDropdown, setShowDropdown] = useState(false)
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [orderType, setOrderType] = useState<OrderType>((initialData?.type as OrderType) ?? "pickup")
   const [orderDate] = useState(initialData?.order_date ?? today())
@@ -84,19 +86,32 @@ export function OrderForm({ flowers, initialData }: Props) {
     }
   }
 
-  async function handlePhoneBlur() {
-    const phone = customerPhone.trim()
-    if (!phone || phone.length < 7) return
-    setLookingUp(true)
-    const { findCustomerByPhone } = await import("@/app/actions/orders")
-    const found = await findCustomerByPhone(phone)
-    if (found) {
-      setCustomerName(found.full_name)
-      setCustomerFound(true)
-    } else {
-      setCustomerFound(false)
+  function triggerSearch(query: string) {
+    if (searchTimeout.current) clearTimeout(searchTimeout.current)
+    if (query.trim().length < 2) {
+      setSearchResults([])
+      setShowDropdown(false)
+      return
     }
-    setLookingUp(false)
+    searchTimeout.current = setTimeout(async () => {
+      const results = await searchCustomers(query)
+      setSearchResults(results)
+      setShowDropdown(results.length > 0)
+    }, 300)
+  }
+
+  function handleSelectCustomer(customer: CustomerSearchResult) {
+    setCustomerName(customer.full_name)
+    setCustomerPhone(customer.phone ?? "")
+    setCustomerFound(true)
+    if (customer.comment) setCustomerComment(customer.comment)
+    setSearchResults([])
+    setShowDropdown(false)
+  }
+
+  function handleSearchBlur() {
+    // Delay allows onMouseDown on dropdown item to fire before blur closes it
+    setTimeout(() => setShowDropdown(false), 150)
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -181,26 +196,49 @@ export function OrderForm({ flowers, initialData }: Props) {
               <Input
                 type="tel"
                 value={customerPhone}
-                onChange={(e) => { setCustomerPhone(e.target.value); setCustomerFound(null) }}
-                onBlur={handlePhoneBlur}
+                onChange={(e) => {
+                  setCustomerPhone(e.target.value)
+                  setCustomerFound(null)
+                  triggerSearch(e.target.value)
+                }}
+                onBlur={handleSearchBlur}
                 placeholder="+7 900 000-00-00"
                 className="border-zinc-200 h-10 pl-9"
               />
             </div>
-            {lookingUp && <p className="text-xs text-zinc-400">Ищем клиента...</p>}
-            {customerFound === true && <p className="text-xs text-emerald-600">Клиент найден — имя заполнено автоматически</p>}
+            {customerFound === true && <p className="text-xs text-emerald-600">Клиент выбран из базы</p>}
             {customerFound === false && <p className="text-xs text-amber-600">Новый клиент — будет создан при сохранении</p>}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 relative">
             <Label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
               Имя клиента *
             </Label>
             <Input
               value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
+              onChange={(e) => {
+                setCustomerName(e.target.value)
+                setCustomerFound(null)
+                triggerSearch(e.target.value)
+              }}
+              onBlur={handleSearchBlur}
               placeholder="Анна Иванова"
               className="border-zinc-200 h-10"
             />
+            {showDropdown && searchResults.length > 0 && (
+              <div className="absolute z-20 left-0 right-0 top-full mt-1 rounded-lg border border-zinc-200 bg-white shadow-lg overflow-hidden">
+                {searchResults.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onMouseDown={() => handleSelectCustomer(c)}
+                    className="w-full text-left px-4 py-2.5 hover:bg-zinc-50 transition-colors border-b border-zinc-50 last:border-0"
+                  >
+                    <p className="text-sm font-medium text-zinc-800">{c.full_name}</p>
+                    {c.phone && <p className="text-xs text-zinc-400">{c.phone}</p>}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
