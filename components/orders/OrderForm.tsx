@@ -6,7 +6,7 @@ import { ArrowLeft, User, Phone, MapPin, CreditCard, MessageSquare, Scissors } f
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createOrder, type BouquetPayload } from "@/app/actions/orders"
+import { createOrder, updateOrder, type BouquetPayload, type OrderWithCustomer } from "@/app/actions/orders"
 import { BuilderLayout } from "@/components/bouquet-builder/BuilderLayout"
 import type { FlowerForBuilder, BouquetData } from "@/components/bouquet-builder/BuilderLayout"
 
@@ -38,32 +38,36 @@ function defaultReadyAt() {
 
 interface Props {
   flowers: FlowerForBuilder[]
+  initialData?: OrderWithCustomer
 }
 
-export function OrderForm({ flowers }: Props) {
+export function OrderForm({ flowers, initialData }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState("")
+  const isEdit = !!initialData
 
-  const [customerPhone, setCustomerPhone] = useState("")
-  const [customerName, setCustomerName] = useState("")
+  const [customerPhone, setCustomerPhone] = useState(initialData?.customers?.phone ?? "")
+  const [customerName, setCustomerName] = useState(initialData?.customers?.full_name ?? "")
   const [customerFound, setCustomerFound] = useState<boolean | null>(null)
   const [lookingUp, setLookingUp] = useState(false)
 
-  const [orderType, setOrderType] = useState<OrderType>("pickup")
-  const [orderDate] = useState(today())
-  const [readyAt, setReadyAt] = useState(defaultReadyAt())
-  const [deliveryAddress, setDeliveryAddress] = useState("")
+  const [orderType, setOrderType] = useState<OrderType>((initialData?.type as OrderType) ?? "pickup")
+  const [orderDate] = useState(initialData?.order_date ?? today())
+  const [readyAt, setReadyAt] = useState(
+    initialData?.ready_at ? initialData.ready_at.slice(0, 16) : defaultReadyAt()
+  )
+  const [deliveryAddress, setDeliveryAddress] = useState(initialData?.delivery_address ?? "")
 
   const [bouquetData, setBouquetData] = useState<BouquetData | null>(null)
-  const [subtotal, setSubtotal] = useState("")
-  const [deliveryCost, setDeliveryCost] = useState("")
-  const [discount, setDiscount] = useState("")
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash")
-  const [paidAmount, setPaidAmount] = useState("")
+  const [subtotal, setSubtotal] = useState(initialData?.subtotal != null ? String(initialData.subtotal) : "")
+  const [deliveryCost, setDeliveryCost] = useState(initialData?.delivery_cost ? String(initialData.delivery_cost) : "")
+  const [discount, setDiscount] = useState(initialData?.discount ? String(initialData.discount) : "")
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>((initialData?.payment_method as PaymentMethod) ?? "cash")
+  const [paidAmount, setPaidAmount] = useState(initialData?.paid_amount ? String(initialData.paid_amount) : "")
 
-  const [customerComment, setCustomerComment] = useState("")
-  const [floristComment, setFloristComment] = useState("")
+  const [customerComment, setCustomerComment] = useState(initialData?.customer_comment ?? "")
+  const [floristComment, setFloristComment] = useState(initialData?.florist_comment ?? "")
 
   const sub = Number(subtotal) || 0
   const del = Number(deliveryCost) || 0
@@ -104,33 +108,48 @@ export function OrderForm({ flowers }: Props) {
       return
     }
 
+    const currentBouquet = bouquetData ?? (initialData?.bouquet ? {
+      items: initialData.bouquet.items.map((item) => {
+        const f = flowers.find((fl) => fl.id === item.flower_id)
+        return { flower_id: item.flower_id, name: f?.name ?? "", unit: f?.unit ?? "шт", quantity: item.quantity, unit_cost: item.unit_cost ?? 0 }
+      }),
+      cost_price: initialData.bouquet.cost_price ?? 0,
+      sale_price: initialData.bouquet.sale_price ?? 0,
+      profit: initialData.bouquet.profit ?? 0,
+      margin_percent: initialData.bouquet.margin_percent ?? 0,
+    } : null)
     const bouquet: BouquetPayload | undefined =
-      bouquetData && bouquetData.items.length > 0 ? bouquetData : undefined
+      currentBouquet && currentBouquet.items.length > 0 ? currentBouquet : undefined
+
+    const payload = {
+      customer_name: customerName,
+      customer_phone: customerPhone,
+      type: orderType,
+      order_date: orderDate,
+      ready_at: readyAt,
+      delivery_address: orderType === "delivery" ? deliveryAddress : undefined,
+      subtotal: sub,
+      delivery_cost: del || undefined,
+      discount: disc || undefined,
+      payment_method: paymentMethod,
+      paid_amount: paid || undefined,
+      customer_comment: customerComment || undefined,
+      florist_comment: floristComment || undefined,
+      bouquet,
+    }
 
     startTransition(async () => {
-      const result = await createOrder({
-        customer_name: customerName,
-        customer_phone: customerPhone,
-        type: orderType,
-        order_date: orderDate,
-        ready_at: readyAt,
-        delivery_address: orderType === "delivery" ? deliveryAddress : undefined,
-        subtotal: sub,
-        delivery_cost: del || undefined,
-        discount: disc || undefined,
-        payment_method: paymentMethod,
-        paid_amount: paid || undefined,
-        customer_comment: customerComment || undefined,
-        florist_comment: floristComment || undefined,
-        bouquet,
-      })
-
-      if (result.error) {
-        setError(result.error)
-        return
+      if (isEdit && initialData) {
+        const result = await updateOrder(initialData.id, payload)
+        if (result.error) { setError(result.error); return }
+        router.push(`/orders/${initialData.id}`)
+        router.refresh()
+      } else {
+        const result = await createOrder(payload)
+        if (result.error) { setError(result.error); return }
+        router.push(`/orders/${result.id}`)
+        router.refresh()
       }
-      router.push(`/orders/${result.id}`)
-      router.refresh()
     })
   }
 
@@ -277,7 +296,21 @@ export function OrderForm({ flowers }: Props) {
             </span>
           )}
         </div>
-        <BuilderLayout flowers={flowers} onChange={handleBouquetChange} />
+        <BuilderLayout
+          flowers={flowers}
+          onChange={handleBouquetChange}
+          initialItems={initialData?.bouquet?.items.map((item) => {
+            const f = flowers.find((fl) => fl.id === item.flower_id)
+            return {
+              flower_id: item.flower_id ?? "",
+              name: f?.name ?? "",
+              unit: f?.unit ?? "шт",
+              quantity: item.quantity,
+              unit_cost: item.unit_cost ?? 0,
+            }
+          })}
+          initialSalePrice={initialData?.bouquet?.sale_price ?? undefined}
+        />
       </div>
 
       {/* Финансы */}
@@ -407,7 +440,7 @@ export function OrderForm({ flowers }: Props) {
           disabled={isPending}
           className="bg-rose-500 hover:bg-rose-600 text-white h-10 px-6"
         >
-          {isPending ? "Создаём заказ..." : "Создать заказ"}
+          {isPending ? (isEdit ? "Сохраняем..." : "Создаём заказ...") : (isEdit ? "Сохранить изменения" : "Создать заказ")}
         </Button>
         <button
           type="button"
