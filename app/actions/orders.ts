@@ -77,6 +77,41 @@ export async function findCustomerByPhone(
   return data
 }
 
+export type CustomerSearchResult = {
+  id: string
+  full_name: string
+  phone: string | null
+  comment: string | null
+  avg_check: number | null
+}
+
+function normalizeCustomerSearchQuery(query: string): string {
+  return query
+    .trim()
+    .replace(/[(),]/g, " ")
+    .replace(/\s+/g, " ")
+}
+
+export async function searchCustomers(query: string): Promise<CustomerSearchResult[]> {
+  const q = normalizeCustomerSearchQuery(query)
+  if (q.length < 2) return []
+  const supabase = await createClient()
+  const orgId = await getOrgId(supabase)
+  if (!orgId) return []
+  const { data, error } = await supabase
+    .from("customers")
+    .select("id, full_name, phone, comment, avg_check")
+    .eq("organization_id", orgId)
+    .or(`full_name.ilike.%${q}%,phone.ilike.%${q}%`)
+    .order("full_name")
+    .limit(10)
+  if (error) {
+    console.error("[searchCustomers]", error.message)
+    return []
+  }
+  return data ?? []
+}
+
 export type BouquetPayload = {
   items: Array<{
     flower_id: string
