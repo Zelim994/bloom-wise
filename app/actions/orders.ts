@@ -294,6 +294,7 @@ export async function updateOrder(
     .from("orders")
     .select("id, customer_id")
     .eq("id", orderId)
+    .eq("organization_id", orgId)
     .single()
   if (!existingOrder) return { error: "Заказ не найден" }
 
@@ -351,6 +352,7 @@ export async function updateOrder(
       updated_at: new Date().toISOString(),
     })
     .eq("id", orderId)
+    .eq("organization_id", orgId)
   if (oe) return { error: oe.message }
 
   // Update bouquet
