@@ -3,6 +3,7 @@ import { getOrder } from "@/app/actions/orders"
 import { getFlowersForBuilder } from "@/app/actions/builder"
 import { OrderForm } from "@/components/orders/OrderForm"
 import { OrderStatusActions } from "@/components/orders/OrderStatusActions"
+import { OrderStockWriteOff } from "@/components/orders/OrderStockWriteOff"
 import { WhatsAppButton } from "@/components/orders/WhatsAppButton"
 import Link from "next/link"
 import { ArrowLeft, Phone } from "lucide-react"
@@ -85,6 +86,13 @@ export default async function OrderDetailPage({
         totalAmount={total}
         paidAmount={paid}
         paymentMethod={order.payment_method}
+      />
+
+      {/* Списание склада */}
+      <OrderStockWriteOff
+        orderId={order.id}
+        stockWrittenOff={order.stock_written_off}
+        status={order.status}
       />
 
       {/* Форма редактирования */}
