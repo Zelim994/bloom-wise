@@ -1838,6 +1838,13 @@ export type Database = {
     Functions: {
       create_my_organization: { Args: { p_org_name: string }; Returns: string }
       get_user_organization_id: { Args: never; Returns: string }
+      write_off_order_stock: {
+        Args: {
+          p_order_id: string
+          p_allocations: Json
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
