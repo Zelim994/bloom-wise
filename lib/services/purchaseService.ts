@@ -10,16 +10,66 @@ export async function validateAndDeleteInventoryBatch(
 ): Promise<BatchDeleteResult> {
   const { data: inv } = await supabase
     .from("inventory_items")
-    .select("quantity_in, quantity_remaining")
+    .select("organization_id, flower_id, quantity_in, quantity_remaining, purchase_id")
     .eq("id", inventoryItemId)
     .single()
 
-  if (inv && inv.quantity_remaining < inv.quantity_in) {
+  // Партия не найдена — считаем уже отменённой
+  if (!inv) return { ok: true }
+
+  // Частично использована — нельзя отменить
+  if (inv.quantity_remaining < inv.quantity_in) {
     return { ok: false, usedCount: inv.quantity_in - inv.quantity_remaining }
   }
 
-  await supabase.from("stock_movements").delete().eq("inventory_item_id", inventoryItemId)
-  await supabase.from("inventory_items").delete().eq("id", inventoryItemId)
+  // Проверяем, существует ли уже компенсационное движение для этой партии.
+  // Это защита от двойной компенсации: если предыдущий вызов успешно вставил движение,
+  // но не смог обнулить quantity_remaining (UPDATE упал), повторный вызов не создаст второе движение.
+  const { data: existing, error: checkErr } = await supabase
+    .from("stock_movements")
+    .select("id")
+    .eq("inventory_item_id", inventoryItemId)
+    .eq("movement_type", "purchase_cancelled")
+    .limit(1)
+    .maybeSingle()
+
+  if (checkErr) {
+    console.error("[validateAndDeleteInventoryBatch] stock_movements check:", checkErr.message)
+    return { ok: false, usedCount: 0 }
+  }
+
+  if (!existing) {
+    // Компенсационного движения ещё нет — создаём.
+    // stock_movements — append-only лог, поэтому не удаляем, а добавляем отрицательную запись.
+    const { error: smErr } = await supabase.from("stock_movements").insert({
+      organization_id: inv.organization_id,
+      flower_id: inv.flower_id,
+      inventory_item_id: inventoryItemId,
+      quantity: -inv.quantity_in,
+      movement_type: "purchase_cancelled",
+      source_type: "purchase",
+      source_id: inv.purchase_id ?? null,
+      comment: "Отмена позиции прихода",
+    })
+    if (smErr) {
+      console.error("[validateAndDeleteInventoryBatch] stock_movements insert:", smErr.message)
+      return { ok: false, usedCount: 0 }
+    }
+  }
+
+  // Обнуляем остаток вместо удаления партии.
+  // FK на stock_movements → inventory_items (ON DELETE NO ACTION) не позволяет удалить партию
+  // пока существуют ссылающиеся движения. Обнуление безопасно и фильтруется в запросах (> 0).
+  // Операция идемпотентна: повторный UPDATE quantity_remaining = 0 безвреден.
+  const { error: invErr } = await supabase
+    .from("inventory_items")
+    .update({ quantity_remaining: 0 })
+    .eq("id", inventoryItemId)
+  if (invErr) {
+    console.error("[validateAndDeleteInventoryBatch] inventory_items update:", invErr.message)
+    return { ok: false, usedCount: 0 }
+  }
+
   return { ok: true }
 }
 
