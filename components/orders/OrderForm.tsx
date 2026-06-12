@@ -157,8 +157,7 @@ export function OrderForm({ flowers, initialData }: Props) {
       if (isEdit && initialData) {
         const result = await updateOrder(initialData.id, payload)
         if (result.error) { setError(result.error); return }
-        router.push(`/orders/${initialData.id}`)
-        router.refresh()
+        router.push("/orders")
       } else {
         const result = await createOrder(payload)
         if (result.error) { setError(result.error); return }
