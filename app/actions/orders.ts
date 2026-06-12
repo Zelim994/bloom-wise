@@ -453,6 +453,24 @@ export async function updateOrder(
   return {}
 }
 
+export async function updateOrderPaymentStatus(
+  id: string,
+  paymentStatus: "unpaid" | "partial" | "paid"
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const orgId = await getOrgId(supabase)
+  if (!orgId) return { error: "Не удалось определить организацию" }
+  const { error } = await supabase
+    .from("orders")
+    .update({ payment_status: paymentStatus })
+    .eq("id", id)
+    .eq("organization_id", orgId)
+  if (error) return { error: error.message }
+  revalidatePath("/orders")
+  revalidatePath(`/orders/${id}`)
+  return {}
+}
+
 export async function sendWhatsAppMessage(
   orderId: string,
   phone: string,
