@@ -9,8 +9,19 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     const supabase = await createClient()
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
+      if (data.user) {
+        const salonName =
+          (data.user.user_metadata?.salon_name as string | undefined) ?? "Мой салон"
+        const { error: rpcError } = await supabase.rpc("create_my_organization", {
+          p_org_name: salonName,
+        })
+        if (rpcError) {
+          console.error("[auth/callback] create_my_organization:", rpcError.message)
+        }
+      }
+
       // Prevent open redirect: only allow same-origin relative paths
       const safeNext =
         next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\")
