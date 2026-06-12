@@ -3,34 +3,12 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { Flower, FlowerVariety, FlowerColor, FlowerImage } from "@/lib/supabase/types"
+import { getOrgId } from "@/lib/services/organizationService"
 
 export type FlowerWithDetails = Flower & {
   primary_image_url: string | null
   varieties: Pick<FlowerVariety, "id" | "name" | "size">[]
   colors: Pick<FlowerColor, "id" | "name" | "hex_code">[]
-}
-
-async function getOrgId(): Promise<{ orgId: string | null; error?: string }> {
-  const supabase = await createClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) return { orgId: null, error: "Не авторизован" }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("organization_id")
-    .eq("id", user.id)
-    .single()
-
-  const orgId = profile?.organization_id
-  if (orgId) return { orgId }
-
-  const salonName: string = user.user_metadata?.salon_name ?? "Мой салон"
-  const { data: newOrgId, error: rpcErr } = await supabase.rpc(
-    "create_my_organization",
-    { p_org_name: salonName }
-  )
-  if (rpcErr) return { orgId: null, error: "Не удалось создать организацию: " + rpcErr.message }
-  return { orgId: newOrgId ?? null }
 }
 
 export async function getCatalogFlowers(): Promise<FlowerWithDetails[]> {
@@ -128,10 +106,9 @@ export async function upsertFlower(formData: {
   varieties?: { name: string; size?: string }[]
   colors?: { name: string; hex_code?: string }[]
 }): Promise<{ error?: string; id?: string }> {
-  const { orgId, error: orgError } = await getOrgId()
-  if (!orgId) return { error: orgError ?? "Организация не найдена" }
-
   const supabase = await createClient()
+  const orgId = await getOrgId(supabase)
+  if (!orgId) return { error: "Не удалось определить организацию" }
 
   const basePayload = {
     name: formData.name,
