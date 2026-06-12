@@ -34,15 +34,44 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
   const [salePrice, setSalePrice] = useState(() =>
     initialSalePrice ? String(initialSalePrice) : ""
   )
+  // true when user has explicitly typed a price — prevents auto-suggest from overwriting
+  const [userEditedPrice, setUserEditedPrice] = useState(() => !!initialSalePrice)
   const [activeTab, setActiveTab] = useState<Tab>("stock")
 
   const costPrice = useMemo(
     () => items.reduce((s, i) => s + i.quantity * i.unit_cost, 0),
     [items]
   )
+
+  // Suggested sale price: sum of flower.sale_price × quantity for all items
+  const suggestedSalePrice = useMemo(
+    () => items.reduce((sum, item) => {
+      const f = flowers.find((fl) => fl.id === item.flower_id)
+      return sum + item.quantity * (f?.sale_price ?? 0)
+    }, 0),
+    [items, flowers]
+  )
+
+  const hasMissingPrices = useMemo(
+    () => items.length > 0 && items.some((item) => {
+      const f = flowers.find((fl) => fl.id === item.flower_id)
+      return !f?.sale_price
+    }),
+    [items, flowers]
+  )
+
   const salePriceNum = Number(salePrice) || 0
   const profit = salePriceNum - costPrice
   const margin = salePriceNum > 0 ? (profit / salePriceNum) * 100 : 0
+
+  // Compute suggested price string from a given items array (used inside handlers)
+  function computeSuggested(nextItems: BouquetItem[]): string {
+    const total = nextItems.reduce((sum, item) => {
+      const f = flowers.find((fl) => fl.id === item.flower_id)
+      return sum + item.quantity * (f?.sale_price ?? 0)
+    }, 0)
+    return total > 0 ? String(total) : ""
+  }
 
   const notify = useCallback(
     (nextItems: BouquetItem[], nextSalePrice: string) => {
@@ -87,7 +116,13 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
               current_stock: flower.current_stock,
             },
           ]
-      notify(next, salePrice)
+      if (!userEditedPrice) {
+        const sp = computeSuggested(next)
+        setSalePrice(sp)
+        notify(next, sp)
+      } else {
+        notify(next, salePrice)
+      }
       return next
     })
   }
@@ -99,7 +134,13 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
     }
     setItems((prev) => {
       const next = prev.map((i) => (i._id === id ? { ...i, quantity: qty } : i))
-      notify(next, salePrice)
+      if (!userEditedPrice) {
+        const sp = computeSuggested(next)
+        setSalePrice(sp)
+        notify(next, sp)
+      } else {
+        notify(next, salePrice)
+      }
       return next
     })
   }
@@ -107,14 +148,29 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
   function handleRemove(id: string) {
     setItems((prev) => {
       const next = prev.filter((i) => i._id !== id)
-      notify(next, salePrice)
+      if (!userEditedPrice) {
+        const sp = computeSuggested(next)
+        setSalePrice(sp)
+        notify(next, sp)
+      } else {
+        notify(next, salePrice)
+      }
       return next
     })
   }
 
   function handleSalePriceChange(v: string) {
-    setSalePrice(v)
-    notify(items, v)
+    if (v === "") {
+      // User cleared the field — re-enable auto-suggest
+      setUserEditedPrice(false)
+      const sp = computeSuggested(items)
+      setSalePrice(sp)
+      notify(items, sp)
+    } else {
+      setUserEditedPrice(true)
+      setSalePrice(v)
+      notify(items, v)
+    }
   }
 
   const tabs: { key: Tab; label: string; badge?: number }[] = [
@@ -184,6 +240,8 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
             profit={profit}
             margin={margin}
             itemCount={items.length}
+            suggestedSalePrice={suggestedSalePrice}
+            hasMissingPrices={hasMissingPrices}
             onChange={handleSalePriceChange}
           />
         </div>

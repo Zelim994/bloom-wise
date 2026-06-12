@@ -10,10 +10,12 @@ interface Props {
   profit: number
   margin: number
   itemCount: number
+  suggestedSalePrice?: number
+  hasMissingPrices?: boolean
   onChange: (v: string) => void
 }
 
-export function FinancePanel({ costPrice, salePrice, profit, margin, itemCount, onChange }: Props) {
+export function FinancePanel({ costPrice, salePrice, profit, margin, itemCount, suggestedSalePrice, hasMissingPrices, onChange }: Props) {
   const salePriceNum = Number(salePrice) || 0
   const hasData = costPrice > 0 || salePriceNum > 0
 
@@ -51,6 +53,16 @@ export function FinancePanel({ costPrice, salePrice, profit, margin, itemCount, 
             placeholder="0"
             className="border-zinc-200 h-10 text-base font-semibold tabular-nums bg-white"
           />
+          {suggestedSalePrice != null && suggestedSalePrice > 0 && (
+            <p className="text-xs text-zinc-400">
+              Рекомендуемая: ₽{suggestedSalePrice.toLocaleString("ru", { maximumFractionDigits: 0 })}
+            </p>
+          )}
+          {hasMissingPrices && (
+            <p className="text-xs text-amber-500">
+              У части позиций не указана продажная цена
+            </p>
+          )}
         </div>
 
         {/* Profit block */}
