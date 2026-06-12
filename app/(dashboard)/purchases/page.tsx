@@ -65,12 +65,12 @@ export default async function PurchasesPage() {
               {purchases.map((p, i) => (
                 <tr
                   key={p.id}
-                  className={`border-b border-zinc-50 transition-colors group ${
+                  className={`border-b border-zinc-50 transition-colors group cursor-pointer ${
                     i === purchases.length - 1 ? "border-0" : ""
                   }`}
                 >
-                  <td className="px-4 py-3 text-zinc-500 tabular-nums">
-                    <Link href={`/purchases/${p.id}`} className="block group-hover:text-rose-600 transition-colors">
+                  <td className="p-0 text-zinc-500 tabular-nums">
+                    <Link href={`/purchases/${p.id}`} className="block px-4 py-3 group-hover:text-rose-600 transition-colors">
                       {new Date(p.purchase_date).toLocaleDateString("ru", {
                         day: "numeric",
                         month: "short",
@@ -78,32 +78,32 @@ export default async function PurchasesPage() {
                       })}
                     </Link>
                   </td>
-                  <td className="px-4 py-3">
-                    <Link href={`/purchases/${p.id}`} className="block font-medium text-zinc-800 group-hover:text-rose-600 transition-colors">
+                  <td className="p-0">
+                    <Link href={`/purchases/${p.id}`} className="block px-4 py-3 font-medium text-zinc-800 group-hover:text-rose-600 transition-colors">
                       {p.suppliers?.name ?? <span className="text-zinc-400 font-normal italic">Без поставщика</span>}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-zinc-400 text-xs hidden md:table-cell max-w-[200px] truncate">
-                    <Link href={`/purchases/${p.id}`} className="block">
+                  <td className="p-0 text-zinc-400 text-xs hidden md:table-cell max-w-[200px] truncate">
+                    <Link href={`/purchases/${p.id}`} className="block px-4 py-3">
                       {p.comment ?? "—"}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link href={`/purchases/${p.id}`} className="block font-semibold text-zinc-800 tabular-nums group-hover:text-rose-600 transition-colors">
+                  <td className="p-0 text-right">
+                    <Link href={`/purchases/${p.id}`} className="block px-4 py-3 font-semibold text-zinc-800 tabular-nums group-hover:text-rose-600 transition-colors">
                       {p.total_amount != null
                         ? `₽ ${p.total_amount.toLocaleString("ru", { maximumFractionDigits: 0 })}`
                         : "—"}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-right hidden sm:table-cell">
-                    <Link href={`/purchases/${p.id}`} className="block">
+                  <td className="p-0 text-right hidden sm:table-cell">
+                    <Link href={`/purchases/${p.id}`} className="block px-4 py-3">
                       <Badge className="bg-emerald-100 text-emerald-700 border-0 text-xs rounded-md">
                         Проведена
                       </Badge>
                     </Link>
                   </td>
-                  <td className="px-3 py-3 text-zinc-300 group-hover:text-rose-400 transition-colors">
-                    <Link href={`/purchases/${p.id}`}>
+                  <td className="p-0">
+                    <Link href={`/purchases/${p.id}`} className="flex items-center justify-center px-3 py-3 text-zinc-300 group-hover:text-rose-400 transition-colors">
                       <ChevronRight className="h-4 w-4" />
                     </Link>
                   </td>

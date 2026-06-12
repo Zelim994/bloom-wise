@@ -7,9 +7,10 @@ import { getPurchaseDetail } from "@/app/actions/purchases"
 export default async function PurchaseDetailPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
-  const detail = await getPurchaseDetail(params.id)
+  const { id } = await params
+  const detail = await getPurchaseDetail(id)
   if (!detail) redirect("/purchases")
 
   const totalGoods = detail.items.reduce(
@@ -184,7 +185,6 @@ export default async function PurchaseDetailPage({
                       {item.flower_id && (
                         <Link
                           href={`/inventory/${item.flower_id}`}
-                          onClick={(e) => e.stopPropagation()}
                           title="Открыть карточку товара"
                           className="flex items-center justify-center h-7 w-7 rounded-lg border border-zinc-200 text-zinc-400 hover:border-rose-300 hover:text-rose-500 hover:bg-rose-50 transition-all"
                         >

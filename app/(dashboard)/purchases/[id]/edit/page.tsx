@@ -5,10 +5,11 @@ import { EditPurchaseForm } from "@/components/purchases/EditPurchaseForm"
 export default async function EditPurchasePage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
+  const { id } = await params
   const [purchase, suppliers] = await Promise.all([
-    getPurchaseDetail(params.id),
+    getPurchaseDetail(id),
     getSuppliers(),
   ])
 
