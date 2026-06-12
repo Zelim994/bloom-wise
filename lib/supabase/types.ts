@@ -544,6 +544,7 @@ export type Database = {
           name: string
           organization_id: string
           sale_price: number | null
+          sku: string | null
           unit: string
           updated_at: string | null
         }
@@ -559,6 +560,7 @@ export type Database = {
           name: string
           organization_id: string
           sale_price?: number | null
+          sku?: string | null
           unit?: string
           updated_at?: string | null
         }
@@ -574,6 +576,7 @@ export type Database = {
           name?: string
           organization_id?: string
           sale_price?: number | null
+          sku?: string | null
           unit?: string
           updated_at?: string | null
         }

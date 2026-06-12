@@ -263,6 +263,9 @@ export function CatalogGrid({ flowers }: Props) {
                       </td>
                       <td className="px-4 py-2.5">
                         <p className="font-medium text-zinc-800 truncate max-w-[200px]">{f.name}</p>
+                        {f.sku && (
+                          <p className="text-xs text-zinc-400 font-mono mt-0.5">{f.sku}</p>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 hidden sm:table-cell">
                         <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${colors.bg} ${colors.text}`}>

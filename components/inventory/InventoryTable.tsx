@@ -175,6 +175,9 @@ export function InventoryTable({ flowers }: Props) {
                       <span className="font-medium text-zinc-800 group-hover:text-rose-600 transition-colors">
                         {f.name}
                       </span>
+                      {f.sku && (
+                        <p className="text-xs text-zinc-400 font-mono mt-0.5">{f.sku}</p>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-zinc-500 text-xs hidden sm:table-cell">
                       {f.category}

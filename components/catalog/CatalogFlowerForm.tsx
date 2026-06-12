@@ -44,6 +44,7 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
     name: "",
     category: "Срезка",
     unit: "шт",
+    sku: "",
     description: "",
     florist_comment: "",
   })
@@ -71,13 +72,14 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
         name: flower.name,
         category: flower.category,
         unit: flower.unit,
+        sku: flower.sku ?? "",
         description: flower.description ?? "",
         florist_comment: flower.florist_comment ?? "",
       })
       setVarieties(flower.varieties.map((v) => ({ id: v.id, name: v.name, size: v.size ?? "" })))
       setColors(flower.colors.map((c) => ({ id: c.id, name: c.name, hex_code: c.hex_code ?? "" })))
     } else {
-      setForm({ name: "", category: "Срезка", unit: "шт", description: "", florist_comment: "" })
+      setForm({ name: "", category: "Срезка", unit: "шт", sku: "", description: "", florist_comment: "" })
       setVarieties([])
       setColors([])
     }
@@ -120,6 +122,7 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
         name: form.name,
         category: form.category,
         unit: form.unit,
+        sku: form.sku || undefined,
         description: form.description || undefined,
         florist_comment: form.florist_comment || undefined,
       })
@@ -298,6 +301,20 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
                   required
                   className="border-zinc-200 h-10"
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
+                  Артикул
+                </Label>
+                <Input
+                  {...field("sku")}
+                  placeholder="FLW-000001"
+                  className="border-zinc-200 h-10 font-mono text-sm"
+                />
+                <p className="text-xs text-zinc-400">
+                  Если оставить пустым, код будет создан автоматически
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

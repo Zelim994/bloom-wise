@@ -88,11 +88,39 @@ export async function getFlowerById(id: string): Promise<FlowerWithDetails | nul
   }
 }
 
+function normalizeSku(sku: string): string {
+  return sku.trim().toUpperCase()
+}
+
+async function generateSku(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string
+): Promise<string> {
+  const { data } = await supabase
+    .from("flowers")
+    .select("sku")
+    .eq("organization_id", orgId)
+    .like("sku", "FLW-%")
+
+  const SKU_RE = /^FLW-(\d{6})$/
+  let maxNum = 0
+  for (const row of data ?? []) {
+    if (!row.sku) continue
+    const match = row.sku.match(SKU_RE)
+    if (match) {
+      const num = parseInt(match[1], 10)
+      if (num > maxNum) maxNum = num
+    }
+  }
+  return `FLW-${String(maxNum + 1).padStart(6, "0")}`
+}
+
 export async function upsertFlower(formData: {
   id?: string
   name: string
   category: string
   unit: string
+  sku?: string
   description?: string
   florist_comment?: string
   min_stock?: number
@@ -105,7 +133,7 @@ export async function upsertFlower(formData: {
 
   const supabase = await createClient()
 
-  const payload = {
+  const basePayload = {
     name: formData.name,
     category: formData.category,
     unit: formData.unit,
@@ -118,15 +146,29 @@ export async function upsertFlower(formData: {
   let flowerId = formData.id
 
   if (flowerId) {
-    const { error } = await supabase.from("flowers").update(payload).eq("id", flowerId)
-    if (error) return { error: error.message }
+    // Редактирование: обновляем sku только если пользователь ввёл значение
+    const updatePayload: typeof basePayload & { sku?: string } = { ...basePayload }
+    if (formData.sku?.trim()) updatePayload.sku = normalizeSku(formData.sku)
+
+    const { error } = await supabase.from("flowers").update(updatePayload).eq("id", flowerId)
+    if (error) {
+      if (error.code === "23505") return { error: "Такой артикул уже существует" }
+      return { error: error.message }
+    }
   } else {
+    // Создание: используем введённый sku или генерируем автоматически
+    const sku = formData.sku?.trim() ? normalizeSku(formData.sku) : await generateSku(supabase, orgId)
+
     const { data, error } = await supabase
       .from("flowers")
-      .insert({ ...payload, organization_id: orgId })
+      .insert({ ...basePayload, organization_id: orgId, sku })
       .select("id")
       .single()
-    if (error || !data) return { error: error?.message ?? "Ошибка создания" }
+    if (error) {
+      if (error.code === "23505") return { error: "Такой артикул уже существует" }
+      return { error: error.message ?? "Ошибка создания" }
+    }
+    if (!data) return { error: "Ошибка создания" }
     flowerId = data.id
   }
 
