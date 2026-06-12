@@ -454,15 +454,14 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
               </div>
             </div>
 
-            {error && (
-              <div className="px-6 pb-4">
-                <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-100">
-                  {error}
-                </p>
-              </div>
-            )}
           </form>
         </div>
+
+        {error && (
+          <div className="px-6 py-3 border-t border-red-100 bg-red-50">
+            <p className="text-sm text-red-600">{error}</p>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="border-t border-zinc-100 px-6 py-4 flex items-center gap-2">
