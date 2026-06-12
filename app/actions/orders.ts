@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { Order, Customer } from "@/lib/supabase/types"
 import { getOrgId } from "@/lib/services/organizationService"
+import { buildOrderStockPlan, writeOffOrderStockViaRpc } from "@/lib/services/orderStockService"
 
 export type BouquetItemForEdit = {
   flower_id: string
@@ -503,4 +504,52 @@ export async function updateOrderPayment(
   if (error) return { error: error.message }
   revalidatePath(`/orders/${id}`)
   return {}
+}
+
+export async function writeOffOrderStock(
+  orderId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!orderId) return { ok: false, error: "orderId не может быть пустым" }
+
+  const supabase = await createClient()
+  const orgId = await getOrgId(supabase)
+  if (!orgId) return { ok: false, error: "Организация не найдена" }
+
+  // Verify order exists, belongs to org, is not cancelled, not already written off
+  const { data: order } = await supabase
+    .from("orders")
+    .select("id, status, stock_written_off")
+    .eq("id", orderId)
+    .eq("organization_id", orgId)
+    .single()
+
+  if (!order) return { ok: false, error: "Заказ не найден" }
+  if (order.status === "cancelled") return { ok: false, error: "Нельзя списать склад по отменённому заказу" }
+  if (order.stock_written_off) return { ok: false, error: "Склад уже списан по этому заказу" }
+
+  // Fetch all bouquet items for this order (order may have multiple bouquets)
+  const { data: bouquets, error: bouquetError } = await supabase
+    .from("bouquets")
+    .select("id, bouquet_items(flower_id, quantity)")
+    .eq("order_id", orderId)
+
+  if (bouquetError) return { ok: false, error: bouquetError.message }
+
+  const items = (bouquets ?? []).flatMap(
+    (b) => (b.bouquet_items ?? []) as Array<{ flower_id: string; quantity: number }>
+  )
+  if (items.length === 0) return { ok: false, error: "В заказе нет цветов для списания" }
+
+  // Build FIFO allocation plan
+  const planItems = items.map((i) => ({ flower_id: i.flower_id, quantity: i.quantity }))
+  const plan = await buildOrderStockPlan(supabase, orgId, planItems)
+  if (!plan.ok) return { ok: false, error: plan.error }
+
+  // Execute atomic write-off via RPC
+  const result = await writeOffOrderStockViaRpc(supabase, orderId, plan.allocations)
+  if (!result.ok) return { ok: false, error: result.error }
+
+  revalidatePath("/orders")
+  revalidatePath(`/orders/${orderId}`)
+  return { ok: true }
 }
