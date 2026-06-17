@@ -1,8 +1,8 @@
 "use client"
 
-import { useTransition } from "react"
+import { useTransition, useState } from "react"
 import { useRouter } from "next/navigation"
-import { updateOrderStatus, updateOrderPayment } from "@/app/actions/orders"
+import { updateOrderStatus, updateOrderPayment, cancelOrder } from "@/app/actions/orders"
 
 type Status = "new" | "in_progress" | "ready" | "delivered" | "cancelled"
 
@@ -33,6 +33,7 @@ interface Props {
 export function OrderStatusActions({ orderId, status, totalAmount, paidAmount, paymentMethod }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
 
   const transition = STATUS_TRANSITIONS[status]
 
@@ -47,7 +48,12 @@ export function OrderStatusActions({ orderId, status, totalAmount, paidAmount, p
   function cancel() {
     if (!confirm("Отменить заказ?")) return
     startTransition(async () => {
-      await updateOrderStatus(orderId, "cancelled")
+      const result = await cancelOrder(orderId)
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+      setError(null)
       router.refresh()
     })
   }
@@ -66,6 +72,8 @@ export function OrderStatusActions({ orderId, status, totalAmount, paidAmount, p
   const canMarkPaid = paidAmount < totalAmount && totalAmount > 0
 
   return (
+    <div className="flex flex-col gap-2">
+      {error && <p className="text-sm text-red-600">{error}</p>}
     <div className="flex flex-wrap gap-2">
       {transition.next && (
         <button
@@ -94,6 +102,7 @@ export function OrderStatusActions({ orderId, status, totalAmount, paidAmount, p
           Отменить
         </button>
       )}
+    </div>
     </div>
   )
 }
