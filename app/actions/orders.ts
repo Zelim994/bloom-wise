@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { Order, Customer } from "@/lib/supabase/types"
 import { getOrgId } from "@/lib/services/organizationService"
-import { buildOrderStockPlan, writeOffOrderStockViaRpc } from "@/lib/services/orderStockService"
+import { buildOrderStockPlan, writeOffOrderStockViaRpc, returnOrderStockViaRpc } from "@/lib/services/orderStockService"
 
 export type BouquetItemForEdit = {
   flower_id: string
@@ -548,6 +548,56 @@ export async function writeOffOrderStock(
   // Execute atomic write-off via RPC
   const result = await writeOffOrderStockViaRpc(supabase, orderId, plan.allocations)
   if (!result.ok) return { ok: false, error: result.error }
+
+  revalidatePath("/orders")
+  revalidatePath(`/orders/${orderId}`)
+  return { ok: true }
+}
+
+export async function cancelOrder(
+  orderId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!orderId) return { ok: false, error: "orderId не может быть пустым" }
+
+  const supabase = await createClient()
+  const orgId = await getOrgId(supabase)
+  if (!orgId) return { ok: false, error: "Организация не найдена" }
+
+  const { data: order } = await supabase
+    .from("orders")
+    .select("status, stock_written_off, stock_returned, paid_amount")
+    .eq("id", orderId)
+    .eq("organization_id", orgId)
+    .single()
+
+  if (!order) return { ok: false, error: "Заказ не найден" }
+
+  if (order.status === "cancelled") {
+    if (order.stock_written_off && !order.stock_returned) {
+      const result = await returnOrderStockViaRpc(supabase, orderId)
+      if (!result.ok) return { ok: false, error: result.error }
+      revalidatePath("/orders")
+      revalidatePath(`/orders/${orderId}`)
+      return { ok: true }
+    }
+    return { ok: false, error: "Заказ уже отменён" }
+  }
+
+  if (order.stock_written_off) {
+    const result = await returnOrderStockViaRpc(supabase, orderId)
+    if (!result.ok) return { ok: false, error: result.error }
+    revalidatePath("/orders")
+    revalidatePath(`/orders/${orderId}`)
+    return { ok: true }
+  }
+
+  const { error } = await supabase
+    .from("orders")
+    .update({ status: "cancelled" })
+    .eq("id", orderId)
+    .eq("organization_id", orgId)
+
+  if (error) return { ok: false, error: error.message }
 
   revalidatePath("/orders")
   revalidatePath(`/orders/${orderId}`)
