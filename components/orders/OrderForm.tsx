@@ -46,6 +46,7 @@ export function OrderForm({ flowers, initialData }: Props) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState("")
   const isEdit = !!initialData
+  const isCancelled = isEdit && initialData?.status === "cancelled"
 
   const [customerPhone, setCustomerPhone] = useState(initialData?.customers?.phone ?? "")
   const [customerName, setCustomerName] = useState(initialData?.customers?.full_name ?? "")
@@ -177,6 +178,12 @@ export function OrderForm({ flowers, initialData }: Props) {
         <ArrowLeft className="h-4 w-4" />
         Назад к заказам
       </button>
+
+      {isCancelled && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          Заказ отменён. Редактирование недоступно.
+        </div>
+      )}
 
       {/* Клиент + Детали */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -474,8 +481,8 @@ export function OrderForm({ flowers, initialData }: Props) {
       <div className="flex items-center gap-3 pt-1">
         <Button
           type="submit"
-          disabled={isPending}
-          className="bg-rose-500 hover:bg-rose-600 text-white h-10 px-6"
+          disabled={isPending || isCancelled}
+          className="bg-rose-500 hover:bg-rose-600 text-white h-10 px-6 disabled:opacity-50"
         >
           {isPending ? (isEdit ? "Сохраняем..." : "Создаём заказ...") : (isEdit ? "Сохранить изменения" : "Создать заказ")}
         </Button>
