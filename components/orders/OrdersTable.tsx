@@ -32,12 +32,20 @@ type Props = {
 }
 
 type StockFilter = "all" | "not_written_off" | "written_off" | "returned"
+type PaymentFilter = "all" | "unpaid" | "partial" | "paid"
 
 const STOCK_FILTERS: { key: StockFilter; label: string }[] = [
-  { key: "all",            label: "Все" },
+  { key: "all",             label: "Все" },
   { key: "not_written_off", label: "Не списан" },
-  { key: "written_off",    label: "Списан" },
-  { key: "returned",       label: "Возвращён" },
+  { key: "written_off",     label: "Списан" },
+  { key: "returned",        label: "Возвращён" },
+]
+
+const PAYMENT_FILTERS: { key: PaymentFilter; label: string }[] = [
+  { key: "all",     label: "Все оплаты" },
+  { key: "unpaid",  label: "Не оплачено" },
+  { key: "partial", label: "Частично" },
+  { key: "paid",    label: "Оплачено" },
 ]
 
 function getStockKey(o: OrderWithCustomer): StockFilter {
@@ -49,6 +57,7 @@ function getStockKey(o: OrderWithCustomer): StockFilter {
 export function OrdersTable({ orders, activeStatus }: Props) {
   const [search, setSearch] = useState("")
   const [stockFilter, setStockFilter] = useState<StockFilter>("all")
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all")
 
   const q = search.trim().toLowerCase()
   const filtered = orders.filter((o) => {
@@ -60,12 +69,14 @@ export function OrdersTable({ orders, activeStatus }: Props) {
       if (!matchText) return false
     }
     if (stockFilter !== "all" && getStockKey(o) !== stockFilter) return false
+    if (paymentFilter !== "all" && (o.payment_status ?? "unpaid") !== paymentFilter) return false
     return true
   })
 
   return (
     <div className="space-y-3">
-      {/* Search + stock filter */}
+      {/* Search + filters */}
+      <div className="flex flex-col gap-2">
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
@@ -92,6 +103,24 @@ export function OrdersTable({ orders, activeStatus }: Props) {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Payment filter */}
+      <div className="flex gap-1 flex-wrap">
+        {PAYMENT_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setPaymentFilter(f.key)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+              paymentFilter === f.key
+                ? "bg-zinc-900 text-white"
+                : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100 border border-zinc-200"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
       </div>
 
       {/* Table */}
