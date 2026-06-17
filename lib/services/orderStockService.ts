@@ -60,6 +60,22 @@ export async function buildOrderStockPlan(
   return { ok: true, allocations }
 }
 
+// Calls the return_order_stock RPC.
+// All actual DB writes happen atomically inside the PostgreSQL function.
+export async function returnOrderStockViaRpc(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orderId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!orderId) return { ok: false, error: "orderId не может быть пустым" }
+
+  const { error } = await supabase.rpc("return_order_stock", {
+    p_order_id: orderId,
+  })
+
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
 // Calls the write_off_order_stock RPC.
 // All actual DB writes happen atomically inside the PostgreSQL function.
 export async function writeOffOrderStockViaRpc(
