@@ -92,6 +92,7 @@ export default async function OrderDetailPage({
       <OrderStockWriteOff
         orderId={order.id}
         stockWrittenOff={order.stock_written_off}
+        stockReturned={order.stock_returned}
         status={order.status}
       />
 
