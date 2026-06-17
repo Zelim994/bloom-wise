@@ -18,7 +18,7 @@ const STATUS_TRANSITIONS: Record<Status, { next?: Status; nextLabel?: string; ca
   new: { next: "in_progress", nextLabel: "Взять в работу", canCancel: true },
   in_progress: { next: "ready", nextLabel: "Готов к выдаче", canCancel: true },
   ready: { next: "delivered", nextLabel: "Выдан клиенту", canCancel: true },
-  delivered: { canCancel: false },
+  delivered: { canCancel: true },
   cancelled: { canCancel: false },
 }
 
