@@ -31,30 +31,67 @@ type Props = {
   activeStatus: string
 }
 
+type StockFilter = "all" | "not_written_off" | "written_off" | "returned"
+
+const STOCK_FILTERS: { key: StockFilter; label: string }[] = [
+  { key: "all",            label: "Все" },
+  { key: "not_written_off", label: "Не списан" },
+  { key: "written_off",    label: "Списан" },
+  { key: "returned",       label: "Возвращён" },
+]
+
+function getStockKey(o: OrderWithCustomer): StockFilter {
+  if (o.stock_written_off && o.stock_returned) return "returned"
+  if (o.stock_written_off) return "written_off"
+  return "not_written_off"
+}
+
 export function OrdersTable({ orders, activeStatus }: Props) {
   const [search, setSearch] = useState("")
+  const [stockFilter, setStockFilter] = useState<StockFilter>("all")
 
   const q = search.trim().toLowerCase()
-  const filtered = q
-    ? orders.filter((o) =>
+  const filtered = orders.filter((o) => {
+    if (q) {
+      const matchText =
         (o.order_number ?? "").toLowerCase().includes(q) ||
         (o.customers?.full_name ?? "").toLowerCase().includes(q) ||
         (o.customers?.phone ?? "").includes(q)
-      )
-    : orders
+      if (!matchText) return false
+    }
+    if (stockFilter !== "all" && getStockKey(o) !== stockFilter) return false
+    return true
+  })
 
   return (
     <div className="space-y-3">
-      {/* Search input */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Поиск по номеру, имени или телефону"
-          className="w-full pl-9 pr-4 py-2 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent placeholder:text-zinc-400"
-        />
+      {/* Search + stock filter */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск по номеру, имени или телефону"
+            className="w-full pl-9 pr-4 py-2 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent placeholder:text-zinc-400"
+          />
+        </div>
+        <div className="flex gap-1">
+          {STOCK_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setStockFilter(f.key)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                stockFilter === f.key
+                  ? "bg-zinc-900 text-white"
+                  : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100 border border-zinc-200"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Table */}
