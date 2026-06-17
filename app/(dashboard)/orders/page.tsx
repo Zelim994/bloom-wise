@@ -124,6 +124,12 @@ export default async function OrdersPage({
                         {order.customers?.phone && (
                           <p className="text-xs text-zinc-400 mt-0.5">{order.customers.phone}</p>
                         )}
+                        <div className="mt-1 xl:hidden">
+                          <OrderStockBadge
+                            stockWrittenOff={order.stock_written_off}
+                            stockReturned={order.stock_returned}
+                          />
+                        </div>
                       </Link>
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
