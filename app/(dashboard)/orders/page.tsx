@@ -1,6 +1,9 @@
 import Link from "next/link"
 import { Plus, ClipboardList } from "lucide-react"
 import { getOrders } from "@/app/actions/orders"
+import { OrderStatusTabs } from "@/components/orders/OrderStatusTabs"
+
+const VALID_STATUSES = ["new", "in_progress", "ready", "delivered", "cancelled"]
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   new: { label: "Новый", className: "bg-blue-100 text-blue-700" },
@@ -22,11 +25,26 @@ const typeIcons: Record<string, string> = {
   event: "🎉",
 }
 
-export default async function OrdersPage() {
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>
+}) {
+  const { status: rawStatus } = await searchParams
+  const activeStatus = VALID_STATUSES.includes(rawStatus ?? "") ? (rawStatus as string) : "all"
+
   const orders = await getOrders()
 
-  const active = orders.filter((o) => !["delivered", "cancelled"].includes(o.status))
-  const done = orders.filter((o) => ["delivered", "cancelled"].includes(o.status))
+  // Count per status (for tab badges)
+  const counts: Record<string, number> = {}
+  for (const o of orders) {
+    counts[o.status] = (counts[o.status] ?? 0) + 1
+  }
+
+  // Filter for display
+  const displayed = activeStatus === "all" ? orders : orders.filter((o) => o.status === activeStatus)
+
+  const activeCount = orders.filter((o) => !["delivered", "cancelled"].includes(o.status)).length
 
   return (
     <div className="space-y-5">
@@ -34,7 +52,7 @@ export default async function OrdersPage() {
         <div>
           <h1 className="text-xl font-semibold text-zinc-900">Заказы</h1>
           <p className="text-sm text-zinc-500 mt-0.5">
-            {active.length > 0 ? `${active.length} активных` : "Нет активных заказов"}
+            {activeCount > 0 ? `${activeCount} активных` : "Нет активных заказов"}
           </p>
         </div>
         <Link
@@ -46,19 +64,25 @@ export default async function OrdersPage() {
         </Link>
       </div>
 
+      <OrderStatusTabs activeStatus={activeStatus} counts={counts} />
+
       <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
-        {orders.length === 0 ? (
+        {displayed.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <ClipboardList className="h-10 w-10 text-zinc-200 mb-3" />
             <p className="text-sm font-medium text-zinc-500">Нет заказов</p>
-            <p className="text-xs text-zinc-400 mt-1">Создайте первый заказ</p>
-            <Link
-              href="/orders/new"
-              className="mt-4 flex items-center gap-1.5 bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-3.5 py-2 rounded-lg transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              Новый заказ
-            </Link>
+            {activeStatus === "all" && (
+              <>
+                <p className="text-xs text-zinc-400 mt-1">Создайте первый заказ</p>
+                <Link
+                  href="/orders/new"
+                  className="mt-4 flex items-center gap-1.5 bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-3.5 py-2 rounded-lg transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  Новый заказ
+                </Link>
+              </>
+            )}
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -74,10 +98,10 @@ export default async function OrdersPage() {
               </tr>
             </thead>
             <tbody>
-              {orders.map((order, i) => {
+              {displayed.map((order, i) => {
                 const status = statusConfig[order.status] ?? { label: order.status, className: "bg-zinc-100 text-zinc-500" }
                 const payment = paymentStatusConfig[order.payment_status ?? "unpaid"]
-                const isLast = i === orders.length - 1
+                const isLast = i === displayed.length - 1
                 const isDimmed = order.status === "delivered" || order.status === "cancelled"
 
                 return (
