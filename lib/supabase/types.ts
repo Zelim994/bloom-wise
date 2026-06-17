@@ -818,6 +818,7 @@ export type Database = {
           profit: number | null
           ready_at: string | null
           status: string
+          stock_returned: boolean
           stock_written_off: boolean
           subtotal: number | null
           total_amount: number | null
@@ -848,6 +849,7 @@ export type Database = {
           profit?: number | null
           ready_at?: string | null
           status?: string
+          stock_returned?: boolean
           stock_written_off?: boolean
           subtotal?: number | null
           total_amount?: number | null
@@ -878,6 +880,7 @@ export type Database = {
           profit?: number | null
           ready_at?: string | null
           status?: string
+          stock_returned?: boolean
           stock_written_off?: boolean
           subtotal?: number | null
           total_amount?: number | null
@@ -1842,6 +1845,12 @@ export type Database = {
         Args: {
           p_order_id: string
           p_allocations: Json
+        }
+        Returns: Json
+      }
+      return_order_stock: {
+        Args: {
+          p_order_id: string
         }
         Returns: Json
       }
