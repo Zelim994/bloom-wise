@@ -2,6 +2,7 @@ import Link from "next/link"
 import { Plus, ClipboardList } from "lucide-react"
 import { getOrders } from "@/app/actions/orders"
 import { OrderStatusTabs } from "@/components/orders/OrderStatusTabs"
+import { OrderStockBadge } from "@/components/orders/OrderStockBadge"
 
 const VALID_STATUSES = ["new", "in_progress", "ready", "delivered", "cancelled"]
 
@@ -94,6 +95,7 @@ export default async function OrdersPage({
                 <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wide hidden lg:table-cell">Готов к</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide">Сумма</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide hidden sm:table-cell">Оплата</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide hidden xl:table-cell">Склад</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide">Статус</th>
               </tr>
             </thead>
@@ -148,6 +150,12 @@ export default async function OrdersPage({
                       <span className={`text-xs font-medium ${payment?.className ?? "text-zinc-400"}`}>
                         {payment?.label ?? "—"}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-right hidden xl:table-cell">
+                      <OrderStockBadge
+                        stockWrittenOff={order.stock_written_off}
+                        stockReturned={order.stock_returned}
+                      />
                     </td>
                     <td className="px-4 py-3 text-right">
                       <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${status.className}`}>
