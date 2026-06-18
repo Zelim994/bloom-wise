@@ -98,7 +98,11 @@ export function OrdersTable({ orders, activeStatus, initialStockFilter, initialP
         (o.customers?.phone ?? "").includes(q)
       if (!matchText) return false
     }
-    if (stockFilter !== "all" && getStockKey(o) !== stockFilter) return false
+    if (stockFilter !== "all") {
+      if (getStockKey(o) !== stockFilter) return false
+      // Отменённый заказ без списания — чистая отмена, действий не требует
+      if (stockFilter === "not_written_off" && o.status === "cancelled") return false
+    }
     if (paymentFilter === "open") {
       const ps = o.payment_status ?? "unpaid"
       if (ps !== "unpaid" && ps !== "partial") return false
