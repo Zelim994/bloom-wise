@@ -12,7 +12,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { StatsCard, type StatItem } from "@/components/dashboard/StatsCard"
 import { UpcomingOrdersWidget, type UpcomingOrder } from "@/components/dashboard/UpcomingOrdersWidget"
-import { StockAlertsWidget, type StockAlert } from "@/components/dashboard/StockAlertsWidget"
+import { StockAttentionWidget } from "@/components/dashboard/StockAttentionWidget"
+import type { StockAlert } from "@/components/dashboard/StockAlertsWidget"
 import { OrdersAttentionWidget } from "@/components/dashboard/OrdersAttentionWidget"
 import { DashboardPeriodTabs } from "@/components/dashboard/DashboardPeriodTabs"
 import {
@@ -146,7 +147,7 @@ export default async function DashboardPage({
       }
     }
 
-    stockAlerts = [...outAlerts, ...lowAlerts, ...agingAlerts].slice(0, 6)
+    stockAlerts = [...outAlerts, ...lowAlerts, ...agingAlerts]
 
     // KPI карточки
     type KpiRow = { total_amount: number | null; profit: number | null }
@@ -275,7 +276,7 @@ export default async function DashboardPage({
             <UpcomingOrdersWidget orders={upcomingOrders} />
           </div>
           <div>
-            <StockAlertsWidget alerts={stockAlerts} />
+            <StockAttentionWidget alerts={stockAlerts} />
           </div>
         </div>
       </div>

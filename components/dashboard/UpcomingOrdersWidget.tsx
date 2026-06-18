@@ -45,18 +45,30 @@ const PAYMENT_LABEL: Record<string, { label: string; cls: string }> = {
 
 function pad(d: Date) { return d.toISOString().split("T")[0] }
 
-function fmtOrderTime(order: UpcomingOrder, todayStr: string, tomorrowStr: string): string {
-  const dateStr = order.ready_at ? order.ready_at.split("T")[0] : order.order_date
-  const time = order.ready_at
-    ? new Date(order.ready_at).toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" })
-    : null
+function fmtDate(dateStr: string, todayStr: string, tomorrowStr: string): string {
+  if (dateStr === todayStr)    return "Сегодня"
+  if (dateStr === tomorrowStr) return "Завтра"
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("ru", { day: "numeric", month: "short" })
+}
 
-  let datePart: string
-  if (dateStr === todayStr) datePart = "Сегодня"
-  else if (dateStr === tomorrowStr) datePart = "Завтра"
-  else datePart = new Date(dateStr + "T00:00:00").toLocaleDateString("ru", { day: "numeric", month: "short" })
+function getDateLines(
+  order: UpcomingOrder,
+  todayStr: string,
+  tomorrowStr: string,
+): { line1: string; line2?: string } {
+  if (!order.ready_at) {
+    return { line1: fmtDate(order.order_date, todayStr, tomorrowStr) }
+  }
+  const readyDateStr = order.ready_at.split("T")[0]
+  const readyTime = new Date(order.ready_at).toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" })
 
-  return time ? `${datePart} · ${time}` : datePart
+  if (readyDateStr === order.order_date) {
+    return { line1: `${fmtDate(order.order_date, todayStr, tomorrowStr)} · ${readyTime}` }
+  }
+  return {
+    line1: `Заказ: ${fmtDate(order.order_date, todayStr, tomorrowStr)}`,
+    line2: `Готовность: ${fmtDate(readyDateStr, todayStr, tomorrowStr)} · ${readyTime}`,
+  }
 }
 
 function stockLabel(o: UpcomingOrder): { label: string; cls: string } {
@@ -146,8 +158,19 @@ export function UpcomingOrdersWidget({ orders }: { orders: UpcomingOrder[] }) {
                       </span>
                     </div>
                     <p className="text-xs text-zinc-500 mt-0.5 truncate">
-                      {order.customer_name ?? "Без имени"} · {fmtOrderTime(order, todayStr, tomorrowStr)}
+                      {order.customer_name ?? "Без имени"}
                     </p>
+                    {(() => {
+                      const dl = getDateLines(order, todayStr, tomorrowStr)
+                      return (
+                        <>
+                          <p className="text-xs text-zinc-400 mt-0.5">{dl.line1}</p>
+                          {dl.line2 && (
+                            <p className="text-xs text-amber-500 mt-0">{dl.line2}</p>
+                          )}
+                        </>
+                      )
+                    })()}
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className={`text-[11px] ${pay.cls}`}>{pay.label}</span>
                       <span className="text-zinc-200 text-[11px]">·</span>
