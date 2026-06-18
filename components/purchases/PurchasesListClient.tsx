@@ -3,24 +3,56 @@
 import { useState, useMemo } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Search, Truck, ChevronRight, Plus, XCircle } from "lucide-react"
+import { Search, Truck, ChevronRight, ChevronLeft, Plus, XCircle } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import type { PurchaseListRow } from "@/app/actions/purchases"
 
-type FilterKey = "all" | "month" | "week"
+type FilterKey = "month" | "week" | "all"
 
 const FILTER_TABS: { key: FilterKey; label: string }[] = [
-  { key: "all",   label: "Все"          },
-  { key: "month", label: "Этот месяц"   },
+  { key: "month", label: "За месяц"         },
   { key: "week",  label: "Последние 7 дней" },
+  { key: "all",   label: "Все поставки"     },
 ]
 
-function startOfMonth() {
-  const d = new Date()
-  return new Date(d.getFullYear(), d.getMonth(), 1).getTime()
+const RU_MONTHS = [
+  "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+  "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
+]
+
+// ── Month helpers ──────────────────────────────────────────────────────────────
+
+function parseYM(ym: string): { year: number; month: number } {
+  const [y, m] = ym.split("-").map(Number)
+  return { year: y, month: m - 1 }  // month is 0-indexed
 }
 
-function sevenDaysAgo() {
+function fmtYM(year: number, month: number): string {
+  return `${year}-${String(month + 1).padStart(2, "0")}`
+}
+
+function prevYM(ym: string): string {
+  const { year, month } = parseYM(ym)
+  const d = new Date(year, month - 1, 1)
+  return fmtYM(d.getFullYear(), d.getMonth())
+}
+
+function nextYM(ym: string): string {
+  const { year, month } = parseYM(ym)
+  const d = new Date(year, month + 1, 1)
+  return fmtYM(d.getFullYear(), d.getMonth())
+}
+
+function displayYM(ym: string): string {
+  const { year, month } = parseYM(ym)
+  return `${RU_MONTHS[month]} ${year}`
+}
+
+function isInMonth(dateStr: string, ym: string): boolean {
+  return dateStr.startsWith(ym)
+}
+
+function sevenDaysAgo(): number {
   return Date.now() - 7 * 24 * 60 * 60 * 1000
 }
 
@@ -37,35 +69,50 @@ function fmtAmount(n: number | null) {
   return `₽ ${n.toLocaleString("ru", { maximumFractionDigits: 0 })}`
 }
 
-export function PurchasesListClient({ rows }: { rows: PurchaseListRow[] }) {
+// ── Component ──────────────────────────────────────────────────────────────────
+
+export function PurchasesListClient({
+  rows,
+  selectedMonth,
+}: {
+  rows: PurchaseListRow[]
+  selectedMonth: string
+}) {
   const router = useRouter()
   const [search, setSearch] = useState("")
-  const [filter, setFilter] = useState<FilterKey>("all")
+  const [filter, setFilter] = useState<FilterKey>("month")
 
-  // ── Stats ──────────────────────────────────────────────────────────────────
-  const totalCount   = rows.length
-  const monthAmount  = useMemo(
-    () => rows.filter((r) => new Date(r.purchase_date + "T00:00:00").getTime() >= startOfMonth())
-              .reduce((s, r) => s + (r.total_amount ?? 0), 0),
-    [rows]
-  )
-  const lastDate     = rows[0]?.purchase_date ?? null
-  const suppliersSet = useMemo(
-    () => new Set(rows.map((r) => r.supplier_id).filter(Boolean)),
-    [rows]
+  // ── Month navigation ─────────────────────────────────────────────────────────
+  function goToMonth(ym: string) {
+    router.push(`/purchases?month=${ym}`)
+  }
+
+  // ── Stats (always for selectedMonth) ─────────────────────────────────────────
+  const monthRows = useMemo(
+    () => rows.filter((r) => isInMonth(r.purchase_date, selectedMonth)),
+    [rows, selectedMonth]
   )
 
-  // ── Filtering ──────────────────────────────────────────────────────────────
+  const monthCount    = monthRows.length
+  const monthAmount   = useMemo(() => monthRows.reduce((s, r) => s + (r.total_amount ?? 0), 0), [monthRows])
+  const monthLastRow  = monthRows[0] ?? null
+  const monthSuppliers = useMemo(
+    () => new Set(monthRows.map((r) => r.supplier_id).filter(Boolean)).size,
+    [monthRows]
+  )
+
+  // ── Table filtering ──────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
 
     return rows.filter((r) => {
-      // date filter
-      const ts = new Date(r.purchase_date + "T00:00:00").getTime()
-      if (filter === "month" && ts < startOfMonth()) return false
-      if (filter === "week"  && ts < sevenDaysAgo())  return false
+      if (filter === "month") {
+        if (!isInMonth(r.purchase_date, selectedMonth)) return false
+      } else if (filter === "week") {
+        const ts = new Date(r.purchase_date + "T00:00:00").getTime()
+        if (ts < sevenDaysAgo()) return false
+      }
 
-      // search by supplier name or comment
       if (q) {
         const supplierName = (r.suppliers?.name ?? "").toLowerCase()
         const comment      = (r.comment ?? "").toLowerCase()
@@ -74,25 +121,56 @@ export function PurchasesListClient({ rows }: { rows: PurchaseListRow[] }) {
 
       return true
     })
-  }, [rows, filter, search])
+  }, [rows, filter, selectedMonth, search])
 
-  const filterCount = (key: FilterKey) => {
-    const ts = new Date()
-    if (key === "all") return totalCount
-    return rows.filter((r) => {
-      const d = new Date(r.purchase_date + "T00:00:00").getTime()
-      return key === "month" ? d >= startOfMonth() : d >= sevenDaysAgo()
-    }).length
+  function filterCount(key: FilterKey): number {
+    if (key === "all")   return rows.length
+    if (key === "month") return monthCount
+    return rows.filter((r) =>
+      new Date(r.purchase_date + "T00:00:00").getTime() >= sevenDaysAgo()
+    ).length
   }
 
   return (
     <div className="space-y-4">
-      {/* Stats row */}
+
+      {/* Month switcher + new purchase button */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => goToMonth(prevYM(selectedMonth))}
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
+            title="Предыдущий месяц"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="min-w-[136px] text-center text-sm font-semibold text-zinc-800 px-1 select-none">
+            {displayYM(selectedMonth)}
+          </span>
+          <button
+            onClick={() => goToMonth(nextYM(selectedMonth))}
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
+            title="Следующий месяц"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        <Link
+          href="/purchases/new"
+          className="inline-flex items-center gap-1.5 bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Новая поставка
+        </Link>
+      </div>
+
+      {/* Stats row — always for selectedMonth */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3">
-          <p className="text-xs text-zinc-400 mb-0.5">Поставок всего</p>
-          <p className="text-xl font-bold text-zinc-900 tabular-nums">{totalCount}</p>
-          <p className="text-[11px] text-zinc-400 mt-0.5">в истории</p>
+          <p className="text-xs text-zinc-400 mb-0.5">Поставок за месяц</p>
+          <p className="text-xl font-bold text-zinc-900 tabular-nums">{monthCount}</p>
+          <p className="text-[11px] text-zinc-400 mt-0.5">{displayYM(selectedMonth)}</p>
         </div>
         <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3">
           <p className="text-xs text-zinc-400 mb-0.5">Закуплено за месяц</p>
@@ -106,16 +184,18 @@ export function PurchasesListClient({ rows }: { rows: PurchaseListRow[] }) {
         <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3">
           <p className="text-xs text-zinc-400 mb-0.5">Последняя поставка</p>
           <p className="text-base font-bold text-zinc-900 mt-1 leading-tight">
-            {lastDate ? fmtDate(lastDate) : "—"}
+            {monthLastRow ? fmtDate(monthLastRow.purchase_date) : "Нет поставок"}
           </p>
           <p className="text-[11px] text-zinc-400 mt-0.5">
-            {lastDate ? rows[0]?.suppliers?.name ?? "без поставщика" : "нет данных"}
+            {monthLastRow
+              ? (monthLastRow.suppliers?.name ?? "без поставщика")
+              : "в этом месяце"}
           </p>
         </div>
         <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3">
-          <p className="text-xs text-zinc-400 mb-0.5">Поставщиков</p>
-          <p className="text-xl font-bold text-zinc-900 tabular-nums">{suppliersSet.size}</p>
-          <p className="text-[11px] text-zinc-400 mt-0.5">активных</p>
+          <p className="text-xs text-zinc-400 mb-0.5">Поставщиков за месяц</p>
+          <p className="text-xl font-bold text-zinc-900 tabular-nums">{monthSuppliers}</p>
+          <p className="text-[11px] text-zinc-400 mt-0.5">уникальных</p>
         </div>
       </div>
 
@@ -123,7 +203,7 @@ export function PurchasesListClient({ rows }: { rows: PurchaseListRow[] }) {
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex gap-1">
           {FILTER_TABS.map((tab) => {
-            const count = filterCount(tab.key)
+            const count    = filterCount(tab.key)
             const isActive = filter === tab.key
             return (
               <button
@@ -159,20 +239,9 @@ export function PurchasesListClient({ rows }: { rows: PurchaseListRow[] }) {
         </div>
       </div>
 
-      {/* Quick action */}
-      <div>
-        <Link
-          href="/purchases/new"
-          className="inline-flex items-center gap-1.5 bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Новая поставка
-        </Link>
-      </div>
-
       {/* Table */}
       <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
-        {totalCount === 0 ? (
+        {rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Truck className="h-10 w-10 text-zinc-200 mb-3" />
             <p className="text-sm font-medium text-zinc-500">Нет поставок</p>
@@ -190,7 +259,7 @@ export function PurchasesListClient({ rows }: { rows: PurchaseListRow[] }) {
             <XCircle className="h-8 w-8 text-zinc-200 mb-2" />
             <p className="text-sm text-zinc-500">Ничего не найдено</p>
             <button
-              onClick={() => { setSearch(""); setFilter("all") }}
+              onClick={() => { setSearch(""); setFilter("month") }}
               className="mt-2 text-xs text-rose-500 hover:underline"
             >
               Сбросить фильтры
@@ -257,7 +326,8 @@ export function PurchasesListClient({ rows }: { rows: PurchaseListRow[] }) {
 
       {filtered.length > 0 && (
         <p className="text-xs text-zinc-400 text-right">
-          {filtered.length}{filter !== "all" ? ` из ${totalCount}` : ""} поставок
+          {filtered.length}
+          {filter !== "all" ? ` из ${rows.length}` : ""} поставок
         </p>
       )}
     </div>
