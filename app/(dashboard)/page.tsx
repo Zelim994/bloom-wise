@@ -14,6 +14,13 @@ import { StatsCard, type StatItem } from "@/components/dashboard/StatsCard"
 import { RecentOrdersWidget, type OrderPreview } from "@/components/dashboard/RecentOrdersWidget"
 import { StockAlertsWidget, type StockAlert } from "@/components/dashboard/StockAlertsWidget"
 import { OrdersAttentionWidget } from "@/components/dashboard/OrdersAttentionWidget"
+import {
+  DashboardPeriodTabs,
+  getPeriodDateRange,
+  PERIOD_LABEL,
+  VALID_PERIODS,
+  type Period,
+} from "@/components/dashboard/DashboardPeriodTabs"
 import { createClient } from "@/lib/supabase/server"
 import { getOrgId } from "@/lib/services/organizationService"
 
@@ -23,7 +30,16 @@ const TYPE_LABELS: Record<string, string> = {
   event: "Мероприятие",
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string }>
+}) {
+  const { period: rawPeriod } = await searchParams
+  const period: Period = VALID_PERIODS.includes(rawPeriod as Period)
+    ? (rawPeriod as Period)
+    : "today"
+
   const supabase = await createClient()
   const orgId = await getOrgId(supabase)
 
@@ -37,48 +53,54 @@ export default async function DashboardPage() {
     const tomorrowStr = new Date(today.getTime() + 86_400_000).toISOString().split("T")[0]
     const dayAfterStr = new Date(today.getTime() + 2 * 86_400_000).toISOString().split("T")[0]
     const tenDaysAgo = new Date(today.getTime() - 10 * 86_400_000).toISOString()
+    const dateRange = getPeriodDateRange(period, today)
 
-    const [ordersRes, flowersRes, stockRes, agingRes, writeoffsRes, tomorrowRes] = await Promise.all([
+    // KPI-запросы по периоду
+    let periodOrdersQuery = supabase
+      .from("orders")
+      .select("total_amount, profit")
+      .eq("organization_id", orgId)
+      .neq("status", "cancelled")
+    if (dateRange.from) periodOrdersQuery = periodOrdersQuery.gte("order_date", dateRange.from)
+    if (dateRange.to)   periodOrdersQuery = periodOrdersQuery.lt("order_date", dateRange.to)
+
+    let writeoffsQuery = supabase
+      .from("writeoffs")
+      .select("loss_amount")
+      .eq("organization_id", orgId)
+    if (dateRange.from) writeoffsQuery = writeoffsQuery.gte("writeoff_date", dateRange.from)
+    if (dateRange.to)   writeoffsQuery = writeoffsQuery.lt("writeoff_date", dateRange.to)
+
+    const [
+      widgetOrdersRes, periodOrdersRes, flowersRes, stockRes,
+      agingRes, writeoffsRes, tomorrowRes,
+    ] = await Promise.all([
+      // Заказы сегодня для виджета (всегда today)
       supabase
         .from("orders")
-        .select("id, order_number, status, total_amount, profit, order_date, created_at, type, customers(full_name)")
+        .select("id, order_number, status, total_amount, order_date, created_at, type, customers(full_name)")
         .eq("organization_id", orgId)
         .gte("order_date", todayStr)
         .lt("order_date", tomorrowStr)
         .neq("status", "cancelled")
         .order("created_at", { ascending: false })
         .limit(6),
-      supabase
-        .from("flowers")
-        .select("id, name, min_stock")
+      // KPI по выбранному периоду
+      periodOrdersQuery,
+      supabase.from("flowers").select("id, name, min_stock").eq("organization_id", orgId).eq("is_active", true),
+      supabase.from("flower_stock").select("flower_id, current_stock"),
+      supabase.from("inventory_items").select("flower_id, quantity_remaining, arrived_at")
+        .eq("organization_id", orgId).gt("quantity_remaining", 0).lt("arrived_at", tenDaysAgo),
+      // Списания по выбранному периоду
+      writeoffsQuery,
+      supabase.from("orders").select("id, type")
         .eq("organization_id", orgId)
-        .eq("is_active", true),
-      supabase
-        .from("flower_stock")
-        .select("flower_id, current_stock"),
-      supabase
-        .from("inventory_items")
-        .select("flower_id, quantity_remaining, arrived_at")
-        .eq("organization_id", orgId)
-        .gt("quantity_remaining", 0)
-        .lt("arrived_at", tenDaysAgo),
-      supabase
-        .from("writeoffs")
-        .select("loss_amount")
-        .eq("organization_id", orgId)
-        .gte("writeoff_date", todayStr)
-        .lt("writeoff_date", tomorrowStr),
-      supabase
-        .from("orders")
-        .select("id, type")
-        .eq("organization_id", orgId)
-        .gte("order_date", tomorrowStr)
-        .lt("order_date", dayAfterStr)
+        .gte("order_date", tomorrowStr).lt("order_date", dayAfterStr)
         .not("status", "in", "(cancelled,delivered)"),
     ])
 
-    // Заказы сегодня → RecentOrdersWidget
-    recentOrders = (ordersRes.data ?? []).map((o) => {
+    // Виджет "Заказы сегодня"
+    recentOrders = (widgetOrdersRes.data ?? []).map((o) => {
       const row = o as {
         id: string; order_number: string; status: string; total_amount: number | null
         order_date: string; created_at: string; type: string
@@ -97,7 +119,7 @@ export default async function DashboardPage() {
       }
     })
 
-    // Склад — внимание → StockAlertsWidget
+    // Склад — внимание
     const stockMap = new Map(
       (stockRes.data ?? []).map((s) => [s.flower_id, Number(s.current_stock ?? 0)])
     )
@@ -129,48 +151,52 @@ export default async function DashboardPage() {
 
     stockAlerts = [...outAlerts, ...lowAlerts, ...agingAlerts].slice(0, 6)
 
-    // Карточки показателей
-    const todayOrders = ordersRes.data ?? []
-    type OrderRow = { total_amount: number | null; profit: number | null }
-    const todayRevenue = todayOrders.reduce((s, o) => s + ((o as unknown as OrderRow).total_amount ?? 0), 0)
-    const todayProfit = todayOrders.reduce((s, o) => s + ((o as unknown as OrderRow).profit ?? 0), 0)
+    // KPI карточки
+    type KpiRow = { total_amount: number | null; profit: number | null }
+    const kpiOrders = (periodOrdersRes.data ?? []) as KpiRow[]
+    const kpiRevenue  = kpiOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
+    const kpiProfit   = kpiOrders.reduce((s, o) => s + (o.profit ?? 0), 0)
+    const kpiCount    = kpiOrders.length
     const writeoffTotal = (writeoffsRes.data ?? []).reduce((s, w) => s + (w.loss_amount ?? 0), 0)
-    const tomorrowOrders = tomorrowRes.data ?? []
+
+    const tomorrowOrders    = tomorrowRes.data ?? []
     const tomorrowDeliveries = tomorrowOrders.filter((o) => (o as { type: string }).type === "delivery").length
-    const totalStock = [...stockMap.values()].reduce((s, v) => s + v, 0)
+    const totalStock    = [...stockMap.values()].reduce((s, v) => s + v, 0)
     const stockWithItems = [...stockMap.values()].filter((v) => v > 0).length
-    const lowStockCount = outAlerts.length + lowAlerts.length
-    const agingCount = agingAlerts.length
+    const lowStockCount  = outAlerts.length + lowAlerts.length
+    const agingCount     = agingAlerts.length
 
     const fmt = (n: number) =>
       n > 0 ? `₽ ${n.toLocaleString("ru", { maximumFractionDigits: 0 })}` : "₽ 0"
+    const pl = PERIOD_LABEL[period]
+    const noOrders = `Нет заказов ${pl}`
 
     stats = [
       {
-        label: "Выручка сегодня",
-        value: fmt(todayRevenue),
-        trend: todayOrders.length > 0 ? `${todayOrders.length} заказов` : "Нет заказов",
-        up: todayRevenue > 0,
+        label: "Выручка",
+        value: fmt(kpiRevenue),
+        trend: kpiCount > 0 ? `${kpiCount} заказов` : noOrders,
+        up: kpiRevenue > 0,
         icon: TrendingUp, color: "text-emerald-500", bg: "bg-emerald-50",
       },
       {
-        label: "Прибыль сегодня",
-        value: fmt(todayProfit),
-        trend: todayProfit > 0 ? "Есть прибыль" : "Нет данных",
-        up: todayProfit > 0,
+        label: "Прибыль",
+        value: fmt(kpiProfit),
+        trend: kpiProfit > 0 ? pl : `Нет данных ${pl}`,
+        up: kpiProfit > 0,
         icon: TrendingUp, color: "text-emerald-500", bg: "bg-emerald-50",
       },
       {
-        label: "Заказы сегодня",
-        value: String(todayOrders.length),
-        trend: todayOrders.length > 0 ? "активных" : "Нет заказов",
-        up: todayOrders.length > 0,
+        label: "Заказы",
+        value: kpiCount > 0 ? String(kpiCount) : "0",
+        trend: kpiCount > 0 ? pl : noOrders,
+        up: kpiCount > 0,
         icon: ShoppingBag, color: "text-blue-500", bg: "bg-blue-50",
       },
       {
-        label: "Списания сегодня",
+        label: "Списания",
         value: writeoffTotal > 0 ? fmt(writeoffTotal) : "—",
-        trend: writeoffTotal > 0 ? "убыток" : "Нет списаний",
+        trend: writeoffTotal > 0 ? pl : `Нет списаний ${pl}`,
         up: writeoffTotal === 0,
         icon: Minus, color: "text-rose-500", bg: "bg-rose-50",
       },
@@ -232,11 +258,14 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Карточки показателей */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {stats.map((stat) => (
-            <StatsCard key={stat.label} {...stat} />
-          ))}
+        {/* Переключатель периода + карточки KPI */}
+        <div className="space-y-3">
+          <DashboardPeriodTabs activePeriod={period} />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {stats.map((stat) => (
+              <StatsCard key={stat.label} {...stat} />
+            ))}
+          </div>
         </div>
 
         {/* Заказы + Склад */}
