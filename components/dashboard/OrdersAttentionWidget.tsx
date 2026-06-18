@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { Package, Banknote, Gift, RotateCcw, type LucideIcon } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { getOrgId } from "@/lib/services/organizationService"
 
@@ -13,7 +14,7 @@ type Item = {
   label: string
   count: number
   href: string
-  emoji: string
+  icon: LucideIcon
   urgency: "warn" | "info"
 }
 
@@ -60,28 +61,28 @@ export async function OrdersAttentionWidget() {
       label: "Нужно списать склад",
       count: needStockWriteOff,
       href: "/orders?stock=not_written_off",
-      emoji: "📦",
+      icon: Package,
       urgency: "warn",
     },
     {
       label: "Получить оплату",
       count: needPayment,
       href: "/orders?payment=open",
-      emoji: "💰",
+      icon: Banknote,
       urgency: "warn",
     },
     {
       label: "Готовые к выдаче",
       count: readyToGive,
       href: "/orders?status=ready",
-      emoji: "🎁",
+      icon: Gift,
       urgency: "info",
     },
     {
       label: "Проверить возврат склада",
       count: needStockReturn,
       href: "/orders?status=cancelled&stock=written_off",
-      emoji: "↩️",
+      icon: RotateCcw,
       urgency: "warn",
     },
   ]
@@ -99,12 +100,12 @@ export async function OrdersAttentionWidget() {
               item.urgency === "warn"
                 ? "border-amber-200 bg-amber-50 hover:bg-amber-100"
                 : "border-sky-200 bg-sky-50 hover:bg-sky-100"
+            const iconColor =
+              item.urgency === "warn" ? "text-amber-500" : "text-sky-500"
             const countColor =
               item.urgency === "warn" ? "text-amber-700" : "text-sky-700"
             const linkColor =
-              item.urgency === "warn"
-                ? "text-amber-500 hover:text-amber-700"
-                : "text-sky-500 hover:text-sky-700"
+              item.urgency === "warn" ? "text-amber-400" : "text-sky-400"
 
             return (
               <Link
@@ -113,8 +114,8 @@ export async function OrdersAttentionWidget() {
                 className={`block rounded-lg border p-3 transition-colors ${active}`}
               >
                 <div className="flex items-start justify-between gap-1">
-                  <div className="flex items-start gap-2 min-w-0">
-                    <span className="text-base leading-none mt-0.5 shrink-0">{item.emoji}</span>
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <item.icon className={`h-4 w-4 shrink-0 mt-0.5 ${iconColor}`} />
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-zinc-800 leading-snug">{item.label}</p>
                       <p className={`text-xs font-semibold mt-0.5 ${countColor}`}>
@@ -122,8 +123,8 @@ export async function OrdersAttentionWidget() {
                       </p>
                     </div>
                   </div>
-                  <span className={`text-xs font-medium shrink-0 mt-0.5 transition-colors ${linkColor}`}>
-                    Открыть →
+                  <span className={`text-xs font-medium shrink-0 mt-0.5 ${linkColor}`}>
+                    →
                   </span>
                 </div>
               </Link>
@@ -135,8 +136,8 @@ export async function OrdersAttentionWidget() {
               key={item.label}
               className="rounded-lg border border-zinc-100 bg-zinc-50 p-3"
             >
-              <div className="flex items-center gap-2">
-                <span className="text-base leading-none opacity-30 shrink-0">{item.emoji}</span>
+              <div className="flex items-center gap-2.5">
+                <item.icon className="h-4 w-4 shrink-0 text-zinc-300" />
                 <div>
                   <p className="text-xs font-medium text-zinc-400 leading-snug">{item.label}</p>
                   <p className="text-xs text-emerald-500 mt-0.5">Всё чисто</p>
