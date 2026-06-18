@@ -11,7 +11,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { StatsCard, type StatItem } from "@/components/dashboard/StatsCard"
-import { RecentOrdersWidget, type OrderPreview } from "@/components/dashboard/RecentOrdersWidget"
+import { UpcomingOrdersWidget, type UpcomingOrder } from "@/components/dashboard/UpcomingOrdersWidget"
 import { StockAlertsWidget, type StockAlert } from "@/components/dashboard/StockAlertsWidget"
 import { OrdersAttentionWidget } from "@/components/dashboard/OrdersAttentionWidget"
 import { DashboardPeriodTabs } from "@/components/dashboard/DashboardPeriodTabs"
@@ -24,11 +24,6 @@ import {
 import { createClient } from "@/lib/supabase/server"
 import { getOrgId } from "@/lib/services/organizationService"
 
-const TYPE_LABELS: Record<string, string> = {
-  pickup: "Самовывоз",
-  delivery: "Доставка",
-  event: "Мероприятие",
-}
 
 export default async function DashboardPage({
   searchParams,
@@ -43,7 +38,7 @@ export default async function DashboardPage({
   const supabase = await createClient()
   const orgId = await getOrgId(supabase)
 
-  let recentOrders: OrderPreview[] = []
+  let upcomingOrders: UpcomingOrder[] = []
   let stockAlerts: StockAlert[] = []
   let stats: StatItem[] = []
 
@@ -51,7 +46,8 @@ export default async function DashboardPage({
     const today = new Date()
     const todayStr = today.toISOString().split("T")[0]
     const tomorrowStr = new Date(today.getTime() + 86_400_000).toISOString().split("T")[0]
-    const dayAfterStr = new Date(today.getTime() + 2 * 86_400_000).toISOString().split("T")[0]
+    const dayAfterStr  = new Date(today.getTime() + 2 * 86_400_000).toISOString().split("T")[0]
+    const sevenDayStr  = new Date(today.getTime() + 7 * 86_400_000).toISOString().split("T")[0]
     const tenDaysAgo = new Date(today.getTime() - 10 * 86_400_000).toISOString()
     const dateRange = getPeriodDateRange(period, today, rawFrom, rawTo)
 
@@ -72,19 +68,19 @@ export default async function DashboardPage({
     if (dateRange.to)   writeoffsQuery = writeoffsQuery.lt("writeoff_date", dateRange.to)
 
     const [
-      widgetOrdersRes, periodOrdersRes, flowersRes, stockRes,
+      upcomingRes, periodOrdersRes, flowersRes, stockRes,
       agingRes, writeoffsRes, tomorrowRes,
     ] = await Promise.all([
-      // Заказы сегодня для виджета (всегда today)
+      // Ближайшие заказы (7 дней) для виджета
       supabase
         .from("orders")
-        .select("id, order_number, status, total_amount, order_date, created_at, type, customers(full_name)")
+        .select("id, order_number, status, payment_status, stock_written_off, stock_returned, order_date, ready_at, customers(full_name)")
         .eq("organization_id", orgId)
-        .gte("order_date", todayStr)
-        .lt("order_date", tomorrowStr)
         .neq("status", "cancelled")
-        .order("created_at", { ascending: false })
-        .limit(6),
+        .gte("order_date", todayStr)
+        .lt("order_date", sevenDayStr)
+        .order("order_date", { ascending: true })
+        .limit(30),
       // KPI по выбранному периоду
       periodOrdersQuery,
       supabase.from("flowers").select("id, name, min_stock").eq("organization_id", orgId).eq("is_active", true),
@@ -99,23 +95,24 @@ export default async function DashboardPage({
         .not("status", "in", "(cancelled,delivered)"),
     ])
 
-    // Виджет "Заказы сегодня"
-    recentOrders = (widgetOrdersRes.data ?? []).map((o) => {
+    // Виджет "Ближайшие заказы"
+    upcomingOrders = (upcomingRes.data ?? []).map((o) => {
       const row = o as {
-        id: string; order_number: string; status: string; total_amount: number | null
-        order_date: string; created_at: string; type: string
+        id: string; order_number: string; status: string; payment_status: string
+        stock_written_off: boolean; stock_returned: boolean
+        order_date: string; ready_at: string | null
         customers: { full_name: string } | null
       }
       return {
         id: row.id,
-        number: row.order_number,
-        customer: row.customers?.full_name ?? "Без имени",
-        bouquet: TYPE_LABELS[row.type] ?? row.type,
-        amount: row.total_amount != null
-          ? `₽ ${Number(row.total_amount).toLocaleString("ru", { maximumFractionDigits: 0 })}`
-          : "—",
+        order_number: row.order_number,
         status: row.status,
-        time: new Date(row.created_at).toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" }),
+        payment_status: row.payment_status,
+        stock_written_off: row.stock_written_off,
+        stock_returned: row.stock_returned,
+        order_date: row.order_date,
+        ready_at: row.ready_at,
+        customer_name: row.customers?.full_name ?? null,
       }
     })
 
@@ -275,7 +272,7 @@ export default async function DashboardPage({
         {/* Заказы + Склад */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className="lg:col-span-2">
-            <RecentOrdersWidget orders={recentOrders} />
+            <UpcomingOrdersWidget orders={upcomingOrders} />
           </div>
           <div>
             <StockAlertsWidget alerts={stockAlerts} />
