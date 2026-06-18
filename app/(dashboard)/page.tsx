@@ -14,13 +14,13 @@ import { StatsCard, type StatItem } from "@/components/dashboard/StatsCard"
 import { RecentOrdersWidget, type OrderPreview } from "@/components/dashboard/RecentOrdersWidget"
 import { StockAlertsWidget, type StockAlert } from "@/components/dashboard/StockAlertsWidget"
 import { OrdersAttentionWidget } from "@/components/dashboard/OrdersAttentionWidget"
+import { DashboardPeriodTabs } from "@/components/dashboard/DashboardPeriodTabs"
 import {
-  DashboardPeriodTabs,
   getPeriodDateRange,
   PERIOD_LABEL,
   VALID_PERIODS,
   type Period,
-} from "@/components/dashboard/DashboardPeriodTabs"
+} from "@/lib/dashboard/periods"
 import { createClient } from "@/lib/supabase/server"
 import { getOrgId } from "@/lib/services/organizationService"
 
