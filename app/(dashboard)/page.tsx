@@ -33,9 +33,9 @@ const TYPE_LABELS: Record<string, string> = {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string }>
+  searchParams: Promise<{ period?: string; from?: string; to?: string }>
 }) {
-  const { period: rawPeriod } = await searchParams
+  const { period: rawPeriod, from: rawFrom, to: rawTo } = await searchParams
   const period: Period = VALID_PERIODS.includes(rawPeriod as Period)
     ? (rawPeriod as Period)
     : "today"
@@ -53,7 +53,7 @@ export default async function DashboardPage({
     const tomorrowStr = new Date(today.getTime() + 86_400_000).toISOString().split("T")[0]
     const dayAfterStr = new Date(today.getTime() + 2 * 86_400_000).toISOString().split("T")[0]
     const tenDaysAgo = new Date(today.getTime() - 10 * 86_400_000).toISOString()
-    const dateRange = getPeriodDateRange(period, today)
+    const dateRange = getPeriodDateRange(period, today, rawFrom, rawTo)
 
     // KPI-запросы по периоду
     let periodOrdersQuery = supabase
@@ -260,7 +260,11 @@ export default async function DashboardPage({
 
         {/* Переключатель периода + карточки KPI */}
         <div className="space-y-3">
-          <DashboardPeriodTabs activePeriod={period} />
+          <DashboardPeriodTabs
+            activePeriod={period}
+            activeFrom={rawFrom}
+            activeTo={rawTo}
+          />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {stats.map((stat) => (
               <StatsCard key={stat.label} {...stat} />
