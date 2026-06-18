@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, MessageCircle, Phone, ShoppingBag } from "lucide-react"
+import { ArrowLeft, MessageCircle, Phone, ShoppingBag, Plus } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 
 const STATUS_LABEL: Record<string, string> = {
@@ -75,14 +75,23 @@ export default async function CustomerDetailPage({
 
   return (
     <div className="space-y-6 max-w-2xl">
-      {/* Back */}
-      <Link
-        href="/customers"
-        className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-700 transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Клиенты
-      </Link>
+      {/* Back + action */}
+      <div className="flex items-center justify-between">
+        <Link
+          href="/customers"
+          className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-700 transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Клиенты
+        </Link>
+        <Link
+          href={`/orders/new?customer_id=${customer.id}`}
+          className="flex items-center gap-1.5 bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-3.5 py-2 rounded-lg transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          Новый заказ
+        </Link>
+      </div>
 
       {/* Header */}
       <div className="rounded-xl border border-zinc-200 bg-white px-5 py-4 space-y-3">

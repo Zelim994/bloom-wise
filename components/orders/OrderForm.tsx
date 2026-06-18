@@ -36,22 +36,30 @@ function defaultReadyAt(baseDate?: string) {
   return d.toISOString().slice(0, 16)
 }
 
+export interface InitialCustomer {
+  id: string
+  full_name: string
+  phone: string | null
+  comment: string | null
+}
+
 interface Props {
   flowers: FlowerForBuilder[]
   initialData?: OrderWithCustomer
   initialOrderDate?: string
+  initialCustomer?: InitialCustomer
 }
 
-export function OrderForm({ flowers, initialData, initialOrderDate }: Props) {
+export function OrderForm({ flowers, initialData, initialOrderDate, initialCustomer }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState("")
   const isEdit = !!initialData
   const isCancelled = isEdit && initialData?.status === "cancelled"
 
-  const [customerPhone, setCustomerPhone] = useState(initialData?.customers?.phone ?? "")
-  const [customerName, setCustomerName] = useState(initialData?.customers?.full_name ?? "")
-  const [customerFound, setCustomerFound] = useState<boolean | null>(null)
+  const [customerPhone, setCustomerPhone] = useState(initialData?.customers?.phone ?? initialCustomer?.phone ?? "")
+  const [customerName, setCustomerName] = useState(initialData?.customers?.full_name ?? initialCustomer?.full_name ?? "")
+  const [customerFound, setCustomerFound] = useState<boolean | null>(initialCustomer ? true : null)
   const [searchResults, setSearchResults] = useState<CustomerSearchResult[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -70,7 +78,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate }: Props) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>((initialData?.payment_method as PaymentMethod) ?? "cash")
   const [paidAmount, setPaidAmount] = useState(initialData?.paid_amount ? String(initialData.paid_amount) : "")
 
-  const [customerComment, setCustomerComment] = useState(initialData?.customer_comment ?? "")
+  const [customerComment, setCustomerComment] = useState(initialData?.customer_comment ?? initialCustomer?.comment ?? "")
   const [floristComment, setFloristComment] = useState(initialData?.florist_comment ?? "")
 
   const sub = Number(subtotal) || 0

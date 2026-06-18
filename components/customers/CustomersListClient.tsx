@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Search, MessageCircle, Users } from "lucide-react"
+import { Search, MessageCircle, Users, Plus } from "lucide-react"
 import { Input } from "@/components/ui/input"
 
 export type CustomerOrder = {
@@ -161,12 +161,21 @@ export function CustomersListClient({ customers }: { customers: CustomerWithOrde
                     </div>
                   </div>
 
-                  <Link
-                    href={`/customers/${c.id}`}
-                    className="shrink-0 text-xs text-zinc-400 hover:text-rose-500 transition-colors pt-0.5 whitespace-nowrap"
-                  >
-                    Открыть →
-                  </Link>
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <Link
+                      href={`/orders/new?customer_id=${c.id}`}
+                      className="flex items-center gap-1 text-xs font-medium text-rose-500 hover:text-rose-600 transition-colors whitespace-nowrap"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Новый заказ
+                    </Link>
+                    <Link
+                      href={`/customers/${c.id}`}
+                      className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors whitespace-nowrap"
+                    >
+                      Открыть →
+                    </Link>
+                  </div>
                 </div>
               </div>
             )
