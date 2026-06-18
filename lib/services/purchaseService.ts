@@ -2,6 +2,31 @@ import type { createClient } from "@/lib/supabase/server"
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 
+// ─── RPC wrapper types ────────────────────────────────────────────────────────
+
+// Позиция поставки для передачи в RPC (delivery split считает сам RPC)
+export type RpcPurchaseItem = {
+  flower_id:  string
+  quantity:   number
+  cost_price: number        // закупочная без доставки
+  sale_price?: number | null
+  expires_at?: string | null
+  comment?:    string | null
+}
+
+export type RpcCreatePurchaseParams = {
+  supplier_name:   string
+  supplier_phone?: string | null
+  purchase_date:   string        // YYYY-MM-DD
+  comment?:        string | null
+  delivery_cost?:  number
+  items:           RpcPurchaseItem[]
+}
+
+export type RpcCreatePurchaseResult =
+  | { ok: true;  purchaseId: string }
+  | { ok: false; error: string }
+
 export type BatchDeleteResult = { ok: true } | { ok: false; usedCount: number }
 
 export async function validateAndDeleteInventoryBatch(
@@ -72,6 +97,40 @@ export async function validateAndDeleteInventoryBatch(
 
   return { ok: true }
 }
+
+// ─── RPC wrapper ─────────────────────────────────────────────────────────────
+
+/**
+ * Calls create_purchase_atomic RPC — single PostgreSQL transaction.
+ * Computes delivery split server-side; does NOT write to tables directly.
+ * Not yet wired to any UI — use createPurchase (purchases.ts) until switched.
+ */
+export async function createPurchaseAtomicViaRpc(
+  supabase: SupabaseClient,
+  params: RpcCreatePurchaseParams
+): Promise<RpcCreatePurchaseResult> {
+  const { data, error } = await supabase.rpc("create_purchase_atomic", {
+    p_supplier_name:  params.supplier_name,
+    p_supplier_phone: params.supplier_phone ?? null,
+    p_purchase_date:  params.purchase_date,
+    p_comment:        params.comment ?? null,
+    p_delivery_cost:  params.delivery_cost ?? 0,
+    p_items:          params.items,
+  })
+
+  if (error) {
+    return { ok: false, error: error.message }
+  }
+
+  const purchaseId = (data as { purchase_id?: string } | null)?.purchase_id
+  if (!purchaseId) {
+    return { ok: false, error: "RPC не вернула purchase_id" }
+  }
+
+  return { ok: true, purchaseId }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Finds an existing supplier by name (case-insensitive) within the organization,

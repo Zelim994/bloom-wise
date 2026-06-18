@@ -1854,6 +1854,17 @@ export type Database = {
         }
         Returns: Json
       }
+      create_purchase_atomic: {
+        Args: {
+          p_supplier_name:   string
+          p_supplier_phone?: string | null
+          p_purchase_date?:  string
+          p_comment?:        string | null
+          p_delivery_cost?:  number
+          p_items?:          Json
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
