@@ -20,7 +20,7 @@ const pageTitles: Record<string, string> = {
   "/orders/new": "Новый заказ",
   "/builder": "Собрать букет",
   "/calendar": "Календарь",
-  "/inventory": "Каталог товаров",
+  "/inventory": "Склад",
   "/purchases": "Приход товара",
   "/purchases/new": "Новый приход",
   "/writeoffs": "Списания",

@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Search, Package, AlertTriangle, Clock, XCircle, ChevronRight, ShoppingCart, ShoppingBag } from "lucide-react"
+import { Search, Package, XCircle, ChevronRight, ShoppingCart, ShoppingBag } from "lucide-react"
 import { Input } from "@/components/ui/input"
 
 export type StockRow = {
@@ -22,37 +22,41 @@ export type StockRow = {
   status: "ok" | "low" | "aging" | "no_stock"
 }
 
-type StockFilter = "all" | "low" | "aging" | "no_stock"
+// "in_stock" = В наличии (current_stock > 0, default)
+// "low"      = Низкий остаток
+// "aging"    = Залежались
+// "no_stock" = Нет остатка
+type StockFilter = "in_stock" | "low" | "aging" | "no_stock"
 
 const FILTER_TABS: { key: StockFilter; label: string }[] = [
-  { key: "all",      label: "Все"            },
+  { key: "in_stock", label: "В наличии"     },
   { key: "low",      label: "Низкий остаток" },
   { key: "aging",    label: "Залежались"     },
   { key: "no_stock", label: "Нет остатка"    },
 ]
 
 const STATUS_CFG = {
-  ok:       { label: "В норме",    cls: "bg-emerald-100 text-emerald-700" },
-  low:      { label: "Мало",       cls: "bg-amber-100 text-amber-700"    },
-  aging:    { label: "Залежался",  cls: "bg-orange-100 text-orange-700"  },
-  no_stock: { label: "Нет остатка",cls: "bg-red-100 text-red-500"        },
+  ok:       { label: "В норме",     cls: "bg-emerald-100 text-emerald-700" },
+  low:      { label: "Мало",        cls: "bg-amber-100 text-amber-700"     },
+  aging:    { label: "Залежался",   cls: "bg-orange-100 text-orange-700"   },
+  no_stock: { label: "Нет остатка", cls: "bg-red-100 text-red-500"         },
+}
+
+// Sort order for "В наличии": low → aging → ok
+const STATUS_SORT: Record<StockRow["status"], number> = {
+  low: 0, aging: 1, ok: 2, no_stock: 3,
 }
 
 function fmtDate(dateStr: string) {
-  const d = new Date(dateStr + "T00:00:00")
-  return d.toLocaleDateString("ru", { day: "2-digit", month: "2-digit", year: "2-digit" })
-}
-
-function pluralDays(n: number) {
-  if (n % 10 === 1 && n % 100 !== 11) return `${n} день`
-  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return `${n} дня`
-  return `${n} дней`
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("ru", {
+    day: "2-digit", month: "2-digit", year: "2-digit",
+  })
 }
 
 export function StockTableClient({ rows }: { rows: StockRow[] }) {
   const router = useRouter()
   const [search, setSearch] = useState("")
-  const [activeFilter, setActiveFilter] = useState<StockFilter>("all")
+  const [activeFilter, setActiveFilter] = useState<StockFilter>("in_stock")
 
   const lowCount     = useMemo(() => rows.filter((r) => r.status === "low").length, [rows])
   const agingCount   = useMemo(() => rows.filter((r) => r.status === "aging").length, [rows])
@@ -62,19 +66,40 @@ export function StockTableClient({ rows }: { rows: StockRow[] }) {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return rows.filter((r) => {
-      const matchSearch =
-        !q ||
-        r.name.toLowerCase().includes(q) ||
-        r.category.toLowerCase().includes(q) ||
-        (r.sku ?? "").toLowerCase().includes(q) ||
-        (r.description ?? "").toLowerCase().includes(q)
-      const matchFilter =
-        activeFilter === "all" ||
-        r.status === activeFilter
-      return matchSearch && matchFilter
-    })
+
+    const matchesSearch = (r: StockRow) =>
+      !q ||
+      r.name.toLowerCase().includes(q) ||
+      r.category.toLowerCase().includes(q) ||
+      (r.sku ?? "").toLowerCase().includes(q) ||
+      (r.description ?? "").toLowerCase().includes(q)
+
+    const matchesFilter = (r: StockRow) => {
+      if (activeFilter === "in_stock") return r.current_stock > 0
+      if (activeFilter === "no_stock") return r.current_stock <= 0
+      return r.status === activeFilter
+    }
+
+    const result = rows.filter((r) => matchesSearch(r) && matchesFilter(r))
+
+    // Sort "В наличии": low → aging → ok, then by name
+    if (activeFilter === "in_stock") {
+      result.sort((a, b) => {
+        const sd = STATUS_SORT[a.status] - STATUS_SORT[b.status]
+        return sd !== 0 ? sd : a.name.localeCompare(b.name, "ru")
+      })
+    }
+
+    return result
   }, [rows, search, activeFilter])
+
+  const filterCount = (key: StockFilter) => {
+    if (key === "in_stock")  return inStockCount
+    if (key === "low")       return lowCount
+    if (key === "aging")     return agingCount
+    if (key === "no_stock")  return noStockCount
+    return 0
+  }
 
   return (
     <div className="space-y-4">
@@ -91,7 +116,7 @@ export function StockTableClient({ rows }: { rows: StockRow[] }) {
           <p className="text-[11px] text-zinc-400 mt-0.5">в наличии</p>
         </div>
         <div
-          onClick={() => setActiveFilter(activeFilter === "low" ? "all" : "low")}
+          onClick={() => setActiveFilter(activeFilter === "low" ? "in_stock" : "low")}
           className={`rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
             lowCount > 0
               ? activeFilter === "low"
@@ -101,13 +126,13 @@ export function StockTableClient({ rows }: { rows: StockRow[] }) {
           }`}
         >
           <p className="text-xs text-zinc-400 mb-0.5">Низкий остаток</p>
-          <p className={`text-xl font-bold tabular-nums ${lowCount > 0 ? "text-amber-700" : "text-zinc-400"}`}>
+          <p className={`text-xl font-bold tabular-nums ${lowCount > 0 ? "text-amber-700" : "text-zinc-300"}`}>
             {lowCount}
           </p>
           <p className="text-[11px] text-zinc-400 mt-0.5">позиций</p>
         </div>
         <div
-          onClick={() => setActiveFilter(activeFilter === "aging" ? "all" : "aging")}
+          onClick={() => setActiveFilter(activeFilter === "aging" ? "in_stock" : "aging")}
           className={`rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
             agingCount > 0
               ? activeFilter === "aging"
@@ -117,7 +142,7 @@ export function StockTableClient({ rows }: { rows: StockRow[] }) {
           }`}
         >
           <p className="text-xs text-zinc-400 mb-0.5">Залежались</p>
-          <p className={`text-xl font-bold tabular-nums ${agingCount > 0 ? "text-orange-700" : "text-zinc-400"}`}>
+          <p className={`text-xl font-bold tabular-nums ${agingCount > 0 ? "text-orange-700" : "text-zinc-300"}`}>
             {agingCount}
           </p>
           <p className="text-[11px] text-zinc-400 mt-0.5">{agingCount > 0 ? "≥ 7 дней" : "всё свежее"}</p>
@@ -126,28 +151,25 @@ export function StockTableClient({ rows }: { rows: StockRow[] }) {
 
       {/* Controls */}
       <div className="flex items-center gap-3 flex-wrap">
-        {/* Filter tabs */}
         <div className="flex gap-1 overflow-x-auto">
           {FILTER_TABS.map((tab) => {
-            const count =
-              tab.key === "low" ? lowCount :
-              tab.key === "aging" ? agingCount :
-              tab.key === "no_stock" ? noStockCount :
-              rows.length
+            const count = filterCount(tab.key)
+            const isActive = activeFilter === tab.key
             return (
               <button
                 key={tab.key}
                 onClick={() => setActiveFilter(tab.key)}
                 className={`px-3 py-1.5 text-sm rounded-lg transition-colors whitespace-nowrap font-medium ${
-                  activeFilter === tab.key
+                  isActive
                     ? "bg-zinc-900 text-white"
                     : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100"
                 }`}
               >
                 {tab.label}
-                {tab.key !== "all" && count > 0 && (
+                {/* Show badge only if count > 0 (not for "В наличии") */}
+                {tab.key !== "in_stock" && count > 0 && (
                   <span className={`ml-1.5 text-[11px] px-1.5 py-0.5 rounded-full ${
-                    activeFilter === tab.key ? "bg-white/20 text-white" : "bg-zinc-100 text-zinc-400"
+                    isActive ? "bg-white/20 text-white" : "bg-zinc-100 text-zinc-400"
                   }`}>
                     {count}
                   </span>
@@ -157,7 +179,6 @@ export function StockTableClient({ rows }: { rows: StockRow[] }) {
           })}
         </div>
 
-        {/* Search */}
         <div className="relative ml-auto">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400 pointer-events-none" />
           <Input
@@ -203,9 +224,11 @@ export function StockTableClient({ rows }: { rows: StockRow[] }) {
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <XCircle className="h-8 w-8 text-zinc-200 mb-2" />
-            <p className="text-sm text-zinc-500">Ничего не найдено</p>
+            <p className="text-sm text-zinc-500">
+              {activeFilter === "no_stock" ? "Позиций без остатка нет" : "Ничего не найдено"}
+            </p>
             <button
-              onClick={() => { setSearch(""); setActiveFilter("all") }}
+              onClick={() => { setSearch(""); setActiveFilter("in_stock") }}
               className="mt-2 text-xs text-rose-500 hover:underline"
             >
               Сбросить фильтры
@@ -262,8 +285,8 @@ export function StockTableClient({ rows }: { rows: StockRow[] }) {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <span className={`font-semibold tabular-nums ${
-                        r.status === "low" ? "text-amber-600" :
-                        r.status === "no_stock" ? "text-zinc-400" :
+                        r.status === "low"      ? "text-amber-600"  :
+                        r.status === "no_stock" ? "text-zinc-400"   :
                         "text-zinc-800"
                       }`}>
                         {r.current_stock}
@@ -281,7 +304,9 @@ export function StockTableClient({ rows }: { rows: StockRow[] }) {
                         : <span className="text-zinc-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-right text-xs text-zinc-500 hidden lg:table-cell">
-                      {r.oldest_arrived_at ? fmtDate(r.oldest_arrived_at) : <span className="text-zinc-300">—</span>}
+                      {r.oldest_arrived_at
+                        ? fmtDate(r.oldest_arrived_at)
+                        : <span className="text-zinc-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-right hidden sm:table-cell">
                       {r.days_on_shelf !== null ? (
@@ -310,9 +335,9 @@ export function StockTableClient({ rows }: { rows: StockRow[] }) {
         )}
       </div>
 
-      {filtered.length > 0 && rows.length > 0 && (
+      {filtered.length > 0 && (
         <p className="text-xs text-zinc-400 text-right">
-          {filtered.length} из {rows.length} позиций
+          {filtered.length} из {activeFilter === "in_stock" ? inStockCount : filterCount(activeFilter)} позиций
         </p>
       )}
     </div>
