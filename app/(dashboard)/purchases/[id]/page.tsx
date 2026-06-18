@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Truck, ExternalLink, Package, Pencil } from "lucide-react"
+import { ArrowLeft, Truck, ExternalLink, Package, Pencil, Plus } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { getPurchaseDetail } from "@/app/actions/purchases"
 
@@ -41,13 +41,22 @@ export default async function PurchaseDetailPage({
             <Badge className="bg-emerald-100 text-emerald-700 border-0 text-xs rounded-md">
               Проведена
             </Badge>
-            <Link
-              href={`/purchases/${detail.id}/edit`}
-              className="ml-auto flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 border border-zinc-200 rounded-lg px-3 py-1.5 bg-white hover:bg-zinc-50 transition-colors"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Редактировать
-            </Link>
+            <div className="ml-auto flex items-center gap-2">
+              <Link
+                href="/purchases/new"
+                className="flex items-center gap-1.5 bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Новая поставка
+              </Link>
+              <Link
+                href={`/purchases/${detail.id}/edit`}
+                className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 border border-zinc-200 rounded-lg px-3 py-1.5 bg-white hover:bg-zinc-50 transition-colors"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Редактировать
+              </Link>
+            </div>
           </div>
           <p className="text-sm text-zinc-500 mt-0.5">
             {new Date(detail.purchase_date).toLocaleDateString("ru", {
@@ -108,10 +117,11 @@ export default async function PurchaseDetailPage({
               <tr className="border-b border-zinc-100 bg-zinc-50">
                 <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wide">Товар</th>
                 <th className="px-5 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide">Кол-во</th>
-                <th className="px-5 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide">Цена закупки</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide hidden md:table-cell">Цена</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide">Сумма</th>
                 <th className="px-5 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide hidden sm:table-cell">Доставка</th>
-                <th className="px-5 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide">Себест./шт</th>
-                <th className="px-5 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide">Срок</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide hidden lg:table-cell">Себест./шт</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide hidden lg:table-cell">Срок</th>
                 <th className="w-8"></th>
               </tr>
             </thead>
@@ -149,8 +159,11 @@ export default async function PurchaseDetailPage({
                         {item.flowers?.unit ?? "шт"}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-right text-zinc-600 tabular-nums">
+                    <td className="px-5 py-3 text-right text-zinc-600 tabular-nums hidden md:table-cell">
                       ₽{item.cost_price.toLocaleString("ru", { maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-5 py-3 text-right font-semibold text-zinc-800 tabular-nums">
+                      ₽{(item.quantity * item.cost_price).toLocaleString("ru", { maximumFractionDigits: 0 })}
                     </td>
                     <td className="px-5 py-3 text-right tabular-nums hidden sm:table-cell">
                       {deliveryPerUnit > 0 ? (
@@ -161,10 +174,10 @@ export default async function PurchaseDetailPage({
                         <span className="text-zinc-300">—</span>
                       )}
                     </td>
-                    <td className="px-5 py-3 text-right font-semibold text-zinc-800 tabular-nums">
+                    <td className="px-5 py-3 text-right tabular-nums hidden lg:table-cell">
                       ₽{effectiveCost.toLocaleString("ru", { maximumFractionDigits: 2 })}
                     </td>
-                    <td className={`px-5 py-3 text-right text-xs tabular-nums ${
+                    <td className={`px-5 py-3 text-right text-xs tabular-nums hidden lg:table-cell ${
                       daysLeft === null
                         ? "text-zinc-400"
                         : daysLeft < 0
@@ -202,6 +215,8 @@ export default async function PurchaseDetailPage({
                 <td className="px-5 py-3 text-right font-semibold text-zinc-700 tabular-nums">
                   {totalItems} шт
                 </td>
+                {/* hidden md: price col */}
+                <td className="hidden md:table-cell" />
                 <td className="px-5 py-3 text-right font-semibold text-zinc-700 tabular-nums">
                   ₽{totalGoods.toLocaleString("ru", { maximumFractionDigits: 0 })}
                 </td>
@@ -210,7 +225,12 @@ export default async function PurchaseDetailPage({
                     ? `+₽${totalDelivery.toLocaleString("ru", { maximumFractionDigits: 0 })}`
                     : "—"}
                 </td>
-                <td colSpan={3} className="px-5 py-3 text-right">
+                <td colSpan={3} className="px-5 py-3 text-right hidden lg:table-cell">
+                  <span className="text-base font-bold text-zinc-900 tabular-nums">
+                    ₽{(detail.total_amount ?? 0).toLocaleString("ru", { maximumFractionDigits: 0 })}
+                  </span>
+                </td>
+                <td colSpan={2} className="px-5 py-3 text-right lg:hidden">
                   <span className="text-base font-bold text-zinc-900 tabular-nums">
                     ₽{(detail.total_amount ?? 0).toLocaleString("ru", { maximumFractionDigits: 0 })}
                   </span>

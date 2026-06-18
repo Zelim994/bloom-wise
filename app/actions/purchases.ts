@@ -31,6 +31,31 @@ export async function getPurchases(): Promise<PurchaseWithSupplier[]> {
   return (data ?? []) as unknown as PurchaseWithSupplier[]
 }
 
+export type PurchaseListRow = {
+  id: string
+  purchase_date: string
+  total_amount: number | null
+  comment: string | null
+  status: string
+  created_at: string
+  supplier_id: string | null
+  suppliers: { name: string } | null
+  item_count: number
+}
+
+export async function getPurchasesList(): Promise<PurchaseListRow[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from("purchases")
+    .select("id, purchase_date, total_amount, comment, status, created_at, supplier_id, suppliers(name), purchase_items(id)")
+    .order("purchase_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(200)
+  return ((data ?? []) as unknown as Array<PurchaseListRow & { purchase_items: Array<{ id: string }> }>).map(
+    (p) => ({ ...p, item_count: p.purchase_items?.length ?? 0 })
+  )
+}
+
 export type PurchaseItemWithFlower = {
   id: string
   quantity: number
