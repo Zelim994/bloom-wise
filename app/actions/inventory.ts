@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { Flower, InventoryItem, StockMovement } from "@/lib/supabase/types"
+import { getOrgId } from "@/lib/services/organizationService"
 
 export type FlowerWithStock = Flower & { current_stock: number }
 
@@ -70,6 +71,127 @@ export async function getFlowerMovements(flowerId: string): Promise<StockMovemen
     .order("created_at", { ascending: false })
     .limit(100)
   return data ?? []
+}
+
+// ─── flower info fields that can be edited ───────────────────────────────────
+export type FlowerInfoUpdate = {
+  name: string
+  category: string
+  sku: string | null
+  unit: string
+  min_stock: number | null
+  sale_price: number | null
+  description: string | null
+}
+
+const FIELD_LABELS: Record<keyof FlowerInfoUpdate, string> = {
+  name: "Название",
+  category: "Категория",
+  sku: "SKU",
+  unit: "Единица измерения",
+  min_stock: "Мин. остаток",
+  sale_price: "Цена продажи",
+  description: "Описание",
+}
+
+export async function updateFlowerInfo(
+  flowerId: string,
+  updates: FlowerInfoUpdate,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Не авторизован" }
+
+  const orgId = await getOrgId(supabase)
+  if (!orgId) return { error: "Организация не найдена" }
+
+  // Validate
+  if (!updates.name.trim()) return { error: "Название не может быть пустым" }
+  if (!updates.category.trim()) return { error: "Категория не может быть пустой" }
+  if (!updates.unit.trim()) return { error: "Единица не может быть пустой" }
+  if (updates.min_stock !== null && updates.min_stock < 0) return { error: "Мин. остаток не может быть отрицательным" }
+  if (updates.sale_price !== null && updates.sale_price < 0) return { error: "Цена не может быть отрицательной" }
+
+  // Fetch current flower (org-scoped — double protection over RLS)
+  const { data: current } = await supabase
+    .from("flowers")
+    .select("name, category, sku, unit, min_stock, sale_price, description")
+    .eq("id", flowerId)
+    .eq("organization_id", orgId)
+    .single()
+
+  if (!current) return { error: "Позиция не найдена или нет доступа" }
+
+  // Apply update
+  const { error: updateError } = await supabase
+    .from("flowers")
+    .update({
+      name:        updates.name.trim(),
+      category:    updates.category.trim(),
+      sku:         updates.sku?.trim() || null,
+      unit:        updates.unit.trim(),
+      min_stock:   updates.min_stock,
+      sale_price:  updates.sale_price,
+      description: updates.description?.trim() || null,
+      updated_at:  new Date().toISOString(),
+    })
+    .eq("id", flowerId)
+    .eq("organization_id", orgId)
+
+  if (updateError) return { error: updateError.message }
+
+  // Build change log — only actually changed fields
+  type ChangeEntry = { field: string; label: string; old: string; new_val: string }
+  const changes: ChangeEntry[] = []
+
+  const str = (v: string | number | null | undefined) =>
+    v == null || v === "" ? "—" : String(v)
+
+  const check = (field: keyof FlowerInfoUpdate) => {
+    const oldVal = current[field as keyof typeof current]
+    const newVal = updates[field]
+    const oldStr = str(oldVal)
+    const newStr = str(newVal)
+    if (oldStr !== newStr) {
+      changes.push({ field, label: FIELD_LABELS[field], old: oldStr, new_val: newStr })
+    }
+  }
+
+  ;(Object.keys(FIELD_LABELS) as Array<keyof FlowerInfoUpdate>).forEach(check)
+
+  if (changes.length > 0) {
+    await supabase.from("activity_logs").insert({
+      action:         "flower_updated",
+      entity_type:    "flower",
+      entity_id:      flowerId,
+      organization_id: orgId,
+      user_id:        user.id,
+      changes,
+    })
+  }
+
+  revalidatePath("/inventory")
+  revalidatePath(`/inventory/${flowerId}`)
+  return {}
+}
+
+export async function getFlowerActivityLogs(flowerId: string) {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from("activity_logs")
+    .select("id, created_at, user_id, changes, profiles!user_id(full_name)")
+    .eq("entity_type", "flower")
+    .eq("entity_id", flowerId)
+    .order("created_at", { ascending: false })
+    .limit(50)
+  return (data ?? []) as Array<{
+    id: string
+    created_at: string
+    user_id: string | null
+    changes: unknown
+    profiles: { full_name: string | null } | null
+  }>
 }
 
 export async function archiveFlower(id: string): Promise<{ error?: string }> {

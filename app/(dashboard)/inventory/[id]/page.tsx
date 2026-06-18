@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Package, ShoppingCart, ShoppingBag, Info } from "lucide-react"
+import { ArrowLeft, Package, ShoppingCart, ShoppingBag } from "lucide-react"
 import {
   getFlowerById,
   getFlowerInventoryItems,
   getFlowerMovements,
+  getFlowerActivityLogs,
 } from "@/app/actions/inventory"
+import { FlowerInfoEditor } from "@/components/stock/FlowerInfoEditor"
+import type { HistoryLog } from "@/components/stock/FlowerInfoEditor"
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -57,11 +60,17 @@ export default async function InventoryItemPage({
 }) {
   const { id } = await params
 
-  const [flower, batches, movements] = await Promise.all([
+  const [flower, batches, movements, rawLogs] = await Promise.all([
     getFlowerById(id),
     getFlowerInventoryItems(id),
     getFlowerMovements(id),
+    getFlowerActivityLogs(id),
   ])
+
+  const historyLogs: HistoryLog[] = rawLogs.map((l) => ({
+    ...l,
+    changes: Array.isArray(l.changes) ? (l.changes as HistoryLog["changes"]) : null,
+  }))
 
   if (!flower) redirect("/inventory")
 
@@ -170,57 +179,21 @@ export default async function InventoryItemPage({
         </div>
       </div>
 
-      {/* Block 1: Информация о позиции */}
-      <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
-        <div className="px-5 py-3 border-b border-zinc-100 flex items-center gap-2">
-          <Info className="h-4 w-4 text-zinc-400" />
-          <h2 className="text-sm font-semibold text-zinc-800">Информация</h2>
-        </div>
-        <div className="px-5 py-4 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 text-sm">
-          <div>
-            <p className="text-xs text-zinc-400 mb-0.5">Название</p>
-            <p className="font-medium text-zinc-800">{flower.name}</p>
-          </div>
-          <div>
-            <p className="text-xs text-zinc-400 mb-0.5">Категория</p>
-            <p className="font-medium text-zinc-800">{flower.category}</p>
-          </div>
-          <div>
-            <p className="text-xs text-zinc-400 mb-0.5">Единица</p>
-            <p className="font-medium text-zinc-800">{flower.unit}</p>
-          </div>
-          <div>
-            <p className="text-xs text-zinc-400 mb-0.5">SKU</p>
-            <p className="font-mono text-zinc-600">{flower.sku ?? "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-zinc-400 mb-0.5">Мин. остаток</p>
-            <p className="font-medium text-zinc-800">
-              {minStock > 0 ? `${minStock} ${flower.unit}` : "не задан"}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-zinc-400 mb-0.5">Цена продажи</p>
-            <p className="font-medium text-zinc-800">
-              {flower.sale_price != null
-                ? `₽${flower.sale_price.toLocaleString("ru", { maximumFractionDigits: 0 })}`
-                : "—"}
-            </p>
-          </div>
-          {flower.description && (
-            <div className="col-span-2 sm:col-span-3">
-              <p className="text-xs text-zinc-400 mb-0.5">Описание</p>
-              <p className="text-zinc-600">{flower.description}</p>
-            </div>
-          )}
-          {flower.florist_comment && (
-            <div className="col-span-2 sm:col-span-3">
-              <p className="text-xs text-zinc-400 mb-0.5">Комментарий флориста</p>
-              <p className="text-zinc-600">{flower.florist_comment}</p>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Block 1: Информация + История изменений (editable) */}
+      <FlowerInfoEditor
+        flower={{
+          id: flower.id,
+          name: flower.name,
+          category: flower.category,
+          sku: flower.sku ?? null,
+          unit: flower.unit,
+          min_stock: flower.min_stock ?? null,
+          sale_price: flower.sale_price ?? null,
+          description: flower.description ?? null,
+          florist_comment: flower.florist_comment ?? null,
+        }}
+        historyLogs={historyLogs}
+      />
 
       {/* Block 2: Партии (FIFO) */}
       <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
