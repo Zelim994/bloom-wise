@@ -1,10 +1,9 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import type { CalendarPeriod } from "@/lib/calendar/periods"
 
-export type CalendarPeriod = "today" | "tomorrow" | "7d" | "month"
-
-export const VALID_CALENDAR_PERIODS: CalendarPeriod[] = ["today", "tomorrow", "7d", "month"]
+export type { CalendarPeriod }
 
 const TABS: { key: CalendarPeriod; label: string }[] = [
   { key: "today",    label: "Сегодня" },

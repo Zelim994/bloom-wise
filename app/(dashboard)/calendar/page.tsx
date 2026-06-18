@@ -1,11 +1,11 @@
 import Link from "next/link"
 import { CalendarDays, Plus, ArrowRight } from "lucide-react"
 import { getOrdersForCalendar, type CalendarOrder } from "@/app/actions/calendar"
+import { CalendarPeriodTabs } from "@/components/calendar/CalendarPeriodTabs"
 import {
-  CalendarPeriodTabs,
   VALID_CALENDAR_PERIODS,
   type CalendarPeriod,
-} from "@/components/calendar/CalendarPeriodTabs"
+} from "@/lib/calendar/periods"
 import { OrderStockBadge } from "@/components/orders/OrderStockBadge"
 
 // ─── helpers ────────────────────────────────────────────────────────────────
