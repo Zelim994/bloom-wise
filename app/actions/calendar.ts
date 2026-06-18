@@ -7,7 +7,10 @@ export type CalendarOrder = {
   order_number: string | null
   status: string
   type: string | null
+  payment_status: string
   total_amount: number | null
+  stock_written_off: boolean
+  stock_returned: boolean
   ready_at: string | null
   order_date: string
   customers: { full_name: string; phone: string | null } | null
@@ -27,7 +30,7 @@ export async function getOrdersForCalendar(): Promise<CalendarOrder[]> {
 
   const { data } = await supabase
     .from("orders")
-    .select("id, order_number, status, type, total_amount, ready_at, order_date, customers(full_name, phone)")
+    .select("id, order_number, status, type, payment_status, total_amount, stock_written_off, stock_returned, ready_at, order_date, customers(full_name, phone)")
     .neq("status", "cancelled")
     .or(`order_date.gte.${fromStr},ready_at.gte.${fromStr}`)
     .lte("order_date", toStr)
