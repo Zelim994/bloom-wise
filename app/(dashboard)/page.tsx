@@ -17,17 +17,6 @@ import { OrdersAttentionWidget } from "@/components/dashboard/OrdersAttentionWid
 import { createClient } from "@/lib/supabase/server"
 import { getOrgId } from "@/lib/services/organizationService"
 
-const stats: StatItem[] = [
-  { label: "Выручка сегодня",   value: "₽ 24 500", trend: "+12%",            up: true,  icon: TrendingUp,   color: "text-emerald-500", bg: "bg-emerald-50" },
-  { label: "Прибыль сегодня",   value: "₽ 11 800", trend: "+8%",             up: true,  icon: TrendingUp,   color: "text-emerald-500", bg: "bg-emerald-50" },
-  { label: "Заказы сегодня",    value: "7",         trend: "+2 к вчера",     up: true,  icon: ShoppingBag,  color: "text-blue-500",    bg: "bg-blue-50"    },
-  { label: "Списания сегодня",  value: "₽ 1 200",  trend: "-3% к норме",    up: false, icon: Minus,        color: "text-rose-500",    bg: "bg-rose-50"    },
-  { label: "Заказы на завтра",  value: "4",         trend: "2 доставки",     up: true,  icon: Clock,        color: "text-violet-500",  bg: "bg-violet-50"  },
-  { label: "Остаток склада",    value: "248 шт",    trend: "14 категорий",   up: true,  icon: Package,      color: "text-amber-500",   bg: "bg-amber-50"   },
-  { label: "Низкий остаток",    value: "3 товара",  trend: "Требуют закупки",up: false, icon: AlertTriangle,color: "text-orange-500",  bg: "bg-orange-50"  },
-  { label: "Залежались",        value: "5 позиций", trend: "Старше 10 дней", up: false, icon: TrendingDown, color: "text-red-500",     bg: "bg-red-50"     },
-]
-
 const TYPE_LABELS: Record<string, string> = {
   pickup: "Самовывоз",
   delivery: "Доставка",
@@ -40,17 +29,19 @@ export default async function DashboardPage() {
 
   let recentOrders: OrderPreview[] = []
   let stockAlerts: StockAlert[] = []
+  let stats: StatItem[] = []
 
   if (orgId) {
     const today = new Date()
     const todayStr = today.toISOString().split("T")[0]
     const tomorrowStr = new Date(today.getTime() + 86_400_000).toISOString().split("T")[0]
+    const dayAfterStr = new Date(today.getTime() + 2 * 86_400_000).toISOString().split("T")[0]
     const tenDaysAgo = new Date(today.getTime() - 10 * 86_400_000).toISOString()
 
-    const [ordersRes, flowersRes, stockRes, agingRes] = await Promise.all([
+    const [ordersRes, flowersRes, stockRes, agingRes, writeoffsRes, tomorrowRes] = await Promise.all([
       supabase
         .from("orders")
-        .select("id, order_number, status, total_amount, order_date, created_at, type, customers(full_name)")
+        .select("id, order_number, status, total_amount, profit, order_date, created_at, type, customers(full_name)")
         .eq("organization_id", orgId)
         .gte("order_date", todayStr)
         .lt("order_date", tomorrowStr)
@@ -71,9 +62,22 @@ export default async function DashboardPage() {
         .eq("organization_id", orgId)
         .gt("quantity_remaining", 0)
         .lt("arrived_at", tenDaysAgo),
+      supabase
+        .from("writeoffs")
+        .select("loss_amount")
+        .eq("organization_id", orgId)
+        .gte("writeoff_date", todayStr)
+        .lt("writeoff_date", tomorrowStr),
+      supabase
+        .from("orders")
+        .select("id, type")
+        .eq("organization_id", orgId)
+        .gte("order_date", tomorrowStr)
+        .lt("order_date", dayAfterStr)
+        .not("status", "in", "(cancelled,delivered)"),
     ])
 
-    // Заказы сегодня
+    // Заказы сегодня → RecentOrdersWidget
     recentOrders = (ordersRes.data ?? []).map((o) => {
       const row = o as {
         id: string; order_number: string; status: string; total_amount: number | null
@@ -93,18 +97,17 @@ export default async function DashboardPage() {
       }
     })
 
-    // Склад — внимание
+    // Склад — внимание → StockAlertsWidget
     const stockMap = new Map(
       (stockRes.data ?? []).map((s) => [s.flower_id, Number(s.current_stock ?? 0)])
     )
     const flowers = flowersRes.data ?? []
 
-    // Залежавшиеся партии: сгруппировать по flower_id, взять самую старую дату
     const agingMap = new Map<string, number>()
     for (const item of agingRes.data ?? []) {
       const days = Math.floor((today.getTime() - new Date(item.arrived_at).getTime()) / 86_400_000)
-      const existing = agingMap.get(item.flower_id)
-      if (existing === undefined || days > existing) agingMap.set(item.flower_id, days)
+      const prev = agingMap.get(item.flower_id)
+      if (prev === undefined || days > prev) agingMap.set(item.flower_id, days)
     }
 
     const outAlerts: StockAlert[] = []
@@ -125,6 +128,81 @@ export default async function DashboardPage() {
     }
 
     stockAlerts = [...outAlerts, ...lowAlerts, ...agingAlerts].slice(0, 6)
+
+    // Карточки показателей
+    const todayOrders = ordersRes.data ?? []
+    type OrderRow = { total_amount: number | null; profit: number | null }
+    const todayRevenue = todayOrders.reduce((s, o) => s + ((o as unknown as OrderRow).total_amount ?? 0), 0)
+    const todayProfit = todayOrders.reduce((s, o) => s + ((o as unknown as OrderRow).profit ?? 0), 0)
+    const writeoffTotal = (writeoffsRes.data ?? []).reduce((s, w) => s + (w.loss_amount ?? 0), 0)
+    const tomorrowOrders = tomorrowRes.data ?? []
+    const tomorrowDeliveries = tomorrowOrders.filter((o) => (o as { type: string }).type === "delivery").length
+    const totalStock = [...stockMap.values()].reduce((s, v) => s + v, 0)
+    const stockWithItems = [...stockMap.values()].filter((v) => v > 0).length
+    const lowStockCount = outAlerts.length + lowAlerts.length
+    const agingCount = agingAlerts.length
+
+    const fmt = (n: number) =>
+      n > 0 ? `₽ ${n.toLocaleString("ru", { maximumFractionDigits: 0 })}` : "₽ 0"
+
+    stats = [
+      {
+        label: "Выручка сегодня",
+        value: fmt(todayRevenue),
+        trend: todayOrders.length > 0 ? `${todayOrders.length} заказов` : "Нет заказов",
+        up: todayRevenue > 0,
+        icon: TrendingUp, color: "text-emerald-500", bg: "bg-emerald-50",
+      },
+      {
+        label: "Прибыль сегодня",
+        value: fmt(todayProfit),
+        trend: todayProfit > 0 ? "Есть прибыль" : "Нет данных",
+        up: todayProfit > 0,
+        icon: TrendingUp, color: "text-emerald-500", bg: "bg-emerald-50",
+      },
+      {
+        label: "Заказы сегодня",
+        value: String(todayOrders.length),
+        trend: todayOrders.length > 0 ? "активных" : "Нет заказов",
+        up: todayOrders.length > 0,
+        icon: ShoppingBag, color: "text-blue-500", bg: "bg-blue-50",
+      },
+      {
+        label: "Списания сегодня",
+        value: writeoffTotal > 0 ? fmt(writeoffTotal) : "—",
+        trend: writeoffTotal > 0 ? "убыток" : "Нет списаний",
+        up: writeoffTotal === 0,
+        icon: Minus, color: "text-rose-500", bg: "bg-rose-50",
+      },
+      {
+        label: "Заказы на завтра",
+        value: String(tomorrowOrders.length),
+        trend: tomorrowDeliveries > 0 ? `${tomorrowDeliveries} доставок` : "Нет доставок",
+        up: tomorrowOrders.length > 0,
+        icon: Clock, color: "text-violet-500", bg: "bg-violet-50",
+      },
+      {
+        label: "Остаток склада",
+        value: `${totalStock} шт`,
+        trend: stockWithItems > 0 ? `${stockWithItems} позиций` : "Склад пуст",
+        up: totalStock > 0,
+        icon: Package, color: "text-amber-500", bg: "bg-amber-50",
+      },
+      {
+        label: "Низкий остаток",
+        value: lowStockCount > 0 ? `${lowStockCount} товаров` : "Всё в норме",
+        trend: lowStockCount > 0 ? "Требуют закупки" : "Запасов достаточно",
+        up: lowStockCount === 0,
+        icon: AlertTriangle, color: "text-orange-500", bg: "bg-orange-50",
+      },
+      {
+        label: "Залежались",
+        value: agingCount > 0 ? `${agingCount} позиций` : "Всё свежее",
+        trend: agingCount > 0 ? "Старше 10 дней" : "Всё в порядке",
+        up: agingCount === 0,
+        icon: TrendingDown, color: "text-red-500", bg: "bg-red-50",
+      },
+    ]
   }
 
   return (
