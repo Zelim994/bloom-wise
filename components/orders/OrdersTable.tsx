@@ -33,6 +33,7 @@ type Props = {
 
 type StockFilter = "all" | "not_written_off" | "written_off" | "returned"
 type PaymentFilter = "all" | "unpaid" | "partial" | "paid"
+type SortKey = "newest" | "oldest" | "unpaid_first" | "stock_first"
 
 const STOCK_FILTERS: { key: StockFilter; label: string }[] = [
   { key: "all",             label: "Все" },
@@ -48,6 +49,31 @@ const PAYMENT_FILTERS: { key: PaymentFilter; label: string }[] = [
   { key: "paid",    label: "Оплачено" },
 ]
 
+const PAYMENT_ORDER: Record<string, number> = { unpaid: 0, partial: 1, paid: 2 }
+const STOCK_ORDER = (o: OrderWithCustomer) =>
+  o.stock_returned ? 2 : o.stock_written_off ? 1 : 0
+
+function sortOrders(orders: OrderWithCustomer[], key: SortKey): OrderWithCustomer[] {
+  const copy = [...orders]
+  if (key === "newest") {
+    return copy.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  }
+  if (key === "oldest") {
+    return copy.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  }
+  if (key === "unpaid_first") {
+    return copy.sort(
+      (a, b) =>
+        (PAYMENT_ORDER[a.payment_status ?? "unpaid"] ?? 0) -
+        (PAYMENT_ORDER[b.payment_status ?? "unpaid"] ?? 0)
+    )
+  }
+  if (key === "stock_first") {
+    return copy.sort((a, b) => STOCK_ORDER(a) - STOCK_ORDER(b))
+  }
+  return copy
+}
+
 function getStockKey(o: OrderWithCustomer): StockFilter {
   if (o.stock_written_off && o.stock_returned) return "returned"
   if (o.stock_written_off) return "written_off"
@@ -58,6 +84,7 @@ export function OrdersTable({ orders, activeStatus }: Props) {
   const [search, setSearch] = useState("")
   const [stockFilter, setStockFilter] = useState<StockFilter>("all")
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all")
+  const [sortKey, setSortKey] = useState<SortKey>("newest")
 
   const q = search.trim().toLowerCase()
   const filtered = orders.filter((o) => {
@@ -72,6 +99,7 @@ export function OrdersTable({ orders, activeStatus }: Props) {
     if (paymentFilter !== "all" && (o.payment_status ?? "unpaid") !== paymentFilter) return false
     return true
   })
+  const sorted = sortOrders(filtered, sortKey)
 
   return (
     <div className="space-y-3">
@@ -88,6 +116,16 @@ export function OrdersTable({ orders, activeStatus }: Props) {
             className="w-full pl-9 pr-4 py-2 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent placeholder:text-zinc-400"
           />
         </div>
+        <select
+          value={sortKey}
+          onChange={(e) => setSortKey(e.target.value as SortKey)}
+          className="px-3 py-2 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent"
+        >
+          <option value="newest">Сначала новые</option>
+          <option value="oldest">Сначала старые</option>
+          <option value="unpaid_first">Сначала неоплаченные</option>
+          <option value="stock_first">Сначала не списан склад</option>
+        </select>
         <div className="flex gap-1">
           {STOCK_FILTERS.map((f) => (
             <button
@@ -159,10 +197,10 @@ export function OrdersTable({ orders, activeStatus }: Props) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((order, i) => {
+              {sorted.map((order, i) => {
                 const status = statusConfig[order.status] ?? { label: order.status, className: "bg-zinc-100 text-zinc-500" }
                 const payment = paymentStatusConfig[order.payment_status ?? "unpaid"]
-                const isLast = i === filtered.length - 1
+                const isLast = i === sorted.length - 1
                 const isDimmed = order.status === "delivered" || order.status === "cancelled"
 
                 return (
