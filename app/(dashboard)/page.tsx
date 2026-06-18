@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { StatsCard, type StatItem } from "@/components/dashboard/StatsCard"
 import { RecentOrdersWidget, type OrderPreview } from "@/components/dashboard/RecentOrdersWidget"
 import { StockAlertsWidget, type StockAlert } from "@/components/dashboard/StockAlertsWidget"
+import { OrdersAttentionWidget } from "@/components/dashboard/OrdersAttentionWidget"
 
 const stats: StatItem[] = [
   { label: "Выручка сегодня",   value: "₽ 24 500", trend: "+12%",            up: true,  icon: TrendingUp,   color: "text-emerald-500", bg: "bg-emerald-50" },
@@ -79,6 +80,13 @@ export default function DashboardPage() {
         </div>
         <div>
           <StockAlertsWidget alerts={stockAlerts} />
+        </div>
+      </div>
+
+      {/* Заказы требуют внимания */}
+      <div className="grid grid-cols-3 gap-5">
+        <div className="col-span-1">
+          <OrdersAttentionWidget />
         </div>
       </div>
     </div>
