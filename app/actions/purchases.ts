@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { Purchase, Flower, Supplier } from "@/lib/supabase/types"
-import { findOrCreateSupplier, validateAndDeleteInventoryBatch } from "@/lib/services/purchaseService"
+import { findOrCreateSupplier, validateAndDeleteInventoryBatch, createPurchaseAtomicViaRpc } from "@/lib/services/purchaseService"
 import { getOrgId } from "@/lib/services/organizationService"
 
 export type PurchaseWithSupplier = Purchase & { suppliers: { name: string; phone: string | null } | null }
@@ -210,90 +210,27 @@ export async function createPurchase(formData: {
   if (formData.items.length === 0) return { error: "Добавьте хотя бы один товар" }
 
   const supabase = await createClient()
-  const orgId = await getOrgId(supabase)
-  if (!orgId) return { error: "Организация не найдена" }
 
-  const { supplierId, error: supplierError } = await findOrCreateSupplier(supabase, orgId, formData.supplier_name)
-  if (supplierError) return { error: supplierError }
+  const result = await createPurchaseAtomicViaRpc(supabase, {
+    supplier_name:  formData.supplier_name,
+    purchase_date:  formData.purchase_date,
+    comment:        formData.comment || null,
+    delivery_cost:  formData.delivery_cost ?? 0,
+    items: formData.items.map((i) => ({
+      flower_id:  i.flower_id,
+      quantity:   i.quantity,
+      cost_price: i.cost_price,
+      sale_price: i.sale_price && i.sale_price > 0 ? i.sale_price : null,
+      expires_at: i.expires_at || null,
+      comment:    i.comment    || null,
+    })),
+  })
 
-  const totalAmount =
-    formData.items.reduce((s, i) => s + i.quantity * i.cost_price, 0) +
-    (formData.delivery_cost ?? 0)
-
-  // Создаём запись прихода
-  const { data: purchaseRow, error: pe } = await supabase
-    .from("purchases")
-    .insert({
-      organization_id: orgId,
-      supplier_id: supplierId,
-      purchase_date: formData.purchase_date,
-      total_amount: totalAmount,
-      comment: formData.comment || null,
-      status: "confirmed",
-    })
-    .select("id")
-    .single()
-
-  if (pe || !purchaseRow) return { error: pe?.message ?? "Ошибка создания прихода" }
-  const purchaseId = purchaseRow.id
-
-  // Для каждой строки создаём inventory_item + stock_movement + purchase_items
-  for (const item of formData.items) {
-    const { data: invItem, error: ie } = await supabase
-      .from("inventory_items")
-      .insert({
-        organization_id: orgId,
-        flower_id: item.flower_id,
-        supplier_id: supplierId,
-        arrived_at: formData.purchase_date,
-        cost_price: item.effective_cost,  // цена с учётом доставки
-        quantity_in: item.quantity,
-        quantity_remaining: item.quantity,
-        expires_at: item.expires_at || null,
-        freshness_status: "fresh",
-        purchase_id: purchaseId,
-      })
-      .select("id")
-      .single()
-
-    if (ie || !invItem) return { error: ie?.message ?? "Ошибка создания партии" }
-
-    const { error: me } = await supabase.from("stock_movements").insert({
-      organization_id: orgId,
-      flower_id: item.flower_id,
-      inventory_item_id: invItem.id,
-      quantity: item.quantity,
-      movement_type: "purchase",
-      source_type: "purchase",
-      source_id: purchaseId,
-      comment: item.comment || null,
-    })
-    if (me) return { error: me.message }
-
-    const { error: pie } = await supabase.from("purchase_items").insert({
-      purchase_id: purchaseId,
-      flower_id: item.flower_id,
-      inventory_item_id: invItem.id,
-      quantity: item.quantity,
-      cost_price: item.cost_price,           // закупочная цена без доставки
-      extra_costs: item.extra_costs ?? 0,    // доля доставки за всю строку
-      expires_at: item.expires_at || null,
-      comment: item.comment || null,
-    })
-    if (pie) return { error: pie.message }
-
-    // Обновляем цену продажи в каталоге цветов, если указана
-    if (item.sale_price && item.sale_price > 0) {
-      await supabase
-        .from("flowers")
-        .update({ sale_price: item.sale_price })
-        .eq("id", item.flower_id)
-    }
-  }
+  if (!result.ok) return { error: result.error }
 
   revalidatePath("/purchases")
   revalidatePath("/inventory")
-  return { id: purchaseId }
+  return { id: result.purchaseId }
 }
 
 export type UpdatePurchaseItem = {
