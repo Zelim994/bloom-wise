@@ -206,52 +206,55 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Приветствие + быстрые действия */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold text-zinc-900">Добро пожаловать 🌸</h2>
-          <p className="text-sm text-zinc-500 mt-0.5">Суббота, 7 июня 2026</p>
+    <div className="flex flex-col xl:flex-row gap-6 items-start">
+
+      {/* Основная зона */}
+      <div className="flex-1 min-w-0 space-y-6">
+        {/* Приветствие + быстрые действия */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-zinc-900">Добро пожаловать 🌸</h2>
+            <p className="text-sm text-zinc-500 mt-0.5">Сегодня на связи</p>
+          </div>
+          <div className="flex gap-3">
+            <Button asChild className="bg-rose-500 hover:bg-rose-600 text-white gap-2">
+              <Link href="/orders/new">
+                <ShoppingBag className="h-4 w-4" />
+                Новый заказ
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="gap-2 border-zinc-200">
+              <Link href="/builder">
+                <Scissors className="h-4 w-4" />
+                Собрать букет
+              </Link>
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-3">
-          <Button asChild className="bg-rose-500 hover:bg-rose-600 text-white gap-2">
-            <Link href="/orders/new">
-              <ShoppingBag className="h-4 w-4" />
-              Новый заказ
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="gap-2 border-zinc-200">
-            <Link href="/builder">
-              <Scissors className="h-4 w-4" />
-              Собрать букет
-            </Link>
-          </Button>
+
+        {/* Карточки показателей */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {stats.map((stat) => (
+            <StatsCard key={stat.label} {...stat} />
+          ))}
+        </div>
+
+        {/* Заказы + Склад */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="lg:col-span-2">
+            <RecentOrdersWidget orders={recentOrders} />
+          </div>
+          <div>
+            <StockAlertsWidget alerts={stockAlerts} />
+          </div>
         </div>
       </div>
 
-      {/* Карточки показателей */}
-      <div className="grid grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <StatsCard key={stat.label} {...stat} />
-        ))}
+      {/* Правая панель — Напоминания */}
+      <div className="w-full xl:w-64 shrink-0 xl:sticky xl:top-6">
+        <OrdersAttentionWidget />
       </div>
 
-      {/* Заказы + Склад */}
-      <div className="grid grid-cols-3 gap-5">
-        <div className="col-span-2">
-          <RecentOrdersWidget orders={recentOrders} />
-        </div>
-        <div>
-          <StockAlertsWidget alerts={stockAlerts} />
-        </div>
-      </div>
-
-      {/* Заказы требуют внимания */}
-      <div className="grid grid-cols-3 gap-5">
-        <div className="col-span-1">
-          <OrdersAttentionWidget />
-        </div>
-      </div>
     </div>
   )
 }
