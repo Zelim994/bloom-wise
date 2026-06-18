@@ -8,6 +8,12 @@ import {
   type MonthCalendarOrder,
   type CalendarCell,
 } from "@/components/calendar/OrdersMonthCalendar"
+import { CalendarFilterTabs } from "@/components/calendar/CalendarFilterTabs"
+import { CalendarLegend } from "@/components/calendar/CalendarLegend"
+import {
+  VALID_CALENDAR_FILTERS,
+  type CalendarFilter,
+} from "@/lib/calendar/periods"
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
@@ -92,10 +98,12 @@ function SelectedDayPanel({
   selectedDay,
   orders,
   curMonthStr,
+  filterPart,
 }: {
   selectedDay: string
   orders: FullOrder[]
   curMonthStr: string
+  filterPart: string
 }) {
   const d = new Date(selectedDay + "T00:00:00")
   const title = `${d.getDate()} ${MONTH_GEN[d.getMonth()]}`
@@ -106,7 +114,7 @@ function SelectedDayPanel({
         <h2 className="text-base font-semibold text-zinc-900">Заказы на {title}</h2>
         <div className="flex-1 h-px bg-zinc-100" />
         <Link
-          href={`/calendar?month=${curMonthStr}`}
+          href={`/calendar?month=${curMonthStr}${filterPart}`}
           className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
         >
           Закрыть ×
@@ -184,14 +192,30 @@ function SelectedDayPanel({
   )
 }
 
+// ─── filter helpers ───────────────────────────────────────────────────────────
+
+function applyFilter(orders: FullOrder[], filter: CalendarFilter): FullOrder[] {
+  switch (filter) {
+    case "new":         return orders.filter((o) => o.status === "new")
+    case "in_progress": return orders.filter((o) => o.status === "in_progress")
+    case "ready":       return orders.filter((o) => o.status === "ready")
+    case "unpaid":      return orders.filter((o) => o.payment_status === "unpaid" || o.payment_status === "partial")
+    case "stock":       return orders.filter((o) => !o.stock_written_off)
+    default:            return orders
+  }
+}
+
 // ─── page ────────────────────────────────────────────────────────────────────
 
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; day?: string }>
+  searchParams: Promise<{ month?: string; day?: string; filter?: string }>
 }) {
-  const { month: rawMonth, day: rawDay } = await searchParams
+  const { month: rawMonth, day: rawDay, filter: rawFilter } = await searchParams
+  const activeFilter: CalendarFilter = VALID_CALENDAR_FILTERS.includes(rawFilter as CalendarFilter)
+    ? (rawFilter as CalendarFilter)
+    : "all"
   const { year, month } = parseMonth(rawMonth)
   const curMonthStr = toMonthStr(year, month)
 
@@ -226,9 +250,12 @@ export default async function CalendarPage({
     orders = (data ?? []) as unknown as FullOrder[]
   }
 
+  // Apply client-side filter
+  const filteredOrders = applyFilter(orders, activeFilter)
+
   // Group by order_date
   const byDate: Record<string, FullOrder[]> = {}
-  for (const o of orders) {
+  for (const o of filteredOrders) {
     if (!byDate[o.order_date]) byDate[o.order_date] = []
     byDate[o.order_date].push(o)
   }
@@ -241,6 +268,7 @@ export default async function CalendarPage({
   const prev = shift(year, month, -1)
   const nxt  = shift(year, month, 1)
   const cells = buildGrid(year, month)
+  const filterPart = activeFilter !== "all" ? `&filter=${activeFilter}` : ""
 
   // ordersByDate for the calendar grid (MonthCalendarOrder shape — subset of FullOrder)
   const ordersByDate: Record<string, MonthCalendarOrder[]> = byDate
@@ -262,7 +290,7 @@ export default async function CalendarPage({
       {/* Month navigation */}
       <div className="flex items-center gap-1">
         <Link
-          href={`/calendar?month=${toMonthStr(prev.year, prev.month)}`}
+          href={`/calendar?month=${toMonthStr(prev.year, prev.month)}${filterPart}`}
           className="p-2 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
           aria-label="Предыдущий месяц"
         >
@@ -272,7 +300,7 @@ export default async function CalendarPage({
           {MONTH_NAMES[month - 1]} {year}
         </span>
         <Link
-          href={`/calendar?month=${toMonthStr(nxt.year, nxt.month)}`}
+          href={`/calendar?month=${toMonthStr(nxt.year, nxt.month)}${filterPart}`}
           className="p-2 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
           aria-label="Следующий месяц"
         >
@@ -280,18 +308,29 @@ export default async function CalendarPage({
         </Link>
         {!isThisMonth && (
           <Link
-            href="/calendar"
+            href={`/calendar${filterPart ? `?${filterPart.slice(1)}` : ""}`}
             className="ml-2 px-3 py-1.5 rounded-lg text-sm text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100 transition-colors"
           >
             Сегодня
           </Link>
         )}
-        {orders.length > 0 && (
+        {filteredOrders.length > 0 && (
           <span className="ml-auto text-sm text-zinc-400">
-            {orders.length} {orders.length === 1 ? "заказ" : orders.length <= 4 ? "заказа" : "заказов"}
+            {filteredOrders.length}{" "}
+            {filteredOrders.length === 1 ? "заказ" : filteredOrders.length <= 4 ? "заказа" : "заказов"}
           </span>
         )}
       </div>
+
+      {/* Filter tabs */}
+      <CalendarFilterTabs
+        activeFilter={activeFilter}
+        curMonthStr={curMonthStr}
+        selectedDay={selectedDay}
+      />
+
+      {/* Legend */}
+      <CalendarLegend />
 
       {/* Calendar grid (horizontal scroll on small screens) */}
       <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
@@ -302,6 +341,7 @@ export default async function CalendarPage({
             todayStr={todayStr}
             selectedDay={selectedDay}
             curMonthStr={curMonthStr}
+            activeFilter={activeFilter}
           />
         </div>
       </div>
@@ -312,6 +352,7 @@ export default async function CalendarPage({
           selectedDay={selectedDay}
           orders={selectedOrders}
           curMonthStr={curMonthStr}
+          filterPart={filterPart}
         />
       )}
     </div>

@@ -38,6 +38,7 @@ interface Props {
   todayStr: string
   selectedDay: string | null
   curMonthStr: string
+  activeFilter: string
 }
 
 export function OrdersMonthCalendar({
@@ -46,6 +47,7 @@ export function OrdersMonthCalendar({
   todayStr,
   selectedDay,
   curMonthStr,
+  activeFilter,
 }: Props) {
   return (
     <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
@@ -73,10 +75,10 @@ export function OrdersMonthCalendar({
           const isLastRow  = idx >= 35
           const isLastCol  = (idx + 1) % 7 === 0
 
-          // Toggle: clicking a selected day deselects it
+          const filterPart = activeFilter !== "all" ? `&filter=${activeFilter}` : ""
           const dayHref = isSelected
-            ? `/calendar?month=${curMonthStr}`
-            : `/calendar?month=${curMonthStr}&day=${dateStr}`
+            ? `/calendar?month=${curMonthStr}${filterPart}`
+            : `/calendar?month=${curMonthStr}&day=${dateStr}${filterPart}`
 
           return (
             <div
@@ -168,7 +170,7 @@ export function OrdersMonthCalendar({
                             )}
                             {!order.stock_written_off && (
                               <span className="px-0.5 rounded bg-orange-100 text-orange-500 text-[8px] leading-tight">
-                                Скл
+                                Склад
                               </span>
                             )}
                           </div>
