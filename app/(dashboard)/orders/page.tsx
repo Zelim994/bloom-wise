@@ -5,14 +5,18 @@ import { OrderStatusTabs } from "@/components/orders/OrderStatusTabs"
 import { OrdersTable } from "@/components/orders/OrdersTable"
 
 const VALID_STATUSES = ["new", "in_progress", "ready", "delivered", "cancelled"]
+const VALID_STOCK: string[] = ["all", "not_written_off", "written_off", "returned"]
+const VALID_PAYMENT: string[] = ["all", "unpaid", "partial", "paid", "open"]
 
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>
+  searchParams: Promise<{ status?: string; stock?: string; payment?: string }>
 }) {
-  const { status: rawStatus } = await searchParams
+  const { status: rawStatus, stock: rawStock, payment: rawPayment } = await searchParams
   const activeStatus = VALID_STATUSES.includes(rawStatus ?? "") ? (rawStatus as string) : "all"
+  const initialStock = VALID_STOCK.includes(rawStock ?? "") ? rawStock as string : undefined
+  const initialPayment = VALID_PAYMENT.includes(rawPayment ?? "") ? rawPayment as string : undefined
 
   const orders = await getOrders()
 
@@ -44,7 +48,12 @@ export default async function OrdersPage({
 
       <OrderStatusTabs activeStatus={activeStatus} counts={counts} />
 
-      <OrdersTable orders={displayed} activeStatus={activeStatus} />
+      <OrdersTable
+        orders={displayed}
+        activeStatus={activeStatus}
+        initialStockFilter={initialStock as "all" | "not_written_off" | "written_off" | "returned" | undefined}
+        initialPaymentFilter={initialPayment as "all" | "unpaid" | "partial" | "paid" | "open" | undefined}
+      />
     </div>
   )
 }

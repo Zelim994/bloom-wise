@@ -29,10 +29,12 @@ const typeIcons: Record<string, string> = {
 type Props = {
   orders: OrderWithCustomer[]
   activeStatus: string
+  initialStockFilter?: StockFilter
+  initialPaymentFilter?: PaymentFilter
 }
 
 type StockFilter = "all" | "not_written_off" | "written_off" | "returned"
-type PaymentFilter = "all" | "unpaid" | "partial" | "paid"
+type PaymentFilter = "all" | "unpaid" | "partial" | "paid" | "open"
 type SortKey = "newest" | "oldest" | "unpaid_first" | "stock_first"
 
 const STOCK_FILTERS: { key: StockFilter; label: string }[] = [
@@ -44,6 +46,7 @@ const STOCK_FILTERS: { key: StockFilter; label: string }[] = [
 
 const PAYMENT_FILTERS: { key: PaymentFilter; label: string }[] = [
   { key: "all",     label: "Все оплаты" },
+  { key: "open",    label: "Не закрыто" },
   { key: "unpaid",  label: "Не оплачено" },
   { key: "partial", label: "Частично" },
   { key: "paid",    label: "Оплачено" },
@@ -80,10 +83,10 @@ function getStockKey(o: OrderWithCustomer): StockFilter {
   return "not_written_off"
 }
 
-export function OrdersTable({ orders, activeStatus }: Props) {
+export function OrdersTable({ orders, activeStatus, initialStockFilter, initialPaymentFilter }: Props) {
   const [search, setSearch] = useState("")
-  const [stockFilter, setStockFilter] = useState<StockFilter>("all")
-  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all")
+  const [stockFilter, setStockFilter] = useState<StockFilter>(initialStockFilter ?? "all")
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>(initialPaymentFilter ?? "all")
   const [sortKey, setSortKey] = useState<SortKey>("newest")
 
   const q = search.trim().toLowerCase()
@@ -96,7 +99,12 @@ export function OrdersTable({ orders, activeStatus }: Props) {
       if (!matchText) return false
     }
     if (stockFilter !== "all" && getStockKey(o) !== stockFilter) return false
-    if (paymentFilter !== "all" && (o.payment_status ?? "unpaid") !== paymentFilter) return false
+    if (paymentFilter === "open") {
+      const ps = o.payment_status ?? "unpaid"
+      if (ps !== "unpaid" && ps !== "partial") return false
+    } else if (paymentFilter !== "all" && (o.payment_status ?? "unpaid") !== paymentFilter) {
+      return false
+    }
     return true
   })
   const sorted = sortOrders(filtered, sortKey)

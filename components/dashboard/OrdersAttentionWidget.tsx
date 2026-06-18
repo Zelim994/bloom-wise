@@ -50,13 +50,13 @@ export async function OrdersAttentionWidget() {
     {
       label: "Нужно списать склад",
       count: needStockWriteOff,
-      href: "/orders",
+      href: "/orders?stock=not_written_off",
       urgency: "warn",
     },
     {
       label: "Нужно получить оплату",
       count: needPayment,
-      href: "/orders",
+      href: "/orders?payment=open",
       urgency: "warn",
     },
     {
@@ -68,7 +68,7 @@ export async function OrdersAttentionWidget() {
     {
       label: "Проверить возврат склада",
       count: needStockReturn,
-      href: "/orders?status=cancelled",
+      href: "/orders?status=cancelled&stock=written_off",
       urgency: "warn",
     },
   ]
