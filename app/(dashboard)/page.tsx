@@ -28,14 +28,6 @@ const stats: StatItem[] = [
   { label: "Залежались",        value: "5 позиций", trend: "Старше 10 дней", up: false, icon: TrendingDown, color: "text-red-500",     bg: "bg-red-50"     },
 ]
 
-const stockAlerts: StockAlert[] = [
-  { name: "Роза красная 60см",   stock: 3, min: 10, type: "low"   },
-  { name: "Эвкалипт",            stock: 5, min: 8,  type: "low"   },
-  { name: "Тюльпан белый",       stock: 0, min: 15, type: "out"   },
-  { name: "Гортензия",           stock: 2, min: 5,  type: "aging", days: 12 },
-  { name: "Пионовидная роза",    stock: 4, min: 6,  type: "aging", days: 8  },
-]
-
 const TYPE_LABELS: Record<string, string> = {
   pickup: "Самовывоз",
   delivery: "Доставка",
@@ -47,23 +39,42 @@ export default async function DashboardPage() {
   const orgId = await getOrgId(supabase)
 
   let recentOrders: OrderPreview[] = []
+  let stockAlerts: StockAlert[] = []
 
   if (orgId) {
     const today = new Date()
     const todayStr = today.toISOString().split("T")[0]
     const tomorrowStr = new Date(today.getTime() + 86_400_000).toISOString().split("T")[0]
+    const tenDaysAgo = new Date(today.getTime() - 10 * 86_400_000).toISOString()
 
-    const { data } = await supabase
-      .from("orders")
-      .select("id, order_number, status, total_amount, order_date, created_at, type, customers(full_name)")
-      .eq("organization_id", orgId)
-      .gte("order_date", todayStr)
-      .lt("order_date", tomorrowStr)
-      .neq("status", "cancelled")
-      .order("created_at", { ascending: false })
-      .limit(6)
+    const [ordersRes, flowersRes, stockRes, agingRes] = await Promise.all([
+      supabase
+        .from("orders")
+        .select("id, order_number, status, total_amount, order_date, created_at, type, customers(full_name)")
+        .eq("organization_id", orgId)
+        .gte("order_date", todayStr)
+        .lt("order_date", tomorrowStr)
+        .neq("status", "cancelled")
+        .order("created_at", { ascending: false })
+        .limit(6),
+      supabase
+        .from("flowers")
+        .select("id, name, min_stock")
+        .eq("organization_id", orgId)
+        .eq("is_active", true),
+      supabase
+        .from("flower_stock")
+        .select("flower_id, current_stock"),
+      supabase
+        .from("inventory_items")
+        .select("flower_id, quantity_remaining, arrived_at")
+        .eq("organization_id", orgId)
+        .gt("quantity_remaining", 0)
+        .lt("arrived_at", tenDaysAgo),
+    ])
 
-    recentOrders = (data ?? []).map((o) => {
+    // Заказы сегодня
+    recentOrders = (ordersRes.data ?? []).map((o) => {
       const row = o as {
         id: string; order_number: string; status: string; total_amount: number | null
         order_date: string; created_at: string; type: string
@@ -81,6 +92,39 @@ export default async function DashboardPage() {
         time: new Date(row.created_at).toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" }),
       }
     })
+
+    // Склад — внимание
+    const stockMap = new Map(
+      (stockRes.data ?? []).map((s) => [s.flower_id, Number(s.current_stock ?? 0)])
+    )
+    const flowers = flowersRes.data ?? []
+
+    // Залежавшиеся партии: сгруппировать по flower_id, взять самую старую дату
+    const agingMap = new Map<string, number>()
+    for (const item of agingRes.data ?? []) {
+      const days = Math.floor((today.getTime() - new Date(item.arrived_at).getTime()) / 86_400_000)
+      const existing = agingMap.get(item.flower_id)
+      if (existing === undefined || days > existing) agingMap.set(item.flower_id, days)
+    }
+
+    const outAlerts: StockAlert[] = []
+    const lowAlerts: StockAlert[] = []
+    const agingAlerts: StockAlert[] = []
+
+    for (const f of flowers) {
+      const stock = stockMap.get(f.id) ?? 0
+      const min = f.min_stock ?? 0
+      if (min > 0 && stock === 0) {
+        outAlerts.push({ name: f.name, stock, min, type: "out" })
+      } else if (min > 0 && stock <= min) {
+        lowAlerts.push({ name: f.name, stock, min, type: "low" })
+      }
+      if (agingMap.has(f.id)) {
+        agingAlerts.push({ name: f.name, stock, min, type: "aging", days: agingMap.get(f.id) })
+      }
+    }
+
+    stockAlerts = [...outAlerts, ...lowAlerts, ...agingAlerts].slice(0, 6)
   }
 
   return (
