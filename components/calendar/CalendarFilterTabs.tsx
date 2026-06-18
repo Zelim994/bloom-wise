@@ -18,7 +18,8 @@ interface Props {
 
 export function CalendarFilterTabs({ activeFilter, curMonthStr, selectedDay }: Props) {
   return (
-    <div className="flex gap-1 flex-wrap">
+    <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-0.5">
+      <div className="flex gap-1 min-w-max">
       {TABS.map((tab) => {
         const dayPart = selectedDay ? `&day=${selectedDay}` : ""
         const href = `/calendar?month=${curMonthStr}&filter=${tab.key}${dayPart}`
@@ -38,6 +39,7 @@ export function CalendarFilterTabs({ activeFilter, curMonthStr, selectedDay }: P
           </Link>
         )
       })}
+      </div>
     </div>
   )
 }
