@@ -18,7 +18,7 @@ export default async function NewOrderPage({
         <h1 className="text-xl font-semibold text-zinc-900">Новый заказ</h1>
         <p className="text-sm text-zinc-500 mt-0.5">Заполните данные клиента и соберите букет</p>
       </div>
-      <OrderForm flowers={flowers} initialOrderDate={initialOrderDate} />
+      <OrderForm key={initialOrderDate ?? ""} flowers={flowers} initialOrderDate={initialOrderDate} />
     </div>
   )
 }

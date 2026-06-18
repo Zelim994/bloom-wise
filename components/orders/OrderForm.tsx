@@ -29,8 +29,8 @@ function today() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function defaultReadyAt() {
-  const d = new Date()
+function defaultReadyAt(baseDate?: string) {
+  const d = baseDate ? new Date(baseDate + "T00:00:00") : new Date()
   d.setDate(d.getDate() + 1)
   d.setHours(12, 0, 0, 0)
   return d.toISOString().slice(0, 16)
@@ -59,7 +59,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate }: Props) {
   const [orderType, setOrderType] = useState<OrderType>((initialData?.type as OrderType) ?? "pickup")
   const [orderDate, setOrderDate] = useState(initialData?.order_date ?? initialOrderDate ?? today())
   const [readyAt, setReadyAt] = useState(
-    initialData?.ready_at ? initialData.ready_at.slice(0, 16) : defaultReadyAt()
+    initialData?.ready_at ? initialData.ready_at.slice(0, 16) : defaultReadyAt(initialOrderDate)
   )
   const [deliveryAddress, setDeliveryAddress] = useState(initialData?.delivery_address ?? "")
 
