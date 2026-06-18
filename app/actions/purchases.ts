@@ -163,15 +163,41 @@ export async function getSuppliers(): Promise<Supplier[]> {
 }
 
 // Выбор товаров из каталога (flowers) при оформлении прихода
-export async function getFlowersForPurchase(): Promise<Flower[]> {
+export type FlowerForPurchase = {
+  id: string
+  name: string
+  category: string
+  unit: string
+  min_stock: number
+  sku: string | null
+  primary_image_url: string | null
+}
+
+export async function getFlowersForPurchase(): Promise<FlowerForPurchase[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from("flowers")
-    .select("id, name, unit, category, min_stock")
+    .select("id, name, unit, category, min_stock, sku, flower_images(url, is_primary, sort_order)")
     .eq("is_active", true)
     .order("category")
     .order("name")
-  return (data ?? []) as unknown as Flower[]
+
+  return ((data ?? []) as unknown as Array<FlowerForPurchase & {
+    flower_images: Array<{ url: string; is_primary: boolean | null; sort_order: number | null }>
+  }>).map((f) => {
+    const imgs   = f.flower_images ?? []
+    const sorted = [...imgs].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    const primary = sorted.find((i) => i.is_primary) ?? sorted[0]
+    return {
+      id:                f.id,
+      name:              f.name,
+      category:          f.category,
+      unit:              f.unit,
+      min_stock:         f.min_stock,
+      sku:               f.sku,
+      primary_image_url: primary?.url ?? null,
+    }
+  })
 }
 
 export async function createPurchase(formData: {
