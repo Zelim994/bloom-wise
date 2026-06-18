@@ -6,7 +6,7 @@ import type { Purchase, Flower, Supplier } from "@/lib/supabase/types"
 import { findOrCreateSupplier, validateAndDeleteInventoryBatch } from "@/lib/services/purchaseService"
 import { getOrgId } from "@/lib/services/organizationService"
 
-export type PurchaseWithSupplier = Purchase & { suppliers: { name: string } | null }
+export type PurchaseWithSupplier = Purchase & { suppliers: { name: string; phone: string | null } | null }
 
 export type PurchaseLineItem = {
   flower_id: string
@@ -85,7 +85,7 @@ export type PurchaseDetailItem = {
   extra_costs: number | null
   expires_at: string | null
   comment: string | null
-  flowers: { id: string; name: string; unit: string; sale_price: number | null } | null
+  flowers: { id: string; name: string; category: string; unit: string; sale_price: number | null } | null
 }
 
 export type PurchaseDetail = PurchaseWithSupplier & {
@@ -95,10 +95,10 @@ export type PurchaseDetail = PurchaseWithSupplier & {
 export async function getPurchaseDetail(id: string): Promise<PurchaseDetail | null> {
   const supabase = await createClient()
   const [purchaseRes, itemsRes] = await Promise.all([
-    supabase.from("purchases").select("*, suppliers(name)").eq("id", id).single(),
+    supabase.from("purchases").select("*, suppliers(name, phone)").eq("id", id).single(),
     supabase
       .from("purchase_items")
-      .select("id, flower_id, inventory_item_id, quantity, cost_price, extra_costs, expires_at, comment, flowers(id, name, unit, sale_price)")
+      .select("id, flower_id, inventory_item_id, quantity, cost_price, extra_costs, expires_at, comment, flowers(id, name, category, unit, sale_price)")
       .eq("purchase_id", id)
       .not("flower_id", "is", null),
   ])
@@ -107,6 +107,49 @@ export async function getPurchaseDetail(id: string): Promise<PurchaseDetail | nu
     ...(purchaseRes.data as unknown as PurchaseWithSupplier),
     items: (itemsRes.data ?? []) as unknown as PurchaseDetailItem[],
   }
+}
+
+export type PurchaseBatch = {
+  id: string
+  arrived_at: string
+  cost_price: number
+  quantity_in: number
+  quantity_remaining: number
+  freshness_status: string | null
+  expires_at: string | null
+  flower_id: string
+  flowers: { name: string; unit: string } | null
+}
+
+export async function getPurchaseBatches(purchaseId: string): Promise<PurchaseBatch[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from("inventory_items")
+    .select("id, arrived_at, cost_price, quantity_in, quantity_remaining, freshness_status, expires_at, flower_id, flowers(name, unit)")
+    .eq("purchase_id", purchaseId)
+    .order("arrived_at", { ascending: true })
+  return (data ?? []) as unknown as PurchaseBatch[]
+}
+
+export type PurchaseMovement = {
+  id: string
+  created_at: string | null
+  movement_type: string
+  quantity: number
+  comment: string | null
+  flower_id: string
+  flowers: { name: string; unit: string } | null
+}
+
+export async function getPurchaseMovements(purchaseId: string): Promise<PurchaseMovement[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from("stock_movements")
+    .select("id, created_at, movement_type, quantity, comment, flower_id, flowers(name, unit)")
+    .eq("source_type", "purchase")
+    .eq("source_id", purchaseId)
+    .order("created_at", { ascending: false })
+  return (data ?? []) as unknown as PurchaseMovement[]
 }
 
 export async function getSuppliers(): Promise<Supplier[]> {
