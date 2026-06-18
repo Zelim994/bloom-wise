@@ -14,6 +14,8 @@ import { StatsCard, type StatItem } from "@/components/dashboard/StatsCard"
 import { RecentOrdersWidget, type OrderPreview } from "@/components/dashboard/RecentOrdersWidget"
 import { StockAlertsWidget, type StockAlert } from "@/components/dashboard/StockAlertsWidget"
 import { OrdersAttentionWidget } from "@/components/dashboard/OrdersAttentionWidget"
+import { createClient } from "@/lib/supabase/server"
+import { getOrgId } from "@/lib/services/organizationService"
 
 const stats: StatItem[] = [
   { label: "Выручка сегодня",   value: "₽ 24 500", trend: "+12%",            up: true,  icon: TrendingUp,   color: "text-emerald-500", bg: "bg-emerald-50" },
@@ -26,13 +28,6 @@ const stats: StatItem[] = [
   { label: "Залежались",        value: "5 позиций", trend: "Старше 10 дней", up: false, icon: TrendingDown, color: "text-red-500",     bg: "bg-red-50"     },
 ]
 
-const recentOrders: OrderPreview[] = [
-  { id: "BW-042", customer: "Анна М.",   bouquet: "Нежный рассвет", amount: "₽ 4 500",  status: "ready",       time: "12:30" },
-  { id: "BW-041", customer: "Иван К.",   bouquet: "Премиум роза",   amount: "₽ 8 900",  status: "in_progress", time: "11:00" },
-  { id: "BW-040", customer: "Мария С.",  bouquet: "Полевой букет",  amount: "₽ 3 200",  status: "new",         time: "10:15" },
-  { id: "BW-039", customer: "Ольга В.",  bouquet: "Свадебный",      amount: "₽ 15 000", status: "delivered",   time: "09:00" },
-]
-
 const stockAlerts: StockAlert[] = [
   { name: "Роза красная 60см",   stock: 3, min: 10, type: "low"   },
   { name: "Эвкалипт",            stock: 5, min: 8,  type: "low"   },
@@ -41,7 +36,53 @@ const stockAlerts: StockAlert[] = [
   { name: "Пионовидная роза",    stock: 4, min: 6,  type: "aging", days: 8  },
 ]
 
-export default function DashboardPage() {
+const TYPE_LABELS: Record<string, string> = {
+  pickup: "Самовывоз",
+  delivery: "Доставка",
+  event: "Мероприятие",
+}
+
+export default async function DashboardPage() {
+  const supabase = await createClient()
+  const orgId = await getOrgId(supabase)
+
+  let recentOrders: OrderPreview[] = []
+
+  if (orgId) {
+    const today = new Date()
+    const todayStr = today.toISOString().split("T")[0]
+    const tomorrowStr = new Date(today.getTime() + 86_400_000).toISOString().split("T")[0]
+
+    const { data } = await supabase
+      .from("orders")
+      .select("id, order_number, status, total_amount, order_date, created_at, type, customers(full_name)")
+      .eq("organization_id", orgId)
+      .gte("order_date", todayStr)
+      .lt("order_date", tomorrowStr)
+      .neq("status", "cancelled")
+      .order("created_at", { ascending: false })
+      .limit(6)
+
+    recentOrders = (data ?? []).map((o) => {
+      const row = o as {
+        id: string; order_number: string; status: string; total_amount: number | null
+        order_date: string; created_at: string; type: string
+        customers: { full_name: string } | null
+      }
+      return {
+        id: row.id,
+        number: row.order_number,
+        customer: row.customers?.full_name ?? "Без имени",
+        bouquet: TYPE_LABELS[row.type] ?? row.type,
+        amount: row.total_amount != null
+          ? `₽ ${Number(row.total_amount).toLocaleString("ru", { maximumFractionDigits: 0 })}`
+          : "—",
+        status: row.status,
+        time: new Date(row.created_at).toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" }),
+      }
+    })
+  }
+
   return (
     <div className="space-y-6">
       {/* Приветствие + быстрые действия */}

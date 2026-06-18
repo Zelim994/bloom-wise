@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
 export type OrderPreview = {
-  id: string
+  id: string       // UUID для роутинга
+  number?: string  // отображаемый номер (BW-042)
   customer: string
   bouquet: string
   amount: string
@@ -42,7 +43,7 @@ export function RecentOrdersWidget({ orders }: { orders: OrderPreview[] }) {
                 className="flex items-center justify-between rounded-lg border border-zinc-100 bg-zinc-50 px-4 py-3 transition-colors hover:border-zinc-200 hover:bg-white"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-mono text-zinc-400">{order.id}</span>
+                  <span className="text-xs font-mono text-zinc-400">{order.number ?? order.id}</span>
                   <div>
                     <p className="text-sm font-medium text-zinc-800">{order.customer}</p>
                     <p className="text-xs text-zinc-400">{order.bouquet}</p>
