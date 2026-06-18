@@ -39,9 +39,10 @@ function defaultReadyAt() {
 interface Props {
   flowers: FlowerForBuilder[]
   initialData?: OrderWithCustomer
+  initialOrderDate?: string
 }
 
-export function OrderForm({ flowers, initialData }: Props) {
+export function OrderForm({ flowers, initialData, initialOrderDate }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState("")
@@ -56,7 +57,7 @@ export function OrderForm({ flowers, initialData }: Props) {
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [orderType, setOrderType] = useState<OrderType>((initialData?.type as OrderType) ?? "pickup")
-  const [orderDate] = useState(initialData?.order_date ?? today())
+  const [orderDate, setOrderDate] = useState(initialData?.order_date ?? initialOrderDate ?? today())
   const [readyAt, setReadyAt] = useState(
     initialData?.ready_at ? initialData.ready_at.slice(0, 16) : defaultReadyAt()
   )
@@ -286,6 +287,18 @@ export function OrderForm({ flowers, initialData }: Props) {
                 </button>
               ))}
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
+              Дата заказа
+            </Label>
+            <Input
+              type="date"
+              value={orderDate}
+              onChange={(e) => setOrderDate(e.target.value)}
+              required
+              className="border-zinc-200 h-10"
+            />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">

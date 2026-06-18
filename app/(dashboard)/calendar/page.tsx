@@ -126,7 +126,7 @@ function SelectedDayPanel({
           <CalendarDays className="h-8 w-8 text-zinc-200 mb-2" />
           <p className="text-sm text-zinc-400">На этот день заказов нет</p>
           <Link
-            href="/orders/new"
+            href={`/orders/new?order_date=${selectedDay}`}
             className="mt-3 flex items-center gap-1.5 text-sm text-rose-500 hover:text-rose-600 font-medium"
           >
             <Plus className="h-4 w-4" />
@@ -279,7 +279,7 @@ export default async function CalendarPage({
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold text-zinc-900">Календарь заказов</h1>
         <Link
-          href="/orders/new"
+          href={selectedDay ? `/orders/new?order_date=${selectedDay}` : "/orders/new"}
           className="flex items-center gap-1.5 bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-3.5 py-2 rounded-lg transition-colors"
         >
           <Plus className="h-4 w-4" />
