@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { CalendarDays } from "lucide-react"
 import type { Period } from "@/lib/dashboard/periods"
 
 export type { Period }
@@ -11,6 +12,12 @@ const QUICK_TABS: { key: Period; label: string }[] = [
   { key: "7d",    label: "7 дней"  },
   { key: "month", label: "Месяц"   },
 ]
+
+function fmtDate(iso: string): string {
+  const [, m, d] = iso.split("-")
+  const months = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"]
+  return `${Number(d)} ${months[Number(m) - 1]}`
+}
 
 export function DashboardPeriodTabs({
   activePeriod,
@@ -22,15 +29,21 @@ export function DashboardPeriodTabs({
   activeTo?: string
 }) {
   const router = useRouter()
-  const [from, setFrom] = useState(activeFrom ?? "")
-  const [to, setTo]     = useState(activeTo   ?? "")
+  const [open, setOpen]   = useState(false)
+  const [from, setFrom]   = useState(activeFrom ?? "")
+  const [to, setTo]       = useState(activeTo   ?? "")
 
   const applyCustom = () => {
     if (!from || !to || from > to) return
+    setOpen(false)
     router.push(`/?period=custom&from=${from}&to=${to}`)
   }
 
   const isCustomActive = activePeriod === "custom"
+
+  const btnLabel = isCustomActive && activeFrom && activeTo
+    ? `${fmtDate(activeFrom)} — ${fmtDate(activeTo)}`
+    : "Выбрать дату"
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -50,32 +63,61 @@ export function DashboardPeriodTabs({
         </button>
       ))}
 
-      <span className="text-zinc-200 select-none">|</span>
-
-      <div className={`flex items-center gap-1.5 rounded-lg transition-colors ${
-        isCustomActive ? "ring-2 ring-zinc-800 px-2 py-1" : ""
-      }`}>
-        <input
-          type="date"
-          value={from}
-          onChange={(e) => setFrom(e.target.value)}
-          className="text-sm border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-700 bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent"
-        />
-        <span className="text-xs text-zinc-400">—</span>
-        <input
-          type="date"
-          value={to}
-          min={from || undefined}
-          onChange={(e) => setTo(e.target.value)}
-          className="text-sm border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-700 bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent"
-        />
+      {/* Кнопка-триггер для произвольного диапазона */}
+      <div className="relative">
         <button
-          onClick={applyCustom}
-          disabled={!from || !to || from > to}
-          className="px-3 py-1.5 rounded-lg text-sm font-medium bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+          onClick={() => setOpen((v) => !v)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+            isCustomActive
+              ? "bg-zinc-900 text-white"
+              : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100"
+          }`}
         >
-          Применить
+          <CalendarDays className="h-3.5 w-3.5" />
+          {btnLabel}
         </button>
+
+        {open && (
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 z-10"
+              onClick={() => setOpen(false)}
+            />
+            {/* Popover */}
+            <div className="absolute top-full left-0 mt-2 z-20 bg-white border border-zinc-200 rounded-xl shadow-lg p-4 min-w-[260px]">
+              <p className="text-xs font-semibold text-zinc-500 mb-3">Выберите период</p>
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-zinc-400 w-5">От</span>
+                  <input
+                    type="date"
+                    value={from}
+                    onChange={(e) => setFrom(e.target.value)}
+                    className="flex-1 text-sm border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-700 bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-zinc-400 w-5">До</span>
+                  <input
+                    type="date"
+                    value={to}
+                    min={from || undefined}
+                    onChange={(e) => setTo(e.target.value)}
+                    className="flex-1 text-sm border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-700 bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={applyCustom}
+                disabled={!from || !to || from > to}
+                className="mt-4 w-full py-2 rounded-lg text-sm font-medium bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Применить
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
