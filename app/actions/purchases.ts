@@ -10,6 +10,8 @@ export type PurchaseWithSupplier = Purchase & { suppliers: { name: string; phone
 
 export type PurchaseLineItem = {
   flower_id: string
+  variety_id?: string | null
+  color_id?: string | null
   quantity: number
   cost_price: number       // закупочная цена без доставки
   effective_cost: number   // cost_price + delivery_per_unit (хранится в inventory_items)
@@ -171,22 +173,33 @@ export type FlowerForPurchase = {
   min_stock: number
   sku: string | null
   primary_image_url: string | null
+  varieties: Array<{ id: string; name: string; size: string | null }>
+  colors: Array<{ id: string; name: string; variety_id: string | null }>
 }
 
 export async function getFlowersForPurchase(): Promise<FlowerForPurchase[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from("flowers")
-    .select("id, name, unit, category, min_stock, sku, flower_images(url, is_primary, sort_order)")
+    .select(`
+      id, name, unit, category, min_stock, sku,
+      flower_images(url, is_primary, sort_order),
+      flower_varieties(id, name, size, is_active),
+      flower_colors(id, name, variety_id, is_active)
+    `)
     .eq("is_active", true)
     .order("category")
     .order("name")
 
-  return ((data ?? []) as unknown as Array<FlowerForPurchase & {
-    flower_images: Array<{ url: string; is_primary: boolean | null; sort_order: number | null }>
-  }>).map((f) => {
-    const imgs   = f.flower_images ?? []
-    const sorted = [...imgs].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+  type RawFlower = FlowerForPurchase & {
+    flower_images:    Array<{ url: string; is_primary: boolean | null; sort_order: number | null }>
+    flower_varieties: Array<{ id: string; name: string; size: string | null; is_active: boolean | null }>
+    flower_colors:    Array<{ id: string; name: string; variety_id: string | null; is_active: boolean | null }>
+  }
+
+  return ((data ?? []) as unknown as RawFlower[]).map((f) => {
+    const imgs    = f.flower_images ?? []
+    const sorted  = [...imgs].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
     const primary = sorted.find((i) => i.is_primary) ?? sorted[0]
     return {
       id:                f.id,
@@ -196,6 +209,12 @@ export async function getFlowersForPurchase(): Promise<FlowerForPurchase[]> {
       min_stock:         f.min_stock,
       sku:               f.sku,
       primary_image_url: primary?.url ?? null,
+      varieties:  (f.flower_varieties ?? [])
+        .filter((v) => v.is_active !== false)
+        .map((v) => ({ id: v.id, name: v.name, size: v.size })),
+      colors: (f.flower_colors ?? [])
+        .filter((c) => c.is_active !== false)
+        .map((c) => ({ id: c.id, name: c.name, variety_id: c.variety_id })),
     }
   })
 }
@@ -218,6 +237,8 @@ export async function createPurchase(formData: {
     delivery_cost:  formData.delivery_cost ?? 0,
     items: formData.items.map((i) => ({
       flower_id:  i.flower_id,
+      variety_id: i.variety_id || null,
+      color_id:   i.color_id   || null,
       quantity:   i.quantity,
       cost_price: i.cost_price,
       sale_price: i.sale_price && i.sale_price > 0 ? i.sale_price : null,

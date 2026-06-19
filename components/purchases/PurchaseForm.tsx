@@ -22,6 +22,8 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
 type LineItem = {
   _id: string
   flower_id: string
+  variety_id: string
+  color_id: string
   quantity: string
   cost_price: string
   sale_price: string
@@ -37,6 +39,8 @@ function makeItem(): LineItem {
   return {
     _id: Math.random().toString(36).slice(2),
     flower_id: "",
+    variety_id: "",
+    color_id: "",
     quantity: "",
     cost_price: "",
     sale_price: "",
@@ -319,7 +323,23 @@ export function PurchaseForm({ flowers, suppliers }: Props) {
 
   function setItemFlower(id: string, flowerId: string) {
     setItems((prev) =>
-      prev.map((item) => (item._id === id ? { ...item, flower_id: flowerId } : item))
+      prev.map((item) =>
+        item._id === id ? { ...item, flower_id: flowerId, variety_id: "", color_id: "" } : item
+      )
+    )
+  }
+
+  function setItemVariety(id: string, varietyId: string) {
+    setItems((prev) =>
+      prev.map((item) =>
+        item._id === id ? { ...item, variety_id: varietyId, color_id: "" } : item
+      )
+    )
+  }
+
+  function setItemColor(id: string, colorId: string) {
+    setItems((prev) =>
+      prev.map((item) => (item._id === id ? { ...item, color_id: colorId } : item))
     )
   }
 
@@ -363,6 +383,8 @@ export function PurchaseForm({ flowers, suppliers }: Props) {
           const cp  = Number(i.cost_price)
           return {
             flower_id:         i.flower_id,
+            variety_id:        i.variety_id || null,
+            color_id:          i.color_id   || null,
             quantity:          qty,
             cost_price:        cp,
             effective_cost:    cp + deliveryPerUnit,
@@ -519,6 +541,13 @@ export function PurchaseForm({ flowers, suppliers }: Props) {
                 const hasData       = item.flower_id && qty > 0 && cp > 0
                 const effectiveCost = cp + (hasData ? deliveryPerUnit : 0)
                 const lineTotal     = hasData ? qty * effectiveCost : 0
+                const availableColors = flower
+                  ? item.variety_id
+                    ? flower.colors.filter(
+                        (c) => c.variety_id === null || c.variety_id === item.variety_id
+                      )
+                    : flower.colors
+                  : []
 
                 return (
                   <tr
@@ -527,7 +556,7 @@ export function PurchaseForm({ flowers, suppliers }: Props) {
                   >
                     <td className="px-4 py-2.5 text-zinc-400 text-xs">{idx + 1}</td>
 
-                    {/* Flower picker */}
+                    {/* Flower picker + variety + color */}
                     <td className="px-4 py-2.5">
                       <FlowerSelect
                         flowers={flowers}
@@ -538,6 +567,32 @@ export function PurchaseForm({ flowers, suppliers }: Props) {
                         <p className="text-xs text-zinc-400 mt-0.5 px-0.5">
                           {flower.category} · {flower.unit}
                         </p>
+                      )}
+                      {flower && flower.varieties.length > 0 && (
+                        <select
+                          value={item.variety_id}
+                          onChange={(e) => setItemVariety(item._id, e.target.value)}
+                          className="mt-1.5 h-8 w-full rounded-md border border-zinc-200 bg-white px-2 text-xs text-zinc-700 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                        >
+                          <option value="">Вариант / размер</option>
+                          {flower.varieties.map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.name}{v.size ? ` · ${v.size}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      {flower && availableColors.length > 0 && (
+                        <select
+                          value={item.color_id}
+                          onChange={(e) => setItemColor(item._id, e.target.value)}
+                          className="mt-1 h-8 w-full rounded-md border border-zinc-200 bg-white px-2 text-xs text-zinc-700 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                        >
+                          <option value="">Цвет</option>
+                          {availableColors.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
                       )}
                     </td>
 

@@ -6,9 +6,11 @@ type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 
 // Позиция поставки для передачи в RPC (delivery split считает сам RPC)
 export type RpcPurchaseItem = {
-  flower_id:  string
-  quantity:   number
-  cost_price: number        // закупочная без доставки
+  flower_id:   string
+  variety_id?: string | null
+  color_id?:   string | null
+  quantity:    number
+  cost_price:  number        // закупочная без доставки
   sale_price?: number | null
   expires_at?: string | null
   comment?:    string | null
