@@ -485,7 +485,7 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
   // ── Shared form cards ─────────────────────────────────────────────────────────
 
   const formCards = (
-    <form id="catalog-form" onSubmit={handleSubmit}>
+    <div>
             <div className="py-5 space-y-4">
 
               {/* ── 1. ОСНОВНОЕ ─────────────────────────────────────────────── */}
@@ -789,7 +789,7 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
               </Card>
 
             </div>
-          </form>
+    </div>
   )
 
   const errorBanner = error ? (
@@ -810,14 +810,25 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
           Отмена
         </Button>
       )}
-      <Button
-        type="submit"
-        form="catalog-form"
-        disabled={isPending || uploading}
-        className="flex-1 bg-rose-500 hover:bg-rose-600 text-white h-10 font-semibold"
-      >
-        {uploading ? "Загружаем фото..." : isPending ? "Сохраняем..." : flower ? "Сохранить" : "Добавить в каталог"}
-      </Button>
+      {mode === "inline" ? (
+        <Button
+          type="button"
+          onClick={handleSubmit}
+          disabled={isPending || uploading}
+          className="flex-1 bg-rose-500 hover:bg-rose-600 text-white h-10 font-semibold"
+        >
+          {uploading ? "Загружаем фото..." : isPending ? "Сохраняем..." : "Добавить в каталог"}
+        </Button>
+      ) : (
+        <Button
+          type="submit"
+          form="catalog-form"
+          disabled={isPending || uploading}
+          className="flex-1 bg-rose-500 hover:bg-rose-600 text-white h-10 font-semibold"
+        >
+          {uploading ? "Загружаем фото..." : isPending ? "Сохраняем..." : flower ? "Сохранить" : "Добавить в каталог"}
+        </Button>
+      )}
       {flower && !onSaved && (
         <Button
           type="button"
@@ -852,7 +863,9 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
             {flower ? "Редактировать товар" : "Новый товар"}
           </SheetTitle>
         </SheetHeader>
-        <div className="flex-1 overflow-y-auto">{formCards}</div>
+        <form id="catalog-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
+          {formCards}
+        </form>
         {errorBanner}
         {actionBar}
       </SheetContent>
