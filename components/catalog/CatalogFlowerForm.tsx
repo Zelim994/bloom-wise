@@ -27,6 +27,15 @@ import {
 const CATEGORIES = ["Срезка", "Зелень", "Упаковка", "Декор", "Аксессуары", "Горшечные"]
 const UNITS = ["шт", "кг", "г", "рулон", "м", "уп", "л", "букет"]
 
+const SEASONALITY  = ["весна", "лето", "осень", "зима", "круглый год"]
+const STYLES       = ["классика", "нежная", "яркая", "минимализм", "акцент"]
+const USAGE_TAGS   = ["моно", "сборные", "наполнитель", "объём", "линии"]
+const PROPERTY_TAGS = ["стойкая", "аромат", "сухоцвет", "ягоды", "зелень"]
+
+function toggleTag(arr: string[], tag: string): string[] {
+  return arr.includes(tag) ? arr.filter((t) => t !== tag) : [...arr, tag]
+}
+
 interface Props {
   open: boolean
   flower: FlowerWithDetails | null
@@ -61,6 +70,19 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
   const [colors, setColors] = useState<{ id?: string; name: string; hex_code: string }[]>([])
   const [newColorName, setNewColorName] = useState("")
 
+  // Knowledge base fields
+  const [knowledge, setKnowledge] = useState({
+    vase_life_min_days: "",
+    vase_life_max_days: "",
+    seasonality:        [] as string[],
+    styles:             [] as string[],
+    usage_tags:         [] as string[],
+    property_tags:      [] as string[],
+    care_notes:         "",
+    buying_notes:       "",
+    combination_notes:  "",
+  })
+
   useEffect(() => {
     if (!open) return
     setError("")
@@ -78,10 +100,26 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
       })
       setVarieties(flower.varieties.map((v) => ({ id: v.id, name: v.name, size: v.size ?? "" })))
       setColors(flower.colors.map((c) => ({ id: c.id, name: c.name, hex_code: c.hex_code ?? "" })))
+      setKnowledge({
+        vase_life_min_days: flower.vase_life_min_days != null ? String(flower.vase_life_min_days) : "",
+        vase_life_max_days: flower.vase_life_max_days != null ? String(flower.vase_life_max_days) : "",
+        seasonality:        flower.seasonality        ?? [],
+        styles:             flower.styles             ?? [],
+        usage_tags:         flower.usage_tags         ?? [],
+        property_tags:      flower.property_tags      ?? [],
+        care_notes:         flower.care_notes         ?? "",
+        buying_notes:       flower.buying_notes       ?? "",
+        combination_notes:  flower.combination_notes  ?? "",
+      })
     } else {
       setForm({ name: "", category: "Срезка", unit: "шт", sku: "", description: "", florist_comment: "" })
       setVarieties([])
       setColors([])
+      setKnowledge({
+        vase_life_min_days: "", vase_life_max_days: "",
+        seasonality: [], styles: [], usage_tags: [], property_tags: [],
+        care_notes: "", buying_notes: "", combination_notes: "",
+      })
     }
     setNewVarietyName("")
     setNewVarietySize("")
@@ -125,6 +163,15 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
         sku: form.sku || undefined,
         description: form.description || undefined,
         florist_comment: form.florist_comment || undefined,
+        vase_life_min_days: knowledge.vase_life_min_days !== "" ? Number(knowledge.vase_life_min_days) : null,
+        vase_life_max_days: knowledge.vase_life_max_days !== "" ? Number(knowledge.vase_life_max_days) : null,
+        seasonality:        knowledge.seasonality,
+        styles:             knowledge.styles,
+        usage_tags:         knowledge.usage_tags,
+        property_tags:      knowledge.property_tags,
+        care_notes:         knowledge.care_notes        || null,
+        buying_notes:       knowledge.buying_notes      || null,
+        combination_notes:  knowledge.combination_notes || null,
       })
 
       if (result.error) {
@@ -466,6 +513,156 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
                     <Plus className="h-4 w-4" />
                   </button>
                 </div>
+              </div>
+            </div>
+
+            {/* Knowledge base */}
+            <div className="px-6 pb-6">
+              <div className="rounded-xl border border-zinc-100 bg-zinc-50/60 p-4 space-y-4">
+                <Label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide block">
+                  База знаний флориста
+                </Label>
+
+                {/* Vase life */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-zinc-600">Стойкость (дней в вазе)</p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder="от"
+                      value={knowledge.vase_life_min_days}
+                      onChange={(e) => setKnowledge((k) => ({ ...k, vase_life_min_days: e.target.value }))}
+                      className="w-20 h-9 text-sm border-zinc-200"
+                    />
+                    <span className="text-zinc-400 text-sm">—</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder="до"
+                      value={knowledge.vase_life_max_days}
+                      onChange={(e) => setKnowledge((k) => ({ ...k, vase_life_max_days: e.target.value }))}
+                      className="w-20 h-9 text-sm border-zinc-200"
+                    />
+                    <span className="text-xs text-zinc-400">дней</span>
+                  </div>
+                </div>
+
+                {/* Seasonality */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-zinc-600">Сезонность</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {SEASONALITY.map((s) => {
+                      const active = knowledge.seasonality.includes(s)
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setKnowledge((k) => ({ ...k, seasonality: toggleTag(k.seasonality, s) }))}
+                          className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                            active
+                              ? "bg-rose-100 border-rose-300 text-rose-700"
+                              : "bg-white border-zinc-200 text-zinc-600 hover:border-zinc-300"
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Styles */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-zinc-600">Стиль букета</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {STYLES.map((s) => {
+                      const active = knowledge.styles.includes(s)
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setKnowledge((k) => ({ ...k, styles: toggleTag(k.styles, s) }))}
+                          className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                            active
+                              ? "bg-rose-100 border-rose-300 text-rose-700"
+                              : "bg-white border-zinc-200 text-zinc-600 hover:border-zinc-300"
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Usage tags */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-zinc-600">Применение в букете</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {USAGE_TAGS.map((t) => {
+                      const active = knowledge.usage_tags.includes(t)
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setKnowledge((k) => ({ ...k, usage_tags: toggleTag(k.usage_tags, t) }))}
+                          className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                            active
+                              ? "bg-rose-100 border-rose-300 text-rose-700"
+                              : "bg-white border-zinc-200 text-zinc-600 hover:border-zinc-300"
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Property tags */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-zinc-600">Свойства</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {PROPERTY_TAGS.map((t) => {
+                      const active = knowledge.property_tags.includes(t)
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setKnowledge((k) => ({ ...k, property_tags: toggleTag(k.property_tags, t) }))}
+                          className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                            active
+                              ? "bg-rose-100 border-rose-300 text-rose-700"
+                              : "bg-white border-zinc-200 text-zinc-600 hover:border-zinc-300"
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Notes */}
+                {(
+                  [
+                    ["care_notes",        "Уход и хранение",     "Хранить при 4°С, обрезать стебли..."],
+                    ["buying_notes",      "Заметки по закупке",  "Спрашивать степень раскрытия..."],
+                    ["combination_notes", "С чем сочетается",    "Гипсофила, лагурус, эвкалипт..."],
+                  ] as const
+                ).map(([key, label, placeholder]) => (
+                  <div key={key} className="space-y-1.5">
+                    <p className="text-xs font-medium text-zinc-600">{label}</p>
+                    <textarea
+                      value={knowledge[key]}
+                      onChange={(e) => setKnowledge((k) => ({ ...k, [key]: e.target.value }))}
+                      placeholder={placeholder}
+                      rows={2}
+                      className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 resize-none focus:outline-none focus:ring-2 focus:ring-rose-500 placeholder:text-zinc-400"
+                    />
+                  </div>
+                ))}
               </div>
             </div>
 
