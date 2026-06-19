@@ -2,22 +2,31 @@
 
 import { useState, useTransition, useMemo, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Trash2, ArrowLeft, ChevronDown, Truck, Info, Search, X } from "lucide-react"
+import { Plus, Trash2, ArrowLeft, ChevronDown, Truck, Info, Search, X, ChevronLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createPurchase } from "@/app/actions/purchases"
 import type { FlowerForPurchase } from "@/app/actions/purchases"
 import type { Supplier } from "@/lib/supabase/types"
+import { CatalogFlowerForm } from "@/components/catalog/CatalogFlowerForm"
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
-  "Срезка":     { bg: "bg-rose-100",    text: "text-rose-700"    },
-  "Зелень":     { bg: "bg-emerald-100", text: "text-emerald-700" },
-  "Упаковка":   { bg: "bg-sky-100",     text: "text-sky-700"     },
-  "Декор":      { bg: "bg-violet-100",  text: "text-violet-700"  },
-  "Аксессуары": { bg: "bg-amber-100",   text: "text-amber-700"   },
-  "Горшечные":  { bg: "bg-teal-100",    text: "text-teal-700"    },
+  "Срезка":            { bg: "bg-rose-100",    text: "text-rose-700"    },
+  "Зелень":            { bg: "bg-emerald-100", text: "text-emerald-700" },
+  "Сухоцветы":         { bg: "bg-amber-100",   text: "text-amber-700"   },
+  "Стабилизированные": { bg: "bg-violet-100",  text: "text-violet-700"  },
+  "Ветки / ягоды":     { bg: "bg-orange-100",  text: "text-orange-700"  },
+  "Горшечные":         { bg: "bg-teal-100",    text: "text-teal-700"    },
+  "Упаковка":          { bg: "bg-sky-100",     text: "text-sky-700"     },
+  "Материалы":         { bg: "bg-cyan-100",    text: "text-cyan-700"    },
+  "Декор":             { bg: "bg-purple-100",  text: "text-purple-700"  },
+  "Прочее":            { bg: "bg-zinc-100",    text: "text-zinc-600"    },
 }
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type LineItem = {
   _id: string
@@ -55,13 +64,15 @@ interface FlowerSelectProps {
   flowers: FlowerForPurchase[]
   value: string
   onChange: (id: string) => void
+  onFlowerCreated: (flower: FlowerForPurchase) => void
 }
 
-function FlowerSelect({ flowers, value, onChange }: FlowerSelectProps) {
-  const [open, setOpen]               = useState(false)
-  const [query, setQuery]             = useState("")
+function FlowerSelect({ flowers, value, onChange, onFlowerCreated }: FlowerSelectProps) {
+  const [open,           setOpen]           = useState(false)
+  const [query,          setQuery]          = useState("")
   const [activeCategory, setActiveCategory] = useState("Все")
-  const inputRef                      = useRef<HTMLInputElement>(null)
+  const [mode,           setMode]           = useState<"list" | "quick-add">("list")
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const selected = flowers.find((f) => f.id === value) ?? null
 
@@ -89,6 +100,7 @@ function FlowerSelect({ flowers, value, onChange }: FlowerSelectProps) {
   function openModal() {
     setQuery("")
     setActiveCategory("Все")
+    setMode("list")
     setOpen(true)
   }
 
@@ -97,23 +109,28 @@ function FlowerSelect({ flowers, value, onChange }: FlowerSelectProps) {
     setOpen(false)
     setQuery("")
     setActiveCategory("Все")
+    setMode("list")
   }
 
   function handleClose() {
     setOpen(false)
     setQuery("")
     setActiveCategory("Все")
+    setMode("list")
   }
 
-  // Focus search input when modal opens
+  function handleFlowerCreated(flower: FlowerForPurchase) {
+    onFlowerCreated(flower)  // добавляет в localFlowers в PurchaseForm
+    handleSelect(flower.id)  // автоматически выбирает в текущей строке
+  }
+
   useEffect(() => {
-    if (open) {
+    if (open && mode === "list") {
       const t = setTimeout(() => inputRef.current?.focus(), 30)
       return () => clearTimeout(t)
     }
-  }, [open])
+  }, [open, mode])
 
-  // Close on Escape
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") handleClose() }
@@ -123,7 +140,7 @@ function FlowerSelect({ flowers, value, onChange }: FlowerSelectProps) {
 
   return (
     <>
-      {/* Trigger — compact button that fits inside table cell */}
+      {/* Trigger */}
       <button
         type="button"
         onClick={openModal}
@@ -135,7 +152,7 @@ function FlowerSelect({ flowers, value, onChange }: FlowerSelectProps) {
       >
         <span className="flex items-center justify-between gap-2">
           <span className={selected ? "font-medium truncate" : ""}>
-            {selected ? selected.name : "Выбрать цветок"}
+            {selected ? selected.name : "Выбрать товар"}
           </span>
           {selected && (
             <span className="text-[10px] text-zinc-400 shrink-0 font-normal">изменить</span>
@@ -143,142 +160,183 @@ function FlowerSelect({ flowers, value, onChange }: FlowerSelectProps) {
         </span>
       </button>
 
-      {/* Modal overlay */}
+      {/* Modal */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/25 backdrop-blur-[1px]"
-            onClick={handleClose}
-          />
+          <div className="absolute inset-0 bg-black/25 backdrop-blur-[1px]" onClick={handleClose} />
 
-          {/* Dialog */}
-          <div className="relative z-10 bg-white rounded-xl border border-zinc-200 shadow-2xl w-full max-w-md flex flex-col max-h-[75vh]">
+          {/* Dialog — шире в режиме создания товара */}
+          <div className={`relative z-10 bg-white rounded-xl border border-zinc-200 shadow-2xl w-full flex flex-col ${
+            mode === "quick-add" ? "max-w-xl max-h-[88vh]" : "max-w-md max-h-[75vh]"
+          }`}>
+
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 shrink-0">
-              <h3 className="text-sm font-semibold text-zinc-800">Выберите цветок</h3>
-              <button
-                type="button"
-                onClick={handleClose}
-                className="text-zinc-400 hover:text-zinc-600 transition-colors"
-              >
+              {mode === "quick-add" ? (
+                <button
+                  type="button"
+                  onClick={() => setMode("list")}
+                  className="flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-800 transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Назад к списку
+                </button>
+              ) : (
+                <h3 className="text-sm font-semibold text-zinc-800">Выберите товар</h3>
+              )}
+              <button type="button" onClick={handleClose} className="text-zinc-400 hover:text-zinc-600 transition-colors">
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Search */}
-            <div className="px-4 pt-3 pb-2 shrink-0">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400 pointer-events-none" />
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Название, категория или SKU..."
-                  className="w-full rounded-lg border border-zinc-200 pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
-                />
-              </div>
-            </div>
-
-            {/* Category chips */}
-            <div className="px-4 pb-2 flex gap-1.5 overflow-x-auto shrink-0" style={{ scrollbarWidth: "none" }}>
-              {["Все", ...categories].map((cat) => {
-                const isActive = activeCategory === cat
-                const count    = cat === "Все"
-                  ? textFiltered.length
-                  : textFiltered.filter((f) => f.category === cat).length
-                const colors   = CATEGORY_COLORS[cat]
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setActiveCategory(cat)}
-                    className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
-                      isActive
-                        ? cat === "Все"
-                          ? "bg-zinc-900 text-white"
-                          : `${colors?.bg ?? "bg-zinc-100"} ${colors?.text ?? "text-zinc-700"} ring-1 ring-inset ring-current`
-                        : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
-                    }`}
-                  >
-                    {cat}
-                    <span className={`text-[10px] ${isActive && cat !== "Все" ? "opacity-70" : "opacity-60"}`}>
-                      {count}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Divider + count */}
-            <div className="px-4 pb-1.5 shrink-0 border-b border-zinc-100">
-              <p className="text-[11px] text-zinc-400">
-                {filtered.length} из {flowers.length} позиций
-              </p>
-            </div>
-
-            {/* List */}
-            <div className="overflow-y-auto flex-1">
-              {filtered.length === 0 ? (
-                <div className="px-4 py-10 text-center text-sm text-zinc-400">
-                  Ничего не найдено
+            {mode === "list" ? (
+              <>
+                {/* Search + кнопка добавить */}
+                <div className="px-4 pt-3 pb-2 shrink-0">
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400 pointer-events-none" />
+                      <input
+                        ref={inputRef}
+                        type="text"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Название, категория или SKU..."
+                        className="w-full rounded-lg border border-zinc-200 pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setMode("quick-add")}
+                      className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-xs font-medium transition-colors whitespace-nowrap"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Добавить товар
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                <div className="divide-y divide-zinc-50">
-                  {filtered.map((f) => {
-                    const colors = CATEGORY_COLORS[f.category]
+
+                {/* Category chips */}
+                <div className="px-4 pb-2 flex gap-1.5 overflow-x-auto shrink-0" style={{ scrollbarWidth: "none" }}>
+                  {["Все", ...categories].map((cat) => {
+                    const isActive = activeCategory === cat
+                    const count    = cat === "Все"
+                      ? textFiltered.length
+                      : textFiltered.filter((f) => f.category === cat).length
+                    const colors   = CATEGORY_COLORS[cat]
                     return (
                       <button
-                        key={f.id}
+                        key={cat}
                         type="button"
-                        onClick={() => handleSelect(f.id)}
-                        className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center gap-3 ${
-                          value === f.id ? "bg-rose-50" : "hover:bg-zinc-50"
+                        onClick={() => setActiveCategory(cat)}
+                        className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
+                          isActive
+                            ? cat === "Все"
+                              ? "bg-zinc-900 text-white"
+                              : `${colors?.bg ?? "bg-zinc-100"} ${colors?.text ?? "text-zinc-700"} ring-1 ring-inset ring-current`
+                            : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
                         }`}
                       >
-                        {/* Thumbnail */}
-                        <div className="shrink-0 w-8 h-8 rounded-lg overflow-hidden">
-                          {f.primary_image_url ? (
-                            <img
-                              src={f.primary_image_url}
-                              alt={f.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className={`w-full h-full flex items-center justify-center text-xs font-bold ${colors?.bg ?? "bg-zinc-100"} ${colors?.text ?? "text-zinc-500"}`}>
-                              {f.name.charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Info */}
-                        <div className="min-w-0 flex-1">
-                          <p className={`font-medium truncate ${value === f.id ? "text-rose-700" : "text-zinc-800"}`}>
-                            {f.name}
-                          </p>
-                          <p className="text-xs text-zinc-400 mt-0.5">
-                            {f.category} · {f.unit}
-                            {f.sku ? ` · ${f.sku}` : ""}
-                          </p>
-                        </div>
+                        {cat}
+                        <span className={`text-[10px] ${isActive && cat !== "Все" ? "opacity-70" : "opacity-60"}`}>
+                          {count}
+                        </span>
                       </button>
                     )
                   })}
                 </div>
-              )}
-            </div>
 
-            {/* Footer */}
-            <div className="px-4 py-3 border-t border-zinc-100 shrink-0 flex justify-end">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="text-sm text-zinc-500 hover:text-zinc-700 transition-colors"
-              >
-                Закрыть
-              </button>
-            </div>
+                {/* Count */}
+                <div className="px-4 pb-1.5 shrink-0 border-b border-zinc-100">
+                  <p className="text-[11px] text-zinc-400">
+                    {filtered.length} из {flowers.length} позиций
+                  </p>
+                </div>
+
+                {/* List */}
+                <div className="overflow-y-auto flex-1">
+                  {filtered.length === 0 ? (
+                    <div className="px-4 py-8 text-center">
+                      <p className="text-sm text-zinc-400 mb-3">
+                        {query.trim() ? `«${query.trim()}» не найден в каталоге` : "Каталог пуст"}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setMode("quick-add")}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-xs font-medium transition-colors"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        {query.trim()
+                          ? `Добавить «${query.trim()}» в каталог`
+                          : "Добавить товар в каталог"}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-zinc-50">
+                      {filtered.map((f) => {
+                        const colors = CATEGORY_COLORS[f.category]
+                        return (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => handleSelect(f.id)}
+                            className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center gap-3 ${
+                              value === f.id ? "bg-rose-50" : "hover:bg-zinc-50"
+                            }`}
+                          >
+                            <div className="shrink-0 w-8 h-8 rounded-lg overflow-hidden">
+                              {f.primary_image_url ? (
+                                <img src={f.primary_image_url} alt={f.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className={`w-full h-full flex items-center justify-center text-xs font-bold ${colors?.bg ?? "bg-zinc-100"} ${colors?.text ?? "text-zinc-500"}`}>
+                                  {f.name.charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className={`font-medium truncate ${value === f.id ? "text-rose-700" : "text-zinc-800"}`}>
+                                {f.name}
+                              </p>
+                              <p className="text-xs text-zinc-400 mt-0.5">
+                                {f.category} · {f.unit}
+                                {f.sku ? ` · ${f.sku}` : ""}
+                              </p>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div className="px-4 py-3 border-t border-zinc-100 shrink-0 flex justify-end">
+                  <button type="button" onClick={handleClose} className="text-sm text-zinc-500 hover:text-zinc-700 transition-colors">
+                    Закрыть
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Sub-header */}
+                <div className="px-4 py-2 bg-zinc-50 border-b border-zinc-100 shrink-0">
+                  <p className="text-xs text-zinc-500">
+                    Создаёт только запись в каталоге. Склад обновится после проведения поставки.
+                  </p>
+                </div>
+
+                {/* Полная форма каталога в режиме inline — flex-1 + footer встроены в компонент */}
+                <CatalogFlowerForm
+                  open={mode === "quick-add"}
+                  flower={null}
+                  mode="inline"
+                  initialName={query.trim()}
+                  onSaved={handleFlowerCreated}
+                  onClose={() => setMode("list")}
+                />
+              </>
+            )}
           </div>
         </div>
       )}
@@ -293,7 +351,7 @@ interface Props {
   suppliers: Supplier[]
 }
 
-export function PurchaseForm({ flowers, suppliers }: Props) {
+export function PurchaseForm({ flowers: initialFlowers, suppliers }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState("")
@@ -304,7 +362,14 @@ export function PurchaseForm({ flowers, suppliers }: Props) {
   const [deliveryCost, setDeliveryCost] = useState("")
   const [items, setItems] = useState<LineItem[]>([makeItem()])
 
-  const flowerMap = new Map(flowers.map((f) => [f.id, f]))
+  // Локальный список — начинается с props, пополняется быстрым добавлением
+  const [localFlowers, setLocalFlowers] = useState<FlowerForPurchase[]>(initialFlowers)
+
+  const flowerMap = new Map(localFlowers.map((f) => [f.id, f]))
+
+  function handleFlowerCreated(flower: FlowerForPurchase) {
+    setLocalFlowers((prev) => [...prev, flower])
+  }
 
   const { totalQty, deliveryPerUnit } = useMemo(() => {
     const totalQty = items.reduce((s, i) => {
@@ -344,7 +409,11 @@ export function PurchaseForm({ flowers, suppliers }: Props) {
   }
 
   function removeItem(id: string) {
-    setItems((prev) => (prev.length > 1 ? prev.filter((i) => i._id !== id) : prev))
+    setItems((prev) => {
+      if (prev.length > 1) return prev.filter((i) => i._id !== id)
+      // Последняя строка — сбрасываем в пустую, не удаляем
+      return [makeItem()]
+    })
   }
 
   function addItem() {
@@ -559,9 +628,10 @@ export function PurchaseForm({ flowers, suppliers }: Props) {
                     {/* Flower picker + variety + color */}
                     <td className="px-4 py-2.5">
                       <FlowerSelect
-                        flowers={flowers}
+                        flowers={localFlowers}
                         value={item.flower_id}
                         onChange={(id) => setItemFlower(item._id, id)}
+                        onFlowerCreated={handleFlowerCreated}
                       />
                       {flower && (
                         <p className="text-xs text-zinc-400 mt-0.5 px-0.5">
@@ -676,8 +746,7 @@ export function PurchaseForm({ flowers, suppliers }: Props) {
                       <button
                         type="button"
                         onClick={() => removeItem(item._id)}
-                        disabled={items.length === 1}
-                        className="text-zinc-300 hover:text-red-500 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                        className="text-zinc-300 hover:text-red-500 transition-colors"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>

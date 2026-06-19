@@ -72,7 +72,10 @@ export function WriteoffForm({ flowers }: Props) {
   }
 
   function removeLine(id: string) {
-    setLines((prev) => (prev.length > 1 ? prev.filter((l) => l._id !== id) : prev))
+    setLines((prev) => {
+      if (prev.length > 1) return prev.filter((l) => l._id !== id)
+      return [makeLine()]
+    })
   }
 
   function addLine() {
@@ -309,8 +312,7 @@ export function WriteoffForm({ flowers }: Props) {
                       <button
                         type="button"
                         onClick={() => removeLine(line._id)}
-                        disabled={lines.length === 1}
-                        className="text-zinc-300 hover:text-red-500 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                        className="text-zinc-300 hover:text-red-500 transition-colors"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>

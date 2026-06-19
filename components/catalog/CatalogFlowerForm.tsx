@@ -22,6 +22,7 @@ import {
   archiveFlower,
   type FlowerWithDetails,
 } from "@/app/actions/catalog"
+import type { FlowerForPurchase } from "@/app/actions/purchases"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -172,11 +173,18 @@ interface Props {
   open: boolean
   flower: FlowerWithDetails | null
   onClose: () => void
+  /** "sheet" (default) — шторка справа, как в каталоге.
+   *  "inline" — рендерится без обёртки Sheet, для встраивания в другие модалы. */
+  mode?: "sheet" | "inline"
+  /** Предзаполняет название при создании нового товара. */
+  initialName?: string
+  /** Если передан — вызывается после успешного сохранения (вместо router.refresh + onClose). */
+  onSaved?: (flower: FlowerForPurchase) => void
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CatalogFlowerForm({ open, flower, onClose }: Props) {
+export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initialName, onSaved }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error,     setError]     = useState("")
@@ -249,7 +257,7 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
         combination_notes:  flower.combination_notes ?? "",
       })
     } else {
-      setForm({ name: "", category: "Срезка", unit: "шт", sku: "", description: "", florist_comment: "" })
+      setForm({ name: initialName ?? "", category: "Срезка", unit: "шт", sku: "", description: "", florist_comment: "" })
       setVarieties([])
       setColors([])
       setKnowledge({
@@ -314,23 +322,51 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
       if (result.error) { setError(result.error); return }
       const flowerId = result.id!
 
+      const createdVarieties: Array<{ id: string; name: string; size: string | null }> = []
+      const createdColors: Array<{ id: string; name: string; variety_id: string | null }> = []
+
       if (!flower?.id) {
         for (const v of varieties) {
-          if (v.name.trim()) await addFlowerVariety(flowerId, v.name.trim(), v.size.trim() || undefined)
+          if (v.name.trim()) {
+            const r = await addFlowerVariety(flowerId, v.name.trim(), v.size.trim() || undefined)
+            if (r.id) createdVarieties.push({ id: r.id, name: v.name.trim(), size: v.size.trim() || null })
+          }
         }
         for (const c of colors) {
-          if (c.name.trim()) await addFlowerColor(flowerId, c.name.trim())
+          if (c.name.trim()) {
+            const r = await addFlowerColor(flowerId, c.name.trim())
+            if (r.id) createdColors.push({ id: r.id, name: c.name.trim(), variety_id: null })
+          }
         }
       }
 
+      let savedPhotoUrl: string | null = null
       if (photoFile) {
         setUploading(true)
         const url = await uploadPhoto(flowerId, photoFile)
         setUploading(false)
-        if (url) await uploadFlowerImage(flowerId, url, true)
+        if (url) {
+          await uploadFlowerImage(flowerId, url, true)
+          savedPhotoUrl = url
+        }
       }
 
       router.refresh()
+
+      if (onSaved) {
+        onSaved({
+          id:                flowerId,
+          name:              form.name,
+          category:          form.category,
+          unit:              form.unit,
+          min_stock:         0,
+          sku:               form.sku || null,
+          primary_image_url: savedPhotoUrl,
+          varieties:         createdVarieties,
+          colors:            createdColors,
+        })
+      }
+
       onClose()
     })
   }
@@ -446,18 +482,10 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
   const namedVarieties = varieties.map((v, i) => ({ v, i })).filter(({ v }) => !(v.size && v.name === v.size))
   const sizeVarieties  = varieties.map((v, i) => ({ v, i })).filter(({ v }) => !!(v.size && v.name === v.size))
 
-  // ── Render ───────────────────────────────────────────────────────────────────
-  return (
-    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent className="w-[580px] sm:max-w-[580px] flex flex-col p-0 bg-zinc-50">
-        <SheetHeader className="px-6 pt-6 pb-4 bg-white border-b border-zinc-200">
-          <SheetTitle className="text-base font-bold text-zinc-900">
-            {flower ? "Редактировать товар" : "Новый товар"}
-          </SheetTitle>
-        </SheetHeader>
+  // ── Shared form cards ─────────────────────────────────────────────────────────
 
-        <div className="flex-1 overflow-y-auto">
-          <form id="catalog-form" onSubmit={handleSubmit}>
+  const formCards = (
+    <form id="catalog-form" onSubmit={handleSubmit}>
             <div className="py-5 space-y-4">
 
               {/* ── 1. ОСНОВНОЕ ─────────────────────────────────────────────── */}
@@ -762,35 +790,71 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
 
             </div>
           </form>
-        </div>
+  )
 
-        {error && (
-          <div className="px-6 py-3 border-t border-red-100 bg-red-50">
-            <p className="text-sm text-red-600">{error}</p>
-          </div>
-        )}
+  const errorBanner = error ? (
+    <div className="px-6 py-3 border-t border-red-100 bg-red-50">
+      <p className="text-sm text-red-600">{error}</p>
+    </div>
+  ) : null
 
-        <div className="border-t border-zinc-200 bg-white px-6 py-4 flex items-center gap-2">
-          <Button
-            type="submit"
-            form="catalog-form"
-            disabled={isPending || uploading}
-            className="flex-1 bg-rose-500 hover:bg-rose-600 text-white h-10 font-semibold"
-          >
-            {uploading ? "Загружаем фото..." : isPending ? "Сохраняем..." : flower ? "Сохранить" : "Добавить в каталог"}
-          </Button>
-          {flower && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleArchive}
-              disabled={isPending}
-              className="border-zinc-200 text-zinc-500 hover:border-red-200 hover:text-red-600 hover:bg-red-50 h-10"
-            >
-              Удалить
-            </Button>
-          )}
-        </div>
+  const actionBar = (
+    <div className="border-t border-zinc-200 bg-white px-6 py-4 flex items-center gap-2">
+      {mode === "inline" && (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onClose}
+          className="border-zinc-200 text-zinc-500 hover:border-zinc-300 h-10"
+        >
+          Отмена
+        </Button>
+      )}
+      <Button
+        type="submit"
+        form="catalog-form"
+        disabled={isPending || uploading}
+        className="flex-1 bg-rose-500 hover:bg-rose-600 text-white h-10 font-semibold"
+      >
+        {uploading ? "Загружаем фото..." : isPending ? "Сохраняем..." : flower ? "Сохранить" : "Добавить в каталог"}
+      </Button>
+      {flower && !onSaved && (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleArchive}
+          disabled={isPending}
+          className="border-zinc-200 text-zinc-500 hover:border-red-200 hover:text-red-600 hover:bg-red-50 h-10"
+        >
+          Удалить
+        </Button>
+      )}
+    </div>
+  )
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+
+  if (mode === "inline") {
+    return (
+      <>
+        <div className="flex-1 overflow-y-auto">{formCards}</div>
+        {errorBanner}
+        {actionBar}
+      </>
+    )
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+      <SheetContent className="w-[580px] sm:max-w-[580px] flex flex-col p-0 bg-zinc-50">
+        <SheetHeader className="px-6 pt-6 pb-4 bg-white border-b border-zinc-200">
+          <SheetTitle className="text-base font-bold text-zinc-900">
+            {flower ? "Редактировать товар" : "Новый товар"}
+          </SheetTitle>
+        </SheetHeader>
+        <div className="flex-1 overflow-y-auto">{formCards}</div>
+        {errorBanner}
+        {actionBar}
       </SheetContent>
     </Sheet>
   )
