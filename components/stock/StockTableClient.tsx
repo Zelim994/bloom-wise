@@ -7,25 +7,23 @@ import { Search, Package, XCircle, ChevronRight, ShoppingCart, ShoppingBag } fro
 import { Input } from "@/components/ui/input"
 
 export type StockRow = {
-  id: string
-  name: string
-  category: string
-  sku: string | null
-  min_stock: number | null
-  sale_price: number | null
-  unit: string
-  description: string | null
-  current_stock: number
+  flower_id:         string
+  variety_id:        string | null
+  color_id:          string | null
+  name:              string         // flower_name
+  variety_name:      string | null
+  variety_size:      string | null
+  color_name:        string | null
+  category:          string
+  unit:              string
+  min_stock:         number | null
+  current_stock:     number
   oldest_arrived_at: string | null
   oldest_cost_price: number | null
-  days_on_shelf: number | null
-  status: "ok" | "low" | "aging" | "no_stock"
+  days_on_shelf:     number | null
+  status:            "ok" | "low" | "aging" | "no_stock"
 }
 
-// "in_stock" = В наличии (current_stock > 0, default)
-// "low"      = Низкий остаток
-// "aging"    = Залежались
-// "no_stock" = Нет остатка
 type StockFilter = "in_stock" | "low" | "aging" | "no_stock"
 
 const FILTER_TABS: { key: StockFilter; label: string }[] = [
@@ -35,34 +33,25 @@ const FILTER_TABS: { key: StockFilter; label: string }[] = [
   { key: "no_stock", label: "Нет остатка"    },
 ]
 
-const STATUS_CFG = {
-  ok:       { label: "В норме",     cls: "bg-emerald-100 text-emerald-700" },
-  low:      { label: "Мало",        cls: "bg-amber-100 text-amber-700"     },
-  aging:    { label: "Залежался",   cls: "bg-orange-100 text-orange-700"   },
-  no_stock: { label: "Нет остатка", cls: "bg-red-100 text-red-500"         },
-}
-
-// Sort order for "В наличии": low → aging → ok
 const STATUS_SORT: Record<StockRow["status"], number> = {
   low: 0, aging: 1, ok: 2, no_stock: 3,
 }
 
-function fmtDate(dateStr: string) {
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("ru", {
-    day: "2-digit", month: "2-digit", year: "2-digit",
-  })
+function variantLabel(r: StockRow): string {
+  const parts = [r.variety_name, r.variety_size].filter(Boolean)
+  return parts.join(" · ")
 }
 
 export function StockTableClient({ rows }: { rows: StockRow[] }) {
   const router = useRouter()
-  const [search, setSearch] = useState("")
+  const [search, setSearch]           = useState("")
   const [activeFilter, setActiveFilter] = useState<StockFilter>("in_stock")
 
-  const lowCount     = useMemo(() => rows.filter((r) => r.status === "low").length, [rows])
-  const agingCount   = useMemo(() => rows.filter((r) => r.status === "aging").length, [rows])
+  const lowCount     = useMemo(() => rows.filter((r) => r.status === "low").length,      [rows])
+  const agingCount   = useMemo(() => rows.filter((r) => r.status === "aging").length,    [rows])
   const noStockCount = useMemo(() => rows.filter((r) => r.status === "no_stock").length, [rows])
-  const inStockCount = useMemo(() => rows.filter((r) => r.current_stock > 0).length, [rows])
-  const totalStock   = useMemo(() => rows.reduce((s, r) => s + r.current_stock, 0), [rows])
+  const inStockCount = useMemo(() => rows.filter((r) => r.current_stock > 0).length,     [rows])
+  const totalStock   = useMemo(() => rows.reduce((s, r) => s + r.current_stock, 0),      [rows])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -71,8 +60,9 @@ export function StockTableClient({ rows }: { rows: StockRow[] }) {
       !q ||
       r.name.toLowerCase().includes(q) ||
       r.category.toLowerCase().includes(q) ||
-      (r.sku ?? "").toLowerCase().includes(q) ||
-      (r.description ?? "").toLowerCase().includes(q)
+      (r.variety_name ?? "").toLowerCase().includes(q) ||
+      (r.variety_size ?? "").toLowerCase().includes(q) ||
+      (r.color_name   ?? "").toLowerCase().includes(q)
 
     const matchesFilter = (r: StockRow) => {
       if (activeFilter === "in_stock") return r.current_stock > 0
@@ -82,7 +72,6 @@ export function StockTableClient({ rows }: { rows: StockRow[] }) {
 
     const result = rows.filter((r) => matchesSearch(r) && matchesFilter(r))
 
-    // Sort "В наличии": low → aging → ok, then by name
     if (activeFilter === "in_stock") {
       result.sort((a, b) => {
         const sd = STATUS_SORT[a.status] - STATUS_SORT[b.status]
@@ -153,7 +142,7 @@ export function StockTableClient({ rows }: { rows: StockRow[] }) {
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex gap-1 overflow-x-auto">
           {FILTER_TABS.map((tab) => {
-            const count = filterCount(tab.key)
+            const count    = filterCount(tab.key)
             const isActive = activeFilter === tab.key
             return (
               <button
@@ -166,7 +155,6 @@ export function StockTableClient({ rows }: { rows: StockRow[] }) {
                 }`}
               >
                 {tab.label}
-                {/* Show badge only if count > 0 (not for "В наличии") */}
                 {tab.key !== "in_stock" && count > 0 && (
                   <span className={`ml-1.5 text-[11px] px-1.5 py-0.5 rounded-full ${
                     isActive ? "bg-white/20 text-white" : "bg-zinc-100 text-zinc-400"
@@ -182,10 +170,10 @@ export function StockTableClient({ rows }: { rows: StockRow[] }) {
         <div className="relative ml-auto">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400 pointer-events-none" />
           <Input
-            placeholder="Поиск по названию..."
+            placeholder="Поиск по названию, варианту, цвету..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 h-9 w-52 border-zinc-200 text-sm"
+            className="pl-8 h-9 w-64 border-zinc-200 text-sm"
           />
         </div>
       </div>
@@ -239,91 +227,103 @@ export function StockTableClient({ rows }: { rows: StockRow[] }) {
             <thead>
               <tr className="border-b border-zinc-100 bg-zinc-50">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wide">
-                  Наименование
+                  Позиция
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wide hidden md:table-cell">
                   Категория
                 </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wide hidden sm:table-cell">
+                  Вариант · размер
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wide hidden lg:table-cell">
+                  Цвет
+                </th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide">
                   Остаток
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide hidden lg:table-cell">
-                  Закупочная
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide hidden lg:table-cell">
-                  Приход
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide hidden sm:table-cell">
-                  Дней
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide">
+                <th className="px-4 py-3 text-center text-xs font-semibold text-zinc-400 uppercase tracking-wide hidden sm:table-cell">
                   Статус
                 </th>
                 <th className="w-8" />
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r, i) => {
-                const cfg = STATUS_CFG[r.status]
-                const isLast = i === filtered.length - 1
+              {filtered.map((r) => {
+                const rowKey  = `${r.flower_id}|${r.variety_id ?? ""}|${r.color_id ?? ""}`
+                const vLabel  = variantLabel(r)
+                const isLow   = r.status === "low"
+                const isAging = r.status === "aging"
+
                 return (
                   <tr
-                    key={r.id}
-                    onClick={() => router.push(`/inventory/${r.id}`)}
-                    className={`border-b border-zinc-50 hover:bg-rose-50/40 cursor-pointer transition-colors group ${isLast ? "border-0" : ""}`}
+                    key={rowKey}
+                    onClick={() => router.push(`/inventory/${r.flower_id}`)}
+                    className="border-b border-zinc-50 last:border-0 hover:bg-rose-50/40 cursor-pointer transition-colors group"
                   >
+                    {/* Позиция */}
                     <td className="px-4 py-3">
                       <span className="font-medium text-zinc-800 group-hover:text-rose-600 transition-colors">
                         {r.name}
                       </span>
-                      {r.sku && (
-                        <p className="text-xs text-zinc-400 font-mono mt-0.5">{r.sku}</p>
+                      {/* Variant subtitle on mobile — hidden on sm+ where we have separate columns */}
+                      {(vLabel || r.color_name) && (
+                        <p className="text-xs text-zinc-400 mt-0.5 sm:hidden">
+                          {[vLabel, r.color_name].filter(Boolean).join(" · ")}
+                        </p>
                       )}
                     </td>
+
+                    {/* Категория */}
                     <td className="px-4 py-3 text-xs text-zinc-500 hidden md:table-cell">
                       {r.category}
                     </td>
+
+                    {/* Вариант · размер */}
+                    <td className="px-4 py-3 text-xs text-zinc-600 hidden sm:table-cell">
+                      {vLabel
+                        ? <span className="font-medium text-zinc-700">{vLabel}</span>
+                        : <span className="text-zinc-300">—</span>}
+                    </td>
+
+                    {/* Цвет */}
+                    <td className="px-4 py-3 text-xs text-zinc-600 hidden lg:table-cell">
+                      {r.color_name
+                        ? r.color_name
+                        : <span className="text-zinc-300">—</span>}
+                    </td>
+
+                    {/* Остаток */}
                     <td className="px-4 py-3 text-right">
                       <span className={`font-semibold tabular-nums ${
-                        r.status === "low"      ? "text-amber-600"  :
-                        r.status === "no_stock" ? "text-zinc-400"   :
+                        isLow           ? "text-amber-600"  :
+                        r.status === "no_stock" ? "text-zinc-400"  :
                         "text-zinc-800"
                       }`}>
                         {r.current_stock}
                         <span className="text-xs font-normal text-zinc-400 ml-1">{r.unit}</span>
                       </span>
-                      {r.min_stock != null && r.min_stock > 0 && r.status === "low" && (
+                      {r.min_stock != null && r.min_stock > 0 && isLow && (
                         <p className="text-[10px] text-zinc-400 mt-0.5 text-right">
                           мин {r.min_stock}
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right text-zinc-600 text-sm tabular-nums hidden lg:table-cell">
-                      {r.oldest_cost_price != null
-                        ? `₽${r.oldest_cost_price.toLocaleString("ru", { maximumFractionDigits: 0 })}`
-                        : <span className="text-zinc-300">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right text-xs text-zinc-500 hidden lg:table-cell">
-                      {r.oldest_arrived_at
-                        ? fmtDate(r.oldest_arrived_at)
-                        : <span className="text-zinc-300">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right hidden sm:table-cell">
-                      {r.days_on_shelf !== null ? (
-                        <span className={`text-xs tabular-nums ${
-                          r.days_on_shelf >= 7 ? "text-orange-600 font-medium" : "text-zinc-400"
-                        }`}>
-                          {r.days_on_shelf}
-                        </span>
-                      ) : (
-                        <span className="text-zinc-300 text-xs">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <span className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded-md ${cfg.cls}`}>
-                        {cfg.label}
+
+                    {/* Статус */}
+                    <td className="px-4 py-3 text-center hidden sm:table-cell">
+                      <span className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded-md ${
+                        r.status === "ok"       ? "bg-emerald-100 text-emerald-700" :
+                        r.status === "low"      ? "bg-amber-100 text-amber-700"     :
+                        r.status === "aging"    ? "bg-orange-100 text-orange-700"   :
+                                                  "bg-red-100 text-red-500"
+                      }`}>
+                        {r.status === "ok"       ? "В норме"     :
+                         r.status === "low"      ? "Мало"        :
+                         r.status === "aging"    ? "Залежался"   :
+                                                   "Нет остатка"}
                       </span>
                     </td>
+
                     <td className="px-3 py-3 text-zinc-300 group-hover:text-rose-400 transition-colors">
                       <ChevronRight className="h-4 w-4" />
                     </td>

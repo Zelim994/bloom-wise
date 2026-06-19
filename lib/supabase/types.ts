@@ -1837,6 +1837,22 @@ export type Database = {
           },
         ]
       }
+      flower_variant_stock: {
+        Row: {
+          organization_id: string | null
+          flower_id:       string | null
+          variety_id:      string | null
+          color_id:        string | null
+          flower_name:     string | null
+          flower_unit:     string | null
+          flower_category: string | null
+          variety_name:    string | null
+          variety_size:    string | null
+          color_name:      string | null
+          current_stock:   number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       create_my_organization: { Args: { p_org_name: string }; Returns: string }
@@ -1907,6 +1923,7 @@ export type FlowerImage = PublicTables["flower_images"]["Row"]
 export type InventoryItem = PublicTables["inventory_items"]["Row"]
 export type StockMovement = PublicTables["stock_movements"]["Row"]
 export type FlowerStock = PublicViews["flower_stock"]["Row"]
+export type FlowerVariantStock = PublicViews["flower_variant_stock"]["Row"]
 
 // ── Narrow string enums used in app logic ──────────────────────────────────
 // DB stores these as text — the DB type is `string`, these give app-level safety
