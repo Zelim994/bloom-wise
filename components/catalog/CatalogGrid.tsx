@@ -1,21 +1,25 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Plus, Search, LayoutGrid, List, Flower, ImageOff, ChevronRight, PackageX } from "lucide-react"
+import { Plus, Search, LayoutGrid, List, Flower, ChevronRight, PackageX } from "lucide-react"
 import { CatalogFlowerForm } from "@/components/catalog/CatalogFlowerForm"
 import type { FlowerWithDetails } from "@/app/actions/catalog"
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const CATEGORIES = ["Все", "Срезка", "Зелень", "Упаковка", "Декор", "Аксессуары", "Горшечные"]
+const CATEGORIES = ["Все", "Срезка", "Зелень", "Сухоцветы", "Стабилизированные", "Ветки / ягоды", "Горшечные", "Упаковка", "Материалы", "Декор", "Прочее"]
 
 const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string; dot: string; placeholder: string }> = {
-  Срезка:     { bg: "bg-rose-50",    border: "border-rose-200",    text: "text-rose-700",    dot: "bg-rose-400",    placeholder: "bg-gradient-to-br from-rose-50 to-rose-100" },
-  Зелень:     { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", dot: "bg-emerald-400", placeholder: "bg-gradient-to-br from-emerald-50 to-emerald-100" },
-  Упаковка:   { bg: "bg-sky-50",     border: "border-sky-200",     text: "text-sky-700",     dot: "bg-sky-400",     placeholder: "bg-gradient-to-br from-sky-50 to-sky-100" },
-  Декор:      { bg: "bg-violet-50",  border: "border-violet-200",  text: "text-violet-700",  dot: "bg-violet-400",  placeholder: "bg-gradient-to-br from-violet-50 to-violet-100" },
-  Аксессуары: { bg: "bg-amber-50",   border: "border-amber-200",   text: "text-amber-700",   dot: "bg-amber-400",   placeholder: "bg-gradient-to-br from-amber-50 to-amber-100" },
-  Горшечные:  { bg: "bg-teal-50",    border: "border-teal-200",    text: "text-teal-700",    dot: "bg-teal-400",    placeholder: "bg-gradient-to-br from-teal-50 to-teal-100" },
+  Срезка:             { bg: "bg-rose-50",    border: "border-rose-200",    text: "text-rose-700",    dot: "bg-rose-400",    placeholder: "bg-gradient-to-br from-rose-50 to-rose-100" },
+  Зелень:             { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", dot: "bg-emerald-400", placeholder: "bg-gradient-to-br from-emerald-50 to-emerald-100" },
+  Сухоцветы:          { bg: "bg-amber-50",   border: "border-amber-200",   text: "text-amber-700",   dot: "bg-amber-400",   placeholder: "bg-gradient-to-br from-amber-50 to-amber-100" },
+  Стабилизированные:  { bg: "bg-violet-50",  border: "border-violet-200",  text: "text-violet-700",  dot: "bg-violet-400",  placeholder: "bg-gradient-to-br from-violet-50 to-violet-100" },
+  "Ветки / ягоды":    { bg: "bg-orange-50",  border: "border-orange-200",  text: "text-orange-700",  dot: "bg-orange-400",  placeholder: "bg-gradient-to-br from-orange-50 to-orange-100" },
+  Горшечные:          { bg: "bg-teal-50",    border: "border-teal-200",    text: "text-teal-700",    dot: "bg-teal-400",    placeholder: "bg-gradient-to-br from-teal-50 to-teal-100" },
+  Упаковка:           { bg: "bg-sky-50",     border: "border-sky-200",     text: "text-sky-700",     dot: "bg-sky-400",     placeholder: "bg-gradient-to-br from-sky-50 to-sky-100" },
+  Материалы:          { bg: "bg-cyan-50",    border: "border-cyan-200",    text: "text-cyan-700",    dot: "bg-cyan-400",    placeholder: "bg-gradient-to-br from-cyan-50 to-cyan-100" },
+  Декор:              { bg: "bg-purple-50",  border: "border-purple-200",  text: "text-purple-700",  dot: "bg-purple-400",  placeholder: "bg-gradient-to-br from-purple-50 to-purple-100" },
+  Прочее:             { bg: "bg-zinc-100",   border: "border-zinc-200",    text: "text-zinc-600",    dot: "bg-zinc-400",    placeholder: "bg-gradient-to-br from-zinc-50 to-zinc-100" },
 }
 
 const DEFAULT_COLORS = {
@@ -54,12 +58,6 @@ export function CatalogGrid({ flowers }: Props) {
   const [filterSeason,   setFilterSeason]   = useState("")
   const [filterStyle,    setFilterStyle]    = useState("")
   const [filterProperty, setFilterProperty] = useState("")
-
-  // ── Stats ─────────────────────────────────────────────────────────────────────
-  const noPhotoCount = useMemo(
-    () => flowers.filter((f) => !f.primary_image_url).length,
-    [flowers]
-  )
 
   // ── Category counts ───────────────────────────────────────────────────────────
   const catCounts = useMemo(() => {
@@ -121,16 +119,6 @@ export function CatalogGrid({ flowers }: Props) {
             Всего позиций:{" "}
             <span className="font-semibold text-zinc-800">{flowers.length}</span>
           </span>
-          {noPhotoCount > 0 && (
-            <>
-              <span className="text-zinc-200">·</span>
-              <span className="flex items-center gap-1.5 text-zinc-400">
-                <ImageOff className="h-3.5 w-3.5" />
-                Без фото:{" "}
-                <span className="font-semibold text-zinc-600">{noPhotoCount}</span>
-              </span>
-            </>
-          )}
         </div>
 
         {/* ── Category tabs ── */}
@@ -270,15 +258,12 @@ export function CatalogGrid({ flowers }: Props) {
         {filtered.length > 0 && viewMode === "grid" && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {filtered.map((f) => {
-              const colors   = CATEGORY_COLORS[f.category] ?? DEFAULT_COLORS
-              const hasPhoto = !!f.primary_image_url
-              const vl       = vaseLifeLabel(f.vase_life_min_days, f.vase_life_max_days)
-              const extraTags = [
-                ...(f.styles        ?? []),
-                ...(f.usage_tags    ?? []),
-                ...(f.property_tags ?? []),
-              ].slice(0, 4)
-              const noteText = (f.care_notes || f.combination_notes || "").slice(0, 55) || null
+              const colors     = CATEGORY_COLORS[f.category] ?? DEFAULT_COLORS
+              const hasPhoto   = !!f.primary_image_url
+              const vl         = vaseLifeLabel(f.vase_life_min_days, f.vase_life_max_days)
+              const namedVars  = f.varieties.filter((v) => !(v.size && v.name === v.size)).slice(0, 3)
+              const colorNames = f.colors.slice(0, 3)
+              const usageTags  = (f.usage_tags ?? []).slice(0, 3)
               return (
                 <button
                   key={f.id}
@@ -301,23 +286,40 @@ export function CatalogGrid({ flowers }: Props) {
                       </div>
                     )}
                     <span className={`absolute top-2.5 left-2.5 h-2 w-2 rounded-full ${colors.dot} shadow-sm`} />
-                    {!hasPhoto && (
-                      <span className="absolute bottom-2 right-2 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-zinc-900/60 text-white">
-                        Нет фото
-                      </span>
-                    )}
                   </div>
 
                   {/* Info */}
-                  <div className="p-3">
-                    <p className="text-sm font-semibold text-zinc-800 leading-snug line-clamp-2 group-hover:text-rose-600 transition-colors">
-                      {f.name}
-                    </p>
-                    {f.sku && (
-                      <p className="text-[11px] font-mono text-zinc-400 mt-0.5">{f.sku}</p>
+                  <div className="p-3 space-y-1.5">
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-800 leading-snug line-clamp-2 group-hover:text-rose-600 transition-colors">
+                        {f.name}
+                      </p>
+                      {f.sku && (
+                        <p className="text-[11px] font-mono text-zinc-400 mt-0.5">{f.sku}</p>
+                      )}
+                    </div>
+
+                    {/* Сорта */}
+                    {namedVars.length > 0 && (
+                      <p className="text-[11px] text-zinc-500 leading-snug">
+                        {namedVars.map((v) => v.name).join(" · ")}
+                      </p>
                     )}
+
+                    {/* Цвета */}
+                    {colorNames.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {colorNames.map((c) => (
+                          <span key={c.id ?? c.name} className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-100 text-zinc-600">
+                            {c.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Сезонность */}
                     {(f.seasonality ?? []).length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1.5">
+                      <div className="flex flex-wrap gap-1">
                         {(f.seasonality ?? []).map((s) => (
                           <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-100">
                             {s}
@@ -325,22 +327,24 @@ export function CatalogGrid({ flowers }: Props) {
                         ))}
                       </div>
                     )}
-                    {extraTags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {extraTags.map((t) => (
+
+                    {/* Применение */}
+                    {usageTags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {usageTags.map((t) => (
                           <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-100 text-zinc-500">
                             {t}
                           </span>
                         ))}
                       </div>
                     )}
+
+                    {/* Стойкость */}
                     {vl && (
-                      <p className="text-[11px] text-zinc-400 mt-1">Стойкость: {vl}</p>
+                      <p className="text-[11px] text-zinc-400">Стойкость: {vl}</p>
                     )}
-                    {noteText && (
-                      <p className="text-[10px] text-zinc-400 mt-1 line-clamp-1">{noteText}</p>
-                    )}
-                    <div className="mt-2 flex items-center justify-between">
+
+                    <div className="flex items-center justify-between pt-0.5">
                       <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded-md ${colors.bg} ${colors.text}`}>
                         {f.category}
                       </span>
@@ -368,9 +372,11 @@ export function CatalogGrid({ flowers }: Props) {
               </thead>
               <tbody>
                 {filtered.map((f, i) => {
-                  const colors   = CATEGORY_COLORS[f.category] ?? DEFAULT_COLORS
-                  const hasPhoto = !!f.primary_image_url
-                  const vl       = vaseLifeLabel(f.vase_life_min_days, f.vase_life_max_days)
+                  const colors    = CATEGORY_COLORS[f.category] ?? DEFAULT_COLORS
+                  const hasPhoto  = !!f.primary_image_url
+                  const vl        = vaseLifeLabel(f.vase_life_min_days, f.vase_life_max_days)
+                  const namedVars = f.varieties.filter((v) => !(v.size && v.name === v.size)).slice(0, 2)
+                  const colorNames = f.colors.slice(0, 2)
                   return (
                     <tr
                       key={f.id}
@@ -394,7 +400,7 @@ export function CatalogGrid({ flowers }: Props) {
                         </div>
                       </td>
 
-                      {/* Name + SKU + knowledge tags */}
+                      {/* Name + meta */}
                       <td className="px-4 py-2.5">
                         <p className="font-medium text-zinc-800 group-hover:text-rose-600 transition-colors truncate max-w-[220px]">
                           {f.name}
@@ -403,11 +409,16 @@ export function CatalogGrid({ flowers }: Props) {
                           {f.sku && (
                             <span className="text-[11px] font-mono text-zinc-400">{f.sku}</span>
                           )}
-                          {!hasPhoto && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-zinc-100 text-zinc-500">
-                              Нет фото
+                          {namedVars.length > 0 && (
+                            <span className="text-[11px] text-zinc-400">
+                              {namedVars.map((v) => v.name).join(" · ")}
                             </span>
                           )}
+                          {colorNames.length > 0 && colorNames.map((c) => (
+                            <span key={c.id ?? c.name} className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-100 text-zinc-500">
+                              {c.name}
+                            </span>
+                          ))}
                           {(f.seasonality ?? []).slice(0, 2).map((s) => (
                             <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-100">
                               {s}
