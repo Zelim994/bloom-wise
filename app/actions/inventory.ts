@@ -49,16 +49,59 @@ export async function getFlowerById(id: string): Promise<FlowerWithStock | null>
   return { ...flowerRes.data, current_stock: Number(stockRes.data?.current_stock ?? 0) }
 }
 
-// Партии товара (FIFO — старые первые)
-export async function getFlowerInventoryItems(flowerId: string): Promise<InventoryItem[]> {
+export type InventoryItemWithVariant = {
+  id:                 string
+  arrived_at:         string
+  quantity_in:        number
+  quantity_remaining: number
+  cost_price:         number
+  expires_at:         string | null
+  freshness_status:   string | null
+  comment:            string | null
+  variety_id:         string | null
+  color_id:           string | null
+  variety_name:       string | null
+  variety_size:       string | null
+  color_name:         string | null
+}
+
+// Партии товара (FIFO — старые первые) с вариантом и цветом
+export async function getFlowerInventoryItems(flowerId: string): Promise<InventoryItemWithVariant[]> {
   const supabase = await createClient()
+  type RawItem = {
+    id: string; arrived_at: string; quantity_in: number; quantity_remaining: number
+    cost_price: number; expires_at: string | null; freshness_status: string | null
+    comment: string | null; variety_id: string | null; color_id: string | null
+    flower_varieties: { name: string; size: string | null } | null
+    flower_colors:    { name: string } | null
+  }
   const { data } = await supabase
     .from("inventory_items")
-    .select("*")
+    .select(`
+      id, arrived_at, quantity_in, quantity_remaining, cost_price,
+      expires_at, freshness_status, comment,
+      variety_id, color_id,
+      flower_varieties(name, size),
+      flower_colors(name)
+    `)
     .eq("flower_id", flowerId)
     .gt("quantity_remaining", 0)
     .order("arrived_at", { ascending: true })
-  return data ?? []
+  return ((data ?? []) as unknown as RawItem[]).map((item) => ({
+    id:                 item.id,
+    arrived_at:         item.arrived_at,
+    quantity_in:        item.quantity_in,
+    quantity_remaining: item.quantity_remaining,
+    cost_price:         item.cost_price,
+    expires_at:         item.expires_at   ?? null,
+    freshness_status:   item.freshness_status ?? null,
+    comment:            item.comment      ?? null,
+    variety_id:         item.variety_id   ?? null,
+    color_id:           item.color_id     ?? null,
+    variety_name:       item.flower_varieties?.name ?? null,
+    variety_size:       item.flower_varieties?.size ?? null,
+    color_name:         item.flower_colors?.name    ?? null,
+  }))
 }
 
 // История движений по цветку

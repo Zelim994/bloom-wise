@@ -215,6 +215,8 @@ export default async function InventoryItemPage({
             <thead>
               <tr className="border-b border-zinc-100 bg-zinc-50/60">
                 <th className="text-left px-5 py-2.5 text-xs font-semibold text-zinc-400 uppercase tracking-wide">Приход</th>
+                <th className="text-left px-5 py-2.5 text-xs font-semibold text-zinc-400 uppercase tracking-wide hidden sm:table-cell">Вариант · размер</th>
+                <th className="text-left px-5 py-2.5 text-xs font-semibold text-zinc-400 uppercase tracking-wide hidden lg:table-cell">Цвет</th>
                 <th className="text-right px-5 py-2.5 text-xs font-semibold text-zinc-400 uppercase tracking-wide">Остаток</th>
                 <th className="text-right px-5 py-2.5 text-xs font-semibold text-zinc-400 uppercase tracking-wide hidden sm:table-cell">Закупочная</th>
                 <th className="text-right px-5 py-2.5 text-xs font-semibold text-zinc-400 uppercase tracking-wide">Дней</th>
@@ -223,13 +225,29 @@ export default async function InventoryItemPage({
             </thead>
             <tbody className="divide-y divide-zinc-50">
               {batches.map((b) => {
-                const days = daysAgo(b.arrived_at)
+                const days    = daysAgo(b.arrived_at)
                 const isAging = days >= AGING_DAYS
+                const vParts  = [b.variety_name, b.variety_size].filter(Boolean)
+                const vLabel  = vParts.length > 0 ? vParts.join(" · ") : null
 
                 return (
                   <tr key={b.id} className="hover:bg-zinc-50/50">
                     <td className="px-5 py-3 text-zinc-700 text-sm">
                       {fmtDate(b.arrived_at)}
+                      {/* mobile: show variant under date when separate columns are hidden */}
+                      {(vLabel || b.color_name) && (
+                        <p className="text-xs text-zinc-400 mt-0.5 sm:hidden">
+                          {[vLabel, b.color_name].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 text-xs text-zinc-600 hidden sm:table-cell">
+                      {vLabel
+                        ? <span className="font-medium text-zinc-700">{vLabel}</span>
+                        : <span className="text-zinc-300">—</span>}
+                    </td>
+                    <td className="px-5 py-3 text-xs text-zinc-600 hidden lg:table-cell">
+                      {b.color_name ?? <span className="text-zinc-300">—</span>}
                     </td>
                     <td className="px-5 py-3 text-right font-semibold text-zinc-800 tabular-nums">
                       {b.quantity_remaining}
