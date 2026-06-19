@@ -23,6 +23,20 @@ const DEFAULT_COLORS = {
   dot: "bg-zinc-300", placeholder: "bg-gradient-to-br from-zinc-50 to-zinc-100",
 }
 
+const SEASON_FILTER    = ["весна", "лето", "осень", "зима", "круглый год"]
+const STYLE_FILTER     = ["классика", "нежная", "яркая", "минимализм", "акцент", "экзотика", "текстура"]
+const PROPERTY_FILTER  = ["стойкая", "аромат", "сезонная", "сухоцвет", "ягоды", "вьющийся", "зелень"]
+
+function vaseLifeLabel(
+  min: number | null | undefined,
+  max: number | null | undefined
+): string | null {
+  if (min != null && max != null) return `${min}–${max} дн.`
+  if (min != null) return `от ${min} дн.`
+  if (max != null) return `до ${max} дн.`
+  return null
+}
+
 type ViewMode = "grid" | "list"
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -37,6 +51,9 @@ export function CatalogGrid({ flowers }: Props) {
   const [viewMode,       setViewMode]       = useState<ViewMode>("list")
   const [selected,       setSelected]       = useState<FlowerWithDetails | null>(null)
   const [sheetOpen,      setSheetOpen]      = useState(false)
+  const [filterSeason,   setFilterSeason]   = useState("")
+  const [filterStyle,    setFilterStyle]    = useState("")
+  const [filterProperty, setFilterProperty] = useState("")
 
   // ── Stats ─────────────────────────────────────────────────────────────────────
   const noPhotoCount = useMemo(
@@ -56,15 +73,23 @@ export function CatalogGrid({ flowers }: Props) {
     const q = search.trim().toLowerCase()
     return flowers.filter((f) => {
       if (activeCategory !== "Все" && f.category !== activeCategory) return false
+      if (filterSeason   && !(f.seasonality   ?? []).includes(filterSeason))   return false
+      if (filterStyle    && !(f.styles        ?? []).includes(filterStyle))     return false
+      if (filterProperty && !(f.property_tags ?? []).includes(filterProperty)) return false
       if (q) {
-        const nameMatch = f.name.toLowerCase().includes(q)
-        const skuMatch  = (f.sku ?? "").toLowerCase().includes(q)
-        const catMatch  = f.category.toLowerCase().includes(q)
-        if (!nameMatch && !skuMatch && !catMatch) return false
+        const haystack = [
+          f.name, f.sku, f.category, f.description, f.florist_comment,
+          f.care_notes, f.buying_notes, f.combination_notes,
+          ...(f.seasonality   ?? []),
+          ...(f.styles        ?? []),
+          ...(f.usage_tags    ?? []),
+          ...(f.property_tags ?? []),
+        ].filter(Boolean).join(" ").toLowerCase()
+        if (!haystack.includes(q)) return false
       }
       return true
     })
-  }, [flowers, activeCategory, search])
+  }, [flowers, activeCategory, search, filterSeason, filterStyle, filterProperty])
 
   function openFlower(f: FlowerWithDetails) { setSelected(f); setSheetOpen(true) }
   function openNew()                         { setSelected(null); setSheetOpen(true) }
@@ -176,14 +201,49 @@ export function CatalogGrid({ flowers }: Props) {
           </div>
         </div>
 
+        {/* ── Knowledge filters ── */}
+        <div className="flex gap-2 flex-wrap items-center">
+          {(
+            [
+              { value: filterSeason,   onChange: setFilterSeason,   placeholder: "Все сезоны",   options: SEASON_FILTER },
+              { value: filterStyle,    onChange: setFilterStyle,    placeholder: "Все стили",    options: STYLE_FILTER },
+              { value: filterProperty, onChange: setFilterProperty, placeholder: "Все свойства", options: PROPERTY_FILTER },
+            ] as const
+          ).map(({ value, onChange, placeholder, options }) => (
+            <select
+              key={placeholder}
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              className={`h-9 rounded-lg border text-sm px-3 focus:outline-none focus:ring-2 focus:ring-rose-500 ${
+                value
+                  ? "border-rose-300 bg-rose-50 text-rose-700"
+                  : "border-zinc-200 bg-white text-zinc-500"
+              }`}
+            >
+              <option value="">{placeholder}</option>
+              {options.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          ))}
+          {(filterSeason || filterStyle || filterProperty) && (
+            <button
+              onClick={() => { setFilterSeason(""); setFilterStyle(""); setFilterProperty("") }}
+              className="text-xs text-rose-500 hover:underline"
+            >
+              Сбросить
+            </button>
+          )}
+        </div>
+
         {/* ── Empty state ── */}
         {filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center rounded-2xl border border-zinc-200 bg-white">
             <PackageX className="h-10 w-10 text-zinc-200 mb-3" />
             <p className="text-sm font-medium text-zinc-500">
-              {search ? "Ничего не найдено" : "В этой категории нет товаров"}
+              {(search || filterSeason || filterStyle || filterProperty)
+                ? "Ничего не найдено"
+                : "В этой категории нет товаров"}
             </p>
-            {!search ? (
+            {!(search || filterSeason || filterStyle || filterProperty) ? (
               <button
                 onClick={openNew}
                 className="mt-4 text-sm text-rose-500 hover:text-rose-600 font-medium"
@@ -192,10 +252,15 @@ export function CatalogGrid({ flowers }: Props) {
               </button>
             ) : (
               <button
-                onClick={() => setSearch("")}
+                onClick={() => {
+                  setSearch("")
+                  setFilterSeason("")
+                  setFilterStyle("")
+                  setFilterProperty("")
+                }}
                 className="mt-2 text-xs text-rose-500 hover:underline"
               >
-                Сбросить поиск
+                Сбросить фильтры
               </button>
             )}
           </div>
@@ -207,6 +272,13 @@ export function CatalogGrid({ flowers }: Props) {
             {filtered.map((f) => {
               const colors   = CATEGORY_COLORS[f.category] ?? DEFAULT_COLORS
               const hasPhoto = !!f.primary_image_url
+              const vl       = vaseLifeLabel(f.vase_life_min_days, f.vase_life_max_days)
+              const extraTags = [
+                ...(f.styles        ?? []),
+                ...(f.usage_tags    ?? []),
+                ...(f.property_tags ?? []),
+              ].slice(0, 4)
+              const noteText = (f.care_notes || f.combination_notes || "").slice(0, 55) || null
               return (
                 <button
                   key={f.id}
@@ -238,11 +310,35 @@ export function CatalogGrid({ flowers }: Props) {
 
                   {/* Info */}
                   <div className="p-3">
-                    <p className="text-sm font-semibold text-zinc-800 leading-snug line-clamp-2 group-hover:text-rose-600 transition-colors min-h-[2.5rem]">
+                    <p className="text-sm font-semibold text-zinc-800 leading-snug line-clamp-2 group-hover:text-rose-600 transition-colors">
                       {f.name}
                     </p>
                     {f.sku && (
                       <p className="text-[11px] font-mono text-zinc-400 mt-0.5">{f.sku}</p>
+                    )}
+                    {(f.seasonality ?? []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {(f.seasonality ?? []).map((s) => (
+                          <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-100">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {extraTags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {extraTags.map((t) => (
+                          <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-100 text-zinc-500">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {vl && (
+                      <p className="text-[11px] text-zinc-400 mt-1">Стойкость: {vl}</p>
+                    )}
+                    {noteText && (
+                      <p className="text-[10px] text-zinc-400 mt-1 line-clamp-1">{noteText}</p>
                     )}
                     <div className="mt-2 flex items-center justify-between">
                       <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded-md ${colors.bg} ${colors.text}`}>
@@ -274,6 +370,7 @@ export function CatalogGrid({ flowers }: Props) {
                 {filtered.map((f, i) => {
                   const colors   = CATEGORY_COLORS[f.category] ?? DEFAULT_COLORS
                   const hasPhoto = !!f.primary_image_url
+                  const vl       = vaseLifeLabel(f.vase_life_min_days, f.vase_life_max_days)
                   return (
                     <tr
                       key={f.id}
@@ -297,12 +394,12 @@ export function CatalogGrid({ flowers }: Props) {
                         </div>
                       </td>
 
-                      {/* Name + SKU + no-photo badge */}
+                      {/* Name + SKU + knowledge tags */}
                       <td className="px-4 py-2.5">
                         <p className="font-medium text-zinc-800 group-hover:text-rose-600 transition-colors truncate max-w-[220px]">
                           {f.name}
                         </p>
-                        <div className="flex items-center gap-2 mt-0.5">
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                           {f.sku && (
                             <span className="text-[11px] font-mono text-zinc-400">{f.sku}</span>
                           )}
@@ -310,6 +407,14 @@ export function CatalogGrid({ flowers }: Props) {
                             <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-zinc-100 text-zinc-500">
                               Нет фото
                             </span>
+                          )}
+                          {(f.seasonality ?? []).slice(0, 2).map((s) => (
+                            <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-100">
+                              {s}
+                            </span>
+                          ))}
+                          {vl && (
+                            <span className="text-[10px] text-zinc-400">{vl}</span>
                           )}
                         </div>
                       </td>
