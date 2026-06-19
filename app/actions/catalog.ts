@@ -101,8 +101,6 @@ export async function upsertFlower(formData: {
   sku?: string
   description?: string
   florist_comment?: string
-  min_stock?: number
-  sale_price?: number | null
   photoFile?: string | null
   varieties?: { name: string; size?: string }[]
   colors?: { name: string; hex_code?: string }[]
@@ -111,14 +109,15 @@ export async function upsertFlower(formData: {
   const orgId = await getOrgId(supabase)
   if (!orgId) return { error: "Не удалось определить организацию" }
 
+  // min_stock и sale_price убраны из каталога: форма их не передаёт.
+  // При UPDATE они не попадают в payload — DB сохраняет прежние значения.
+  // При INSERT ставим безопасные дефолты.
   const basePayload = {
     name: formData.name,
     category: formData.category,
     unit: formData.unit,
     description: formData.description || null,
     florist_comment: formData.florist_comment || null,
-    min_stock: formData.min_stock ?? 0,
-    sale_price: formData.sale_price != null && formData.sale_price >= 0 ? formData.sale_price : null,
     updated_at: new Date().toISOString(),
   }
 
@@ -140,7 +139,7 @@ export async function upsertFlower(formData: {
 
     const { data, error } = await supabase
       .from("flowers")
-      .insert({ ...basePayload, organization_id: orgId, sku })
+      .insert({ ...basePayload, organization_id: orgId, sku, min_stock: 0, sale_price: null })
       .select("id")
       .single()
     if (error) {

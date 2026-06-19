@@ -47,8 +47,6 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
     sku: "",
     description: "",
     florist_comment: "",
-    min_stock: "0",
-    sale_price: "",
   })
 
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
@@ -77,13 +75,11 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
         sku: flower.sku ?? "",
         description: flower.description ?? "",
         florist_comment: flower.florist_comment ?? "",
-        min_stock: String(flower.min_stock ?? 0),
-        sale_price: flower.sale_price != null ? String(flower.sale_price) : "",
       })
       setVarieties(flower.varieties.map((v) => ({ id: v.id, name: v.name, size: v.size ?? "" })))
       setColors(flower.colors.map((c) => ({ id: c.id, name: c.name, hex_code: c.hex_code ?? "" })))
     } else {
-      setForm({ name: "", category: "Срезка", unit: "шт", sku: "", description: "", florist_comment: "", min_stock: "0", sale_price: "" })
+      setForm({ name: "", category: "Срезка", unit: "шт", sku: "", description: "", florist_comment: "" })
       setVarieties([])
       setColors([])
     }
@@ -129,8 +125,6 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
         sku: form.sku || undefined,
         description: form.description || undefined,
         florist_comment: form.florist_comment || undefined,
-        min_stock: Math.max(0, parseInt(form.min_stock, 10) || 0),
-        sale_price: form.sale_price !== "" ? parseFloat(form.sale_price) : null,
       })
 
       if (result.error) {
@@ -384,34 +378,6 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
-                    Мин. остаток
-                  </Label>
-                  <Input
-                    {...field("min_stock")}
-                    type="number"
-                    min={0}
-                    step={1}
-                    placeholder="0"
-                    className="border-zinc-200 h-10"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
-                    Цена продажи
-                  </Label>
-                  <Input
-                    {...field("sale_price")}
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    placeholder="0.00"
-                    className="border-zinc-200 h-10"
-                  />
-                </div>
-              </div>
             </div>
 
             {/* Varieties */}
