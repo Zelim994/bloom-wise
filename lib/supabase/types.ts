@@ -547,6 +547,15 @@ export type Database = {
           sku: string | null
           unit: string
           updated_at: string | null
+          vase_life_min_days: number | null
+          vase_life_max_days: number | null
+          seasonality: string[]
+          styles: string[]
+          usage_tags: string[]
+          property_tags: string[]
+          care_notes: string | null
+          buying_notes: string | null
+          combination_notes: string | null
         }
         Insert: {
           category?: string
@@ -563,6 +572,15 @@ export type Database = {
           sku?: string | null
           unit?: string
           updated_at?: string | null
+          vase_life_min_days?: number | null
+          vase_life_max_days?: number | null
+          seasonality?: string[]
+          styles?: string[]
+          usage_tags?: string[]
+          property_tags?: string[]
+          care_notes?: string | null
+          buying_notes?: string | null
+          combination_notes?: string | null
         }
         Update: {
           category?: string
@@ -579,6 +597,15 @@ export type Database = {
           sku?: string | null
           unit?: string
           updated_at?: string | null
+          vase_life_min_days?: number | null
+          vase_life_max_days?: number | null
+          seasonality?: string[]
+          styles?: string[]
+          usage_tags?: string[]
+          property_tags?: string[]
+          care_notes?: string | null
+          buying_notes?: string | null
+          combination_notes?: string | null
         }
         Relationships: [
           {
