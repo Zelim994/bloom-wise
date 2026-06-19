@@ -104,10 +104,30 @@ export async function upsertFlower(formData: {
   photoFile?: string | null
   varieties?: { name: string; size?: string }[]
   colors?: { name: string; hex_code?: string }[]
+  vase_life_min_days?: number | null
+  vase_life_max_days?: number | null
+  seasonality?: string[]
+  styles?: string[]
+  usage_tags?: string[]
+  property_tags?: string[]
+  care_notes?: string | null
+  buying_notes?: string | null
+  combination_notes?: string | null
 }): Promise<{ error?: string; id?: string }> {
   const supabase = await createClient()
   const orgId = await getOrgId(supabase)
   if (!orgId) return { error: "Не удалось определить организацию" }
+
+  if (formData.vase_life_min_days != null && formData.vase_life_min_days < 0)
+    return { error: "Минимальная стойкость не может быть отрицательной" }
+  if (formData.vase_life_max_days != null && formData.vase_life_max_days < 0)
+    return { error: "Максимальная стойкость не может быть отрицательной" }
+  if (
+    formData.vase_life_min_days != null &&
+    formData.vase_life_max_days != null &&
+    formData.vase_life_max_days < formData.vase_life_min_days
+  )
+    return { error: "Максимальная стойкость не может быть меньше минимальной" }
 
   // min_stock и sale_price убраны из каталога: форма их не передаёт.
   // При UPDATE они не попадают в payload — DB сохраняет прежние значения.
@@ -125,8 +145,28 @@ export async function upsertFlower(formData: {
 
   if (flowerId) {
     // Редактирование: обновляем sku только если пользователь ввёл значение
-    const updatePayload: typeof basePayload & { sku?: string } = { ...basePayload }
+    const updatePayload: typeof basePayload & {
+      sku?: string
+      vase_life_min_days?: number | null
+      vase_life_max_days?: number | null
+      seasonality?: string[]
+      styles?: string[]
+      usage_tags?: string[]
+      property_tags?: string[]
+      care_notes?: string | null
+      buying_notes?: string | null
+      combination_notes?: string | null
+    } = { ...basePayload }
     if (formData.sku?.trim()) updatePayload.sku = normalizeSku(formData.sku)
+    if ("vase_life_min_days" in formData) updatePayload.vase_life_min_days = formData.vase_life_min_days ?? null
+    if ("vase_life_max_days" in formData) updatePayload.vase_life_max_days = formData.vase_life_max_days ?? null
+    if ("seasonality" in formData) updatePayload.seasonality = formData.seasonality ?? []
+    if ("styles" in formData) updatePayload.styles = formData.styles ?? []
+    if ("usage_tags" in formData) updatePayload.usage_tags = formData.usage_tags ?? []
+    if ("property_tags" in formData) updatePayload.property_tags = formData.property_tags ?? []
+    if ("care_notes" in formData) updatePayload.care_notes = formData.care_notes ?? null
+    if ("buying_notes" in formData) updatePayload.buying_notes = formData.buying_notes ?? null
+    if ("combination_notes" in formData) updatePayload.combination_notes = formData.combination_notes ?? null
 
     const { error } = await supabase.from("flowers").update(updatePayload).eq("id", flowerId)
     if (error) {
@@ -139,7 +179,22 @@ export async function upsertFlower(formData: {
 
     const { data, error } = await supabase
       .from("flowers")
-      .insert({ ...basePayload, organization_id: orgId, sku, min_stock: 0, sale_price: null })
+      .insert({
+        ...basePayload,
+        organization_id: orgId,
+        sku,
+        min_stock: 0,
+        sale_price: null,
+        vase_life_min_days: formData.vase_life_min_days ?? null,
+        vase_life_max_days: formData.vase_life_max_days ?? null,
+        seasonality: formData.seasonality ?? [],
+        styles: formData.styles ?? [],
+        usage_tags: formData.usage_tags ?? [],
+        property_tags: formData.property_tags ?? [],
+        care_notes: formData.care_notes ?? null,
+        buying_notes: formData.buying_notes ?? null,
+        combination_notes: formData.combination_notes ?? null,
+      })
       .select("id")
       .single()
     if (error) {
