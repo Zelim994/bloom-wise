@@ -140,6 +140,18 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
 
       const flowerId = result.id!
 
+      // For new flowers: save varieties and colors accumulated in local state
+      if (!flower?.id) {
+        for (const v of varieties) {
+          const name = v.name.trim()
+          if (name) await addFlowerVariety(flowerId, name, v.size.trim() || undefined)
+        }
+        for (const c of colors) {
+          const name = c.name.trim()
+          if (name) await addFlowerColor(flowerId, name)
+        }
+      }
+
       // Upload photo if selected
       if (photoFile) {
         setUploading(true)
@@ -169,6 +181,7 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
         router.refresh()
       })
     } else {
+      if (varieties.some((v) => v.name.trim().toLowerCase() === name.toLowerCase())) return
       setVarieties((v) => [...v, { name, size: newVarietySize.trim() }])
       setNewVarietyName("")
       setNewVarietySize("")
@@ -201,6 +214,7 @@ export function CatalogFlowerForm({ open, flower, onClose }: Props) {
         router.refresh()
       })
     } else {
+      if (colors.some((c) => c.name.trim().toLowerCase() === name.toLowerCase())) return
       setColors((c) => [...c, { name, hex_code: "" }])
       setNewColorName("")
     }
