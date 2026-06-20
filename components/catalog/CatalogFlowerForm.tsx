@@ -848,7 +848,16 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
   if (mode === "inline") {
     return (
       <>
-        <div className="flex-1 overflow-y-auto">{formCards}</div>
+        <div
+          className="flex-1 overflow-y-auto"
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return
+            const tag = (e.target as HTMLElement).tagName.toLowerCase()
+            if (tag === "input" || tag === "select") e.preventDefault()
+          }}
+        >
+          {formCards}
+        </div>
         {errorBanner}
         {actionBar}
       </>
