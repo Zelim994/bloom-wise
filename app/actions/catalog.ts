@@ -488,17 +488,20 @@ export async function deleteFlowerCompletely(
     (wri.count ?? 0) > 0
 
   if (hasHistory) {
-    return {
-      error:
-        "Этот товар нельзя удалить полностью, потому что он уже используется в складе, поставках, заказах или рецептах. Позже для таких товаров будет архив.",
-    }
+    // Есть история в складе/поставках — мягкое удаление (скрываем из каталога, данные не трогаем)
+    const { error: archErr } = await supabase
+      .from("flowers")
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq("id", flowerId)
+      .eq("organization_id", orgId)
+    if (archErr) return { error: archErr.message }
+  } else {
+    // Зависимостей нет — удаляем полностью (дочерние → родитель)
+    await supabase.from("flower_images").delete().eq("flower_id", flowerId)
+    await supabase.from("flower_colors").delete().eq("flower_id", flowerId)
+    await supabase.from("flower_varieties").delete().eq("flower_id", flowerId)
+    await supabase.from("flowers").delete().eq("id", flowerId).eq("organization_id", orgId)
   }
-
-  // Зависимостей нет — удаляем в правильном порядке (дочерние → родитель)
-  await supabase.from("flower_images").delete().eq("flower_id", flowerId)
-  await supabase.from("flower_colors").delete().eq("flower_id", flowerId)
-  await supabase.from("flower_varieties").delete().eq("flower_id", flowerId)
-  await supabase.from("flowers").delete().eq("id", flowerId).eq("organization_id", orgId)
 
   revalidatePath("/catalog")
   revalidatePath("/purchases/new")
