@@ -18,18 +18,42 @@ interface Props {
 
 type Tab = "stock" | "bouquet" | "finance"
 
+// Find a stock position in the flowers list by flower_id + variety_id + color_id
+function findFlower(
+  flowers: FlowerForBuilder[],
+  flowerId: string,
+  varietyId?: string | null,
+  colorId?: string | null
+): FlowerForBuilder | undefined {
+  return flowers.find(
+    (f) =>
+      f.flower_id === flowerId &&
+      (f.variety_id ?? null) === (varietyId ?? null) &&
+      (f.color_id ?? null) === (colorId ?? null)
+  )
+}
+
 export function BuilderLayout({ flowers, onChange, initialItems, initialSalePrice }: Props) {
   const [items, setItems] = useState<BouquetItem[]>(() => {
     if (!initialItems?.length) return []
-    return initialItems.map((item) => ({
-      _id: Math.random().toString(36).slice(2),
-      flower_id: item.flower_id,
-      name: item.name,
-      unit: item.unit,
-      quantity: item.quantity,
-      unit_cost: item.unit_cost,
-      current_stock: flowers.find((f) => f.id === item.flower_id)?.current_stock ?? 0,
-    }))
+    return initialItems.map((item) => {
+      const matched = findFlower(flowers, item.flower_id, item.variety_id, item.color_id)
+      return {
+        _id: Math.random().toString(36).slice(2),
+        flower_id: item.flower_id,
+        variety_id: item.variety_id ?? null,
+        color_id: item.color_id ?? null,
+        variety_name: matched?.variety_name ?? null,
+        variety_size: matched?.variety_size ?? null,
+        color_name: matched?.color_name ?? null,
+        name: item.name,
+        unit: item.unit,
+        quantity: item.quantity,
+        unit_cost: item.unit_cost,
+        sale_price: matched?.sale_price ?? null,
+        current_stock: matched?.current_stock ?? 0,
+      }
+    })
   })
   const [salePrice, setSalePrice] = useState(() =>
     initialSalePrice ? String(initialSalePrice) : ""
@@ -43,21 +67,15 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
     [items]
   )
 
-  // Suggested sale price: sum of flower.sale_price × quantity for all items
+  // Suggested sale price: sum of item.sale_price × quantity
   const suggestedSalePrice = useMemo(
-    () => items.reduce((sum, item) => {
-      const f = flowers.find((fl) => fl.id === item.flower_id)
-      return sum + item.quantity * (f?.sale_price ?? 0)
-    }, 0),
-    [items, flowers]
+    () => items.reduce((sum, item) => sum + item.quantity * (item.sale_price ?? 0), 0),
+    [items]
   )
 
   const hasMissingPrices = useMemo(
-    () => items.length > 0 && items.some((item) => {
-      const f = flowers.find((fl) => fl.id === item.flower_id)
-      return !f?.sale_price
-    }),
-    [items, flowers]
+    () => items.length > 0 && items.some((item) => !(item.sale_price ?? 0)),
+    [items]
   )
 
   const salePriceNum = Number(salePrice) || 0
@@ -66,10 +84,7 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
 
   // Compute suggested price string from a given items array (used inside handlers)
   function computeSuggested(nextItems: BouquetItem[]): string {
-    const total = nextItems.reduce((sum, item) => {
-      const f = flowers.find((fl) => fl.id === item.flower_id)
-      return sum + item.quantity * (f?.sale_price ?? 0)
-    }, 0)
+    const total = nextItems.reduce((sum, item) => sum + item.quantity * (item.sale_price ?? 0), 0)
     return total > 0 ? String(total) : ""
   }
 
@@ -81,12 +96,14 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
       const pr = sp - cp
       const mg = sp > 0 ? (pr / sp) * 100 : 0
       onChange({
-        items: nextItems.map(({ flower_id, name, unit, quantity, unit_cost }) => ({
+        items: nextItems.map(({ flower_id, name, unit, quantity, unit_cost, variety_id, color_id }) => ({
           flower_id,
           name,
           unit,
           quantity,
           unit_cost,
+          variety_id: variety_id ?? null,
+          color_id: color_id ?? null,
         })),
         cost_price: cp,
         sale_price: sp,
@@ -99,20 +116,32 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
 
   function handleAdd(flower: FlowerForBuilder) {
     setItems((prev) => {
-      const existing = prev.find((i) => i.flower_id === flower.id)
+      // Match by flower_id + variety_id + color_id to keep Mondial·80 and Mondial·100 separate
+      const existing = prev.find(
+        (i) =>
+          i.flower_id === flower.flower_id &&
+          (i.variety_id ?? null) === (flower.variety_id ?? null) &&
+          (i.color_id ?? null) === (flower.color_id ?? null)
+      )
       const next = existing
         ? prev.map((i) =>
-            i.flower_id === flower.id ? { ...i, quantity: i.quantity + 1 } : i
+            i._id === existing._id ? { ...i, quantity: i.quantity + 1 } : i
           )
         : [
             ...prev,
             {
               _id: Math.random().toString(36).slice(2),
-              flower_id: flower.id,
+              flower_id: flower.flower_id,
+              variety_id: flower.variety_id,
+              color_id: flower.color_id,
+              variety_name: flower.variety_name,
+              variety_size: flower.variety_size,
+              color_name: flower.color_name,
               name: flower.name,
               unit: flower.unit,
               quantity: 1,
               unit_cost: flower.unit_cost,
+              sale_price: flower.sale_price,
               current_stock: flower.current_stock,
             },
           ]

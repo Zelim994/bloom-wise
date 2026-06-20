@@ -13,16 +13,43 @@ interface Props {
   onAdd: (flower: FlowerForBuilder) => void
 }
 
+// Build subtitle line from variety_size and color_name, avoiding duplication with flower name
+function variantSubtitle(
+  flowerName: string,
+  varietyName: string | null,
+  varietySize: string | null,
+  colorName: string | null
+): string {
+  const parts: string[] = []
+  // Show variety_name only if it's not already part of the flower name
+  if (varietyName && !flowerName.toLowerCase().includes(varietyName.toLowerCase())) {
+    parts.push(varietyName)
+  }
+  if (varietySize) parts.push(varietySize)
+  if (colorName) parts.push(colorName)
+  return parts.join(" · ")
+}
+
 export function StockPanel({ flowers, items, onAdd }: Props) {
   const [search, setSearch] = useState("")
   const [category, setCategory] = useState("Все")
 
-  const itemCountMap = new Map(items.map((i) => [i.flower_id, i.quantity]))
+  // Key: stock_key (f.id) → quantity in bouquet
+  const itemCountMap = new Map(
+    items.map((i) => [
+      `${i.flower_id}:${i.variety_id ?? "none"}:${i.color_id ?? "none"}`,
+      i.quantity,
+    ])
+  )
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     return flowers.filter((f) => {
-      const matchSearch = q === "" || f.name.toLowerCase().includes(q)
+      const subtitle = variantSubtitle(f.name, f.variety_name, f.variety_size, f.color_name)
+      const matchSearch =
+        q === "" ||
+        f.name.toLowerCase().includes(q) ||
+        subtitle.toLowerCase().includes(q)
       const matchCat = category === "Все" || f.category === category
       return matchSearch && matchCat
     })
@@ -67,6 +94,7 @@ export function StockPanel({ flowers, items, onAdd }: Props) {
         ) : (
           filtered.map((f) => {
             const inBouquet = itemCountMap.get(f.id) ?? 0
+            const subtitle = variantSubtitle(f.name, f.variety_name, f.variety_size, f.color_name)
             return (
               <div
                 key={f.id}
@@ -74,6 +102,9 @@ export function StockPanel({ flowers, items, onAdd }: Props) {
               >
                 <div className="min-w-0 flex-1 pr-2">
                   <p className="text-sm font-medium text-zinc-800 truncate">{f.name}</p>
+                  {subtitle && (
+                    <p className="text-xs text-zinc-500 truncate">{subtitle}</p>
+                  )}
                   <p className="text-xs text-zinc-400 mt-0.5">
                     {f.current_stock} {f.unit} · себ. ₽{f.unit_cost}
                     {f.sale_price != null && f.sale_price > 0 && (

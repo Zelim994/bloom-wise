@@ -10,6 +10,13 @@ interface Props {
   onRemove: (id: string) => void
 }
 
+function variantLine(item: BouquetItem): string {
+  const parts: string[] = []
+  if (item.variety_size) parts.push(item.variety_size)
+  if (item.color_name) parts.push(item.color_name)
+  return parts.join(" · ")
+}
+
 export function BouquetPanel({ items, onQuantityChange, onRemove }: Props) {
   const label =
     items.length === 0
@@ -35,6 +42,7 @@ export function BouquetPanel({ items, onQuantityChange, onRemove }: Props) {
           <div className="divide-y divide-zinc-50">
             {items.map((item) => {
               const lineTotal = item.quantity * item.unit_cost
+              const variant = variantLine(item)
               return (
                 <div
                   key={item._id}
@@ -42,6 +50,9 @@ export function BouquetPanel({ items, onQuantityChange, onRemove }: Props) {
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-zinc-800 truncate">{item.name}</p>
+                    {variant && (
+                      <p className="text-xs text-zinc-500 truncate">{variant}</p>
+                    )}
                     <p className="text-xs text-zinc-400 mt-0.5">
                       ₽{item.unit_cost}/{item.unit}
                     </p>
