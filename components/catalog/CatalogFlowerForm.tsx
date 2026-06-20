@@ -414,16 +414,22 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
   function handleAddSize() {
     const size = newSize.trim()
     if (!size) return
+    // Если сорт/вид заполнен — привязываем размер к нему, иначе name=size (fallback)
+    const baseName = newVarietyName.trim() || size
     if (flower?.id) {
       startTransition(async () => {
-        const result = await addFlowerVariety(flower.id, size, size)
-        if (result.id) setVarieties((v) => [...v, { id: result.id, name: size, size }])
+        const result = await addFlowerVariety(flower.id, baseName, size)
+        if (result.id) setVarieties((v) => [...v, { id: result.id, name: baseName, size }])
         setNewSize("")
         router.refresh()
       })
     } else {
-      if (varieties.some((v) => v.size === size && v.name === size)) return
-      setVarieties((v) => [...v, { name: size, size }])
+      // Dedup: пара name+size (trim+toLowerCase с обеих сторон)
+      if (varieties.some(
+        (v) => v.name.trim().toLowerCase() === baseName.toLowerCase() &&
+               v.size.trim().toLowerCase() === size.toLowerCase()
+      )) return
+      setVarieties((v) => [...v, { name: baseName, size }])
       setNewSize("")
     }
   }
@@ -622,7 +628,7 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
                           key={i}
                           className="flex items-center gap-1 bg-white border border-zinc-200 text-zinc-700 text-xs font-medium px-2.5 py-1 rounded-full"
                         >
-                          {v.name}
+                          {v.name}{v.size ? ` · ${v.size}` : ""}
                           <button
                             type="button"
                             onClick={() => handleRemoveVariety(i)}
