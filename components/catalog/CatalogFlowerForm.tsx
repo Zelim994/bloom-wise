@@ -327,10 +327,7 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
 
       if (result.error) {
         setError(result.error)
-        if (result.duplicateFlower) {
-          setDuplicateFlower(result.duplicateFlower)
-          if (onDuplicate) onDuplicate(result.duplicateFlower)
-        }
+        if (result.duplicateFlower) setDuplicateFlower(result.duplicateFlower)
         return
       }
       const flowerId = result.id!
