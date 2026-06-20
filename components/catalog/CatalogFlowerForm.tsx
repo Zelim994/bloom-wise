@@ -519,8 +519,6 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
 
   const currentPhoto = photoPreview ?? flower?.primary_image_url
 
-  const namedVarieties = varieties.map((v, i) => ({ v, i })).filter(({ v }) => !(v.size && v.name === v.size))
-  const sizeVarieties  = varieties.map((v, i) => ({ v, i })).filter(({ v }) => !!(v.size && v.name === v.size))
 
   // ── Shared form cards ─────────────────────────────────────────────────────────
 
@@ -621,25 +619,6 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
               <Card title="Варианты товара">
                 <div>
                   <Label>Сорт / вид</Label>
-                  {namedVarieties.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {namedVarieties.map(({ v, i }) => (
-                        <span
-                          key={i}
-                          className="flex items-center gap-1 bg-white border border-zinc-200 text-zinc-700 text-xs font-medium px-2.5 py-1 rounded-full"
-                        >
-                          {v.name}{v.size ? ` · ${v.size}` : ""}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveVariety(i)}
-                            className="text-zinc-300 hover:text-red-500 transition-colors ml-0.5"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
                   <div className="flex gap-2">
                     <Input
                       value={newVarietyName}
@@ -701,25 +680,6 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
 
                 <div>
                   <Label>Доступные размеры</Label>
-                  {sizeVarieties.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {sizeVarieties.map(({ v, i }) => (
-                        <span
-                          key={i}
-                          className="flex items-center gap-1 bg-white border border-zinc-200 text-zinc-700 text-xs font-medium px-2.5 py-1 rounded-full"
-                        >
-                          {v.size}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveVariety(i)}
-                            className="text-zinc-300 hover:text-red-500 transition-colors ml-0.5"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
                   <div className="flex gap-2">
                     <Input
                       value={newSize}
@@ -738,6 +698,29 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
                     </button>
                   </div>
                 </div>
+
+                {varieties.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-zinc-500 mb-0">Созданные варианты</p>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {varieties.map((v, i) => (
+                        <span
+                          key={i}
+                          className="flex items-center gap-1 bg-white border border-zinc-200 text-zinc-700 text-xs font-medium px-2.5 py-1 rounded-full"
+                        >
+                          {(v.size && v.name === v.size) ? v.size : `${v.name}${v.size ? ` · ${v.size}` : ""}`}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveVariety(i)}
+                            className="text-zinc-300 hover:text-red-500 transition-colors ml-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </Card>
 
               {/* ── 3. ДЛЯ ПОДБОРА БУКЕТА ───────────────────────────────────── */}
