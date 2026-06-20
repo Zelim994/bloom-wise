@@ -141,6 +141,7 @@ export type Database = {
         Row: {
           batch_id: string | null
           bouquet_id: string
+          color_id: string | null
           flower_id: string | null
           id: string
           product_id: string | null
@@ -149,10 +150,12 @@ export type Database = {
           total_cost: number | null
           total_sale: number | null
           unit_cost: number | null
+          variety_id: string | null
         }
         Insert: {
           batch_id?: string | null
           bouquet_id: string
+          color_id?: string | null
           flower_id?: string | null
           id?: string
           product_id?: string | null
@@ -161,10 +164,12 @@ export type Database = {
           total_cost?: number | null
           total_sale?: number | null
           unit_cost?: number | null
+          variety_id?: string | null
         }
         Update: {
           batch_id?: string | null
           bouquet_id?: string
+          color_id?: string | null
           flower_id?: string | null
           id?: string
           product_id?: string | null
@@ -173,6 +178,7 @@ export type Database = {
           total_cost?: number | null
           total_sale?: number | null
           unit_cost?: number | null
+          variety_id?: string | null
         }
         Relationships: [
           {
@@ -190,10 +196,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bouquet_items_color_id_fkey"
+            columns: ["color_id"]
+            isOneToOne: false
+            referencedRelation: "flower_colors"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bouquet_items_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bouquet_items_variety_id_fkey"
+            columns: ["variety_id"]
+            isOneToOne: false
+            referencedRelation: "flower_varieties"
             referencedColumns: ["id"]
           },
         ]

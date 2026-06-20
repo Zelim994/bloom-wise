@@ -19,6 +19,8 @@ export type BouquetItem = {
   quantity: number
   unit_cost: number
   current_stock: number
+  variety_id?: string | null
+  color_id?: string | null
 }
 
 export type BouquetData = {
@@ -28,6 +30,8 @@ export type BouquetData = {
     unit: string
     quantity: number
     unit_cost: number
+    variety_id?: string | null
+    color_id?: string | null
   }>
   cost_price: number
   sale_price: number
@@ -41,4 +45,6 @@ export type InitialBuilderItem = {
   unit: string
   quantity: number
   unit_cost: number
+  variety_id?: string | null
+  color_id?: string | null
 }
