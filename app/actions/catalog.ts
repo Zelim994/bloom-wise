@@ -148,10 +148,12 @@ export async function upsertFlower(formData: {
   const normalizedSku  = formData.sku?.trim().toLowerCase() || null
 
   // Один запрос + JS-сравнение; при UPDATE исключаем самого себя по id
+  // is_active=true: архивированные/физически удалённые товары не блокируют создание нового
   const { data: orgFlowers } = await supabase
     .from("flowers")
     .select("id, name, category, sku")
     .eq("organization_id", orgId)
+    .eq("is_active", true)
 
   const duplicate = (orgFlowers ?? []).find((f) => {
     if (flowerId && f.id === flowerId) return false
@@ -444,4 +446,62 @@ export async function addToExistingFlower(
     addedVarieties,
     addedColors,
   }
+}
+
+/**
+ * Физически удаляет товар из каталога.
+ * Разрешено только если у товара нет истории: поставок, склада, движений, заказов, рецептов, списаний.
+ * Если зависимости есть — возвращает ошибку (товар остаётся в БД нетронутым).
+ */
+export async function deleteFlowerCompletely(
+  flowerId: string
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const orgId = await getOrgId(supabase)
+  if (!orgId) return { error: "Организация не найдена" }
+
+  // Убеждаемся, что товар принадлежит организации пользователя
+  const { data: flower } = await supabase
+    .from("flowers")
+    .select("id")
+    .eq("id", flowerId)
+    .eq("organization_id", orgId)
+    .maybeSingle()
+  if (!flower) return { error: "Товар не найден" }
+
+  // Проверяем наличие блокирующих зависимостей
+  const [inv, pur, mov, bou, rec, wri] = await Promise.all([
+    supabase.from("inventory_items").select("id", { count: "exact", head: true }).eq("flower_id", flowerId),
+    supabase.from("purchase_items").select("id",  { count: "exact", head: true }).eq("flower_id", flowerId),
+    supabase.from("stock_movements").select("id", { count: "exact", head: true }).eq("flower_id", flowerId),
+    supabase.from("bouquet_items").select("id",   { count: "exact", head: true }).eq("flower_id", flowerId),
+    supabase.from("recipe_items").select("id",    { count: "exact", head: true }).eq("flower_id", flowerId),
+    supabase.from("writeoffs").select("id",       { count: "exact", head: true }).eq("flower_id", flowerId),
+  ])
+
+  const hasHistory =
+    (inv.count ?? 0) > 0 ||
+    (pur.count ?? 0) > 0 ||
+    (mov.count ?? 0) > 0 ||
+    (bou.count ?? 0) > 0 ||
+    (rec.count ?? 0) > 0 ||
+    (wri.count ?? 0) > 0
+
+  if (hasHistory) {
+    return {
+      error:
+        "Этот товар нельзя удалить полностью, потому что он уже используется в складе, поставках, заказах или рецептах. Позже для таких товаров будет архив.",
+    }
+  }
+
+  // Зависимостей нет — удаляем в правильном порядке (дочерние → родитель)
+  await supabase.from("flower_images").delete().eq("flower_id", flowerId)
+  await supabase.from("flower_colors").delete().eq("flower_id", flowerId)
+  await supabase.from("flower_varieties").delete().eq("flower_id", flowerId)
+  await supabase.from("flowers").delete().eq("id", flowerId).eq("organization_id", orgId)
+
+  revalidatePath("/catalog")
+  revalidatePath("/purchases/new")
+  revalidatePath("/inventory")
+  return {}
 }

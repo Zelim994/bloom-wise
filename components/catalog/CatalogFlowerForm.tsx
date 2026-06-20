@@ -19,7 +19,7 @@ import {
   deleteFlowerVariety,
   addFlowerColor,
   deleteFlowerColor,
-  archiveFlower,
+  deleteFlowerCompletely,
   addToExistingFlower,
   type FlowerWithDetails,
 } from "@/app/actions/catalog"
@@ -479,10 +479,14 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
     }
   }
 
-  function handleArchive() {
-    if (!flower || !confirm("Убрать товар из каталога? Данные сохранятся.")) return
+  function handleDelete() {
+    if (!flower || !confirm("Удалить товар из каталога? Это действие нельзя отменить.")) return
     startTransition(async () => {
-      await archiveFlower(flower.id)
+      const result = await deleteFlowerCompletely(flower.id)
+      if (result.error) {
+        setError(result.error)
+        return
+      }
       router.refresh()
       onClose()
     })
@@ -882,7 +886,7 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
         <Button
           type="button"
           variant="outline"
-          onClick={handleArchive}
+          onClick={handleDelete}
           disabled={isPending}
           className="border-zinc-200 text-zinc-500 hover:border-red-200 hover:text-red-600 hover:bg-red-50 h-10"
         >
