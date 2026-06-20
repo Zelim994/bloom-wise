@@ -113,7 +113,7 @@ export async function upsertFlower(formData: {
   care_notes?: string | null
   buying_notes?: string | null
   combination_notes?: string | null
-}): Promise<{ error?: string; id?: string }> {
+}): Promise<{ error?: string; id?: string; duplicateFlower?: { id: string; name: string; category: string; sku: string | null } }> {
   const supabase = await createClient()
   const orgId = await getOrgId(supabase)
   if (!orgId) return { error: "Не удалось определить организацию" }
@@ -142,6 +142,37 @@ export async function upsertFlower(formData: {
   }
 
   let flowerId = formData.id
+
+  // Нормализация: trim + lowercase с обеих сторон — ловит пробелы и регистр
+  const normalizedName = formData.name.trim().toLowerCase()
+  const normalizedSku  = formData.sku?.trim().toLowerCase() || null
+
+  // Один запрос + JS-сравнение; при UPDATE исключаем самого себя по id
+  const { data: orgFlowers } = await supabase
+    .from("flowers")
+    .select("id, name, category, sku")
+    .eq("organization_id", orgId)
+
+  const duplicate = (orgFlowers ?? []).find((f) => {
+    if (flowerId && f.id === flowerId) return false
+    const sameName = f.name.trim().toLowerCase() === normalizedName
+    const sameSku  = normalizedSku != null && f.sku != null && f.sku.trim().toLowerCase() === normalizedSku
+    return sameName || sameSku
+  })
+
+  if (duplicate) {
+    // Определяем причину: name-матч приоритетнее, sku — только если name не совпал
+    const matchedBySku =
+      normalizedSku != null &&
+      duplicate.sku != null &&
+      duplicate.sku.trim().toLowerCase() === normalizedSku &&
+      duplicate.name.trim().toLowerCase() !== normalizedName
+
+    return {
+      error: matchedBySku ? "Такой артикул уже есть в каталоге" : "Такой товар уже есть в каталоге",
+      duplicateFlower: { id: duplicate.id, name: duplicate.name, category: duplicate.category, sku: duplicate.sku ?? null },
+    }
+  }
 
   if (flowerId) {
     // Редактирование: обновляем sku только если пользователь ввёл значение

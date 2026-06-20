@@ -180,15 +180,18 @@ interface Props {
   initialName?: string
   /** Если передан — вызывается после успешного сохранения (вместо router.refresh + onClose). */
   onSaved?: (flower: FlowerForPurchase) => void
+  /** В inline-режиме вызывается при обнаружении дубля — позволяет родителю выбрать существующий товар. */
+  onDuplicate?: (flower: { id: string; name: string; category: string; sku: string | null }) => void
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initialName, onSaved }: Props) {
+export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initialName, onSaved, onDuplicate }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error,     setError]     = useState("")
   const [uploading, setUploading] = useState(false)
+  const [duplicateFlower, setDuplicateFlower] = useState<{ id: string; name: string; category: string; sku: string | null } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   // ── Base fields ──────────────────────────────────────────────────────────────
@@ -231,6 +234,7 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
   useEffect(() => {
     if (!open) return
     setError("")
+    setDuplicateFlower(null)
     setPhotoFile(null)
     setPhotoPreview(null)
 
@@ -319,7 +323,14 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
         combination_notes: knowledge.combination_notes || null,
       })
 
-      if (result.error) { setError(result.error); return }
+      if (result.error) {
+        setError(result.error)
+        if (result.duplicateFlower) {
+          setDuplicateFlower(result.duplicateFlower)
+          if (onDuplicate) onDuplicate(result.duplicateFlower)
+        }
+        return
+      }
       const flowerId = result.id!
 
       const createdVarieties: Array<{ id: string; name: string; size: string | null }> = []
@@ -795,6 +806,20 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
   const errorBanner = error ? (
     <div className="px-6 py-3 border-t border-red-100 bg-red-50">
       <p className="text-sm text-red-600">{error}</p>
+      {duplicateFlower && mode === "sheet" && (
+        <p className="mt-1.5 text-xs text-red-600">
+          Найдите «{duplicateFlower.name}» в списке каталога и добавьте к нему нужный вариант или цвет.
+        </p>
+      )}
+      {duplicateFlower && mode === "inline" && (
+        <button
+          type="button"
+          onClick={() => onDuplicate?.(duplicateFlower)}
+          className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-rose-700 underline hover:text-rose-900"
+        >
+          Выбрать существующий товар →
+        </button>
+      )}
     </div>
   ) : null
 

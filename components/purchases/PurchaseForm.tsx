@@ -124,6 +124,10 @@ function FlowerSelect({ flowers, value, onChange, onFlowerCreated }: FlowerSelec
     handleSelect(flower.id)  // автоматически выбирает в текущей строке
   }
 
+  function handleDuplicate(flower: { id: string; name: string; category: string; sku: string | null }) {
+    handleSelect(flower.id)  // дубль уже есть в localFlowers — просто выбираем
+  }
+
   useEffect(() => {
     if (open && mode === "list") {
       const t = setTimeout(() => inputRef.current?.focus(), 30)
@@ -334,6 +338,7 @@ function FlowerSelect({ flowers, value, onChange, onFlowerCreated }: FlowerSelec
                   initialName={query.trim()}
                   onSaved={handleFlowerCreated}
                   onClose={() => setMode("list")}
+                  onDuplicate={handleDuplicate}
                 />
               </>
             )}
