@@ -20,6 +20,7 @@ import {
   addFlowerColor,
   deleteFlowerColor,
   archiveFlower,
+  addToExistingFlower,
   type FlowerWithDetails,
 } from "@/app/actions/catalog"
 import type { FlowerForPurchase } from "@/app/actions/purchases"
@@ -192,6 +193,7 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
   const [error,     setError]     = useState("")
   const [uploading, setUploading] = useState(false)
   const [duplicateFlower, setDuplicateFlower] = useState<{ id: string; name: string; category: string; sku: string | null } | null>(null)
+  const [isPendingAddToExisting, setIsPendingAddToExisting] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   // ── Base fields ──────────────────────────────────────────────────────────────
@@ -481,6 +483,30 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
       router.refresh()
       onClose()
     })
+  }
+
+  async function handleAddToExisting() {
+    if (!duplicateFlower || isPendingAddToExisting) return
+    setIsPendingAddToExisting(true)
+
+    const result = await addToExistingFlower(
+      duplicateFlower.id,
+      varieties.filter((v) => v.name.trim()).map((v) => ({ name: v.name.trim(), size: v.size.trim() || undefined })),
+      colors.filter((c) => c.name.trim()).map((c) => ({ name: c.name.trim() }))
+    )
+
+    setIsPendingAddToExisting(false)
+
+    if (result.error) { setError(result.error); return }
+
+    if (result.flower) {
+      if (onSaved) {
+        onSaved(result.flower)
+      } else {
+        router.refresh()
+      }
+    }
+    onClose()
   }
 
   const setField =
@@ -812,13 +838,25 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
         </p>
       )}
       {duplicateFlower && mode === "inline" && (
-        <button
-          type="button"
-          onClick={() => onDuplicate?.(duplicateFlower)}
-          className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-rose-700 underline hover:text-rose-900"
-        >
-          Выбрать существующий товар →
-        </button>
+        <div className="flex flex-wrap gap-3 mt-2">
+          <button
+            type="button"
+            onClick={() => onDuplicate?.(duplicateFlower)}
+            className="text-xs font-medium text-rose-700 underline hover:text-rose-900"
+          >
+            Выбрать существующий товар
+          </button>
+          {(varieties.some((v) => v.name.trim()) || colors.some((c) => c.name.trim())) && (
+            <button
+              type="button"
+              onClick={handleAddToExisting}
+              disabled={isPendingAddToExisting}
+              className="text-xs font-medium text-zinc-700 underline hover:text-zinc-900 disabled:opacity-50"
+            >
+              {isPendingAddToExisting ? "Добавляем..." : "Добавить размер/цвет к существующему"}
+            </button>
+          )}
+        </div>
       )}
     </div>
   ) : null

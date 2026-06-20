@@ -373,7 +373,16 @@ export function PurchaseForm({ flowers: initialFlowers, suppliers }: Props) {
   const flowerMap = new Map(localFlowers.map((f) => [f.id, f]))
 
   function handleFlowerCreated(flower: FlowerForPurchase) {
-    setLocalFlowers((prev) => [...prev, flower])
+    setLocalFlowers((prev) => {
+      const idx = prev.findIndex((f) => f.id === flower.id)
+      if (idx >= 0) {
+        // Обновляем на месте — нужно при добавлении размера/цвета к существующему товару
+        const next = [...prev]
+        next[idx] = flower
+        return next
+      }
+      return [...prev, flower]
+    })
   }
 
   const { totalQty, deliveryPerUnit } = useMemo(() => {

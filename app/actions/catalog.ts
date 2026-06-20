@@ -332,3 +332,116 @@ export async function archiveFlower(id: string): Promise<{ error?: string }> {
   revalidatePath("/catalog")
   return {}
 }
+
+/**
+ * Добавляет недостающие варианты и цвета к уже существующему товару.
+ * Используется когда обнаружен дубль имени/SKU, но нужно добавить новый размер/цвет.
+ * Новый flowers НЕ создаётся. Склад не затрагивается.
+ */
+export async function addToExistingFlower(
+  flowerId: string,
+  varieties: Array<{ name: string; size?: string }>,
+  colors: Array<{ name: string }>
+): Promise<{
+  error?: string
+  flower?: {
+    id: string
+    name: string
+    category: string
+    unit: string
+    min_stock: number
+    sku: string | null
+    primary_image_url: string | null
+    varieties: Array<{ id: string; name: string; size: string | null }>
+    colors: Array<{ id: string; name: string; variety_id: string | null }>
+  }
+  addedVarieties: number
+  addedColors: number
+}> {
+  const supabase = await createClient()
+
+  type RawFlower = {
+    id: string; name: string; category: string; unit: string; min_stock: number; sku: string | null
+    flower_images:    Array<{ url: string; is_primary: boolean | null; sort_order: number | null }>
+    flower_varieties: Array<{ id: string; name: string; size: string | null }>
+    flower_colors:    Array<{ id: string; name: string; variety_id: string | null }>
+  }
+
+  const { data, error: fetchErr } = await supabase
+    .from("flowers")
+    .select(`
+      id, name, category, unit, min_stock, sku,
+      flower_images(url, is_primary, sort_order),
+      flower_varieties(id, name, size),
+      flower_colors(id, name, variety_id)
+    `)
+    .eq("id", flowerId)
+    .single()
+
+  if (fetchErr || !data) return { error: "Товар не найден", addedVarieties: 0, addedColors: 0 }
+
+  const flower = data as unknown as RawFlower
+  const allVarieties = [...(flower.flower_varieties ?? [])]
+  const allColors    = [...(flower.flower_colors    ?? [])]
+
+  // Нормализация: пустой/null size → "" для сравнения
+  const norm = (val?: string | null) => val?.trim().toLowerCase() ?? ""
+
+  let addedVarieties = 0
+  for (const v of varieties) {
+    const trimName = v.name.trim()
+    if (!trimName) continue
+    const normName = trimName.toLowerCase()
+    const normSize = norm(v.size)
+    // Дубль вариантов = совпадение обоих полей: name И size
+    const alreadyExists = allVarieties.some(
+      (ev) => norm(ev.name) === normName && norm(ev.size) === normSize
+    )
+    if (!alreadyExists) {
+      const r = await addFlowerVariety(flowerId, trimName, v.size?.trim() || undefined)
+      if (r.id) {
+        allVarieties.push({ id: r.id, name: trimName, size: v.size?.trim() || null })
+        addedVarieties++
+      }
+    }
+  }
+
+  let addedColors = 0
+  for (const c of colors) {
+    const trimName = c.name.trim()
+    if (!trimName) continue
+    // Дубль цвета = совпадение name (trim + lowercase)
+    const alreadyExists = allColors.some(
+      (ec) => norm(ec.name) === trimName.toLowerCase()
+    )
+    if (!alreadyExists) {
+      const r = await addFlowerColor(flowerId, trimName)
+      if (r.id) {
+        allColors.push({ id: r.id, name: trimName, variety_id: null })
+        addedColors++
+      }
+    }
+  }
+
+  const imgs      = flower.flower_images ?? []
+  const sortedImg = [...imgs].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+  const primaryImg = sortedImg.find((i) => i.is_primary) ?? sortedImg[0]
+
+  revalidatePath("/catalog")
+
+  return {
+    flower: {
+      id:                flower.id,
+      name:              flower.name,
+      category:          flower.category,
+      unit:              flower.unit,
+      min_stock:         flower.min_stock ?? 0,
+      sku:               flower.sku,
+      primary_image_url: primaryImg?.url ?? null,
+      varieties:         allVarieties,
+      colors:            allColors,
+    },
+    addedVarieties,
+    addedColors,
+  }
+}
