@@ -211,9 +211,11 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
   const [photoFile,    setPhotoFile]    = useState<File | null>(null)
 
   // ── Varieties & sizes ────────────────────────────────────────────────────────
-  const [varieties,      setVarieties]      = useState<{ id?: string; name: string; size: string }[]>([])
-  const [newVarietyName, setNewVarietyName] = useState("")
-  const [newSize,        setNewSize]        = useState("")
+  const [varieties,        setVarieties]        = useState<{ id?: string; name: string; size: string }[]>([])
+  const [newVarietyName,   setNewVarietyName]   = useState("") // зафиксированное имя сорта (чип)
+  const [sortInput,        setSortInput]        = useState("") // черновик в поле ввода
+  const [originalSortName, setOriginalSortName] = useState("")
+  const [newSize,          setNewSize]          = useState("")
 
   // ── Colors ───────────────────────────────────────────────────────────────────
   const [colors,       setColors]       = useState<{ id?: string; name: string; hex_code: string }[]>([])
@@ -239,7 +241,6 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
     setDuplicateFlower(null)
     setPhotoFile(null)
     setPhotoPreview(null)
-
     if (flower) {
       setForm({
         name:            flower.name,
@@ -249,7 +250,16 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
         description:     flower.description     ?? "",
         florist_comment: flower.florist_comment ?? "",
       })
-      setVarieties(flower.varieties.map((v) => ({ id: v.id, name: v.name, size: v.size ?? "" })))
+      const mappedVarieties = flower.varieties.map((v) => ({ id: v.id, name: v.name, size: v.size ?? "" }))
+      setVarieties(mappedVarieties)
+      // Инициализируем поле сорта из общего имени существующих вариантов
+      const sortNames = [...new Set(
+        mappedVarieties.filter(v => v.name.trim() && v.name.trim() !== v.size.trim()).map(v => v.name.trim())
+      )]
+      const detectedSort = sortNames.length === 1 ? sortNames[0] : ""
+      setNewVarietyName(detectedSort)
+      setOriginalSortName(detectedSort)
+      setSortInput("")
       setColors(flower.colors.map((c) => ({ id: c.id, name: c.name, hex_code: c.hex_code ?? "" })))
       setKnowledge({
         vase_life_min_days: flower.vase_life_min_days != null ? String(flower.vase_life_min_days) : "",
@@ -262,19 +272,23 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
         buying_notes:       flower.buying_notes      ?? "",
         combination_notes:  flower.combination_notes ?? "",
       })
+      setNewSize("")
+      setNewColorName("")
     } else {
       setForm({ name: initialName ?? "", category: "Срезка", unit: "шт", sku: "", description: "", florist_comment: "" })
       setVarieties([])
+      setOriginalSortName("")
       setColors([])
       setKnowledge({
         vase_life_min_days: "", vase_life_max_days: "",
         seasonality: [], styles: [], usage_tags: [], property_tags: [],
         care_notes: "", buying_notes: "", combination_notes: "",
       })
+      setNewVarietyName("")
+      setSortInput("")
+      setNewSize("")
+      setNewColorName("")
     }
-    setNewVarietyName("")
-    setNewSize("")
-    setNewColorName("")
   }, [open, flower])
 
   // ── Photo upload ─────────────────────────────────────────────────────────────
@@ -334,9 +348,15 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
 
       const createdVarieties: Array<{ id: string; name: string; size: string | null }> = []
       const createdColors: Array<{ id: string; name: string; variety_id: string | null }> = []
+      const sortName = newVarietyName.trim()
 
       if (!flower?.id) {
-        for (const v of varieties) {
+        // Новый товар: нормализуем имя сорта у всех размеров
+        const varietiesToSave = varieties.length > 0
+          ? varieties.map(v => ({ name: sortName || v.name, size: v.size }))
+          : sortName ? [{ name: sortName, size: "" }] : []
+
+        for (const v of varietiesToSave) {
           if (v.name.trim()) {
             const r = await addFlowerVariety(flowerId, v.name.trim(), v.size.trim() || undefined)
             if (r.id) createdVarieties.push({ id: r.id, name: v.name.trim(), size: v.size.trim() || null })
@@ -347,6 +367,19 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
             const r = await addFlowerColor(flowerId, c.name.trim())
             if (r.id) createdColors.push({ id: r.id, name: c.name.trim(), variety_id: null })
           }
+        }
+      } else {
+        // Существующий товар: если сорт переименован — перезаписываем старые записи
+        if (sortName && sortName !== originalSortName) {
+          const toRename = varieties.filter(v => v.id && v.name.trim() === originalSortName.trim())
+          for (const v of toRename) {
+            await deleteFlowerVariety(v.id!)
+            await addFlowerVariety(flowerId, sortName, v.size.trim() || undefined)
+          }
+        }
+        // Если сорт введён, но размеров нет — сохраняем сорт без размера
+        if (sortName && varieties.length === 0) {
+          await addFlowerVariety(flowerId, sortName)
         }
       }
 
@@ -394,42 +427,28 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
 
   // ── Variety helpers ──────────────────────────────────────────────────────────
 
-  function handleAddVariety() {
-    const name = newVarietyName.trim()
+  function handleCommitSort() {
+    const name = sortInput.trim()
     if (!name) return
-    if (flower?.id) {
-      startTransition(async () => {
-        const result = await addFlowerVariety(flower.id, name)
-        if (result.id) setVarieties((v) => [...v, { id: result.id, name, size: "" }])
-        setNewVarietyName("")
-        router.refresh()
-      })
-    } else {
-      if (varieties.some((v) => v.name.toLowerCase() === name.toLowerCase() && !v.size)) return
-      setVarieties((v) => [...v, { name, size: "" }])
-      setNewVarietyName("")
-    }
+    setNewVarietyName(name)
+    setSortInput("")
   }
 
   function handleAddSize() {
     const size = newSize.trim()
+    const sortName = newVarietyName.trim()
     if (!size) return
-    // Если сорт/вид заполнен — привязываем размер к нему, иначе name=size (fallback)
-    const baseName = newVarietyName.trim() || size
+    // Dedup по размеру (сорт один для всех)
+    if (varieties.some(v => v.size.trim().toLowerCase() === size.toLowerCase())) return
     if (flower?.id) {
       startTransition(async () => {
-        const result = await addFlowerVariety(flower.id, baseName, size)
-        if (result.id) setVarieties((v) => [...v, { id: result.id, name: baseName, size }])
+        const result = await addFlowerVariety(flower.id, sortName || size, size)
+        if (result.id) setVarieties((v) => [...v, { id: result.id, name: sortName || size, size }])
         setNewSize("")
         router.refresh()
       })
     } else {
-      // Dedup: пара name+size (trim+toLowerCase с обеих сторон)
-      if (varieties.some(
-        (v) => v.name.trim().toLowerCase() === baseName.toLowerCase() &&
-               v.size.trim().toLowerCase() === size.toLowerCase()
-      )) return
-      setVarieties((v) => [...v, { name: baseName, size }])
+      setVarieties((v) => [...v, { name: sortName || size, size }])
       setNewSize("")
     }
   }
@@ -623,23 +642,39 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
               <Card title="Варианты товара">
                 <div>
                   <Label>Сорт / вид</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={newVarietyName}
-                      onChange={(e) => setNewVarietyName(e.target.value)}
-                      placeholder="Mondial, Red Naomi..."
-                      className="border-zinc-200 h-9 text-sm flex-1 bg-white"
-                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddVariety())}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddVariety}
-                      disabled={!newVarietyName.trim()}
-                      className="h-9 w-9 flex items-center justify-center rounded-md bg-rose-500 hover:bg-rose-600 text-white disabled:opacity-40 transition-colors shrink-0"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
+                  {newVarietyName && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      <span className="flex items-center gap-1 bg-white border border-zinc-200 text-zinc-700 text-xs font-medium px-2.5 py-1 rounded-full">
+                        {newVarietyName}
+                        <button
+                          type="button"
+                          onClick={() => { setNewVarietyName(""); setSortInput("") }}
+                          className="text-zinc-300 hover:text-red-500 transition-colors ml-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    </div>
+                  )}
+                  {!newVarietyName && (
+                    <div className="flex gap-2">
+                      <Input
+                        value={sortInput}
+                        onChange={(e) => setSortInput(e.target.value)}
+                        placeholder="Mondial, Red Naomi..."
+                        className="border-zinc-200 h-9 text-sm flex-1 bg-white"
+                        onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleCommitSort())}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCommitSort}
+                        disabled={!sortInput.trim()}
+                        className="h-9 w-9 flex items-center justify-center rounded-md bg-rose-500 hover:bg-rose-600 text-white disabled:opacity-40 transition-colors shrink-0"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -684,6 +719,25 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
 
                 <div>
                   <Label>Доступные размеры</Label>
+                  {varieties.some(v => v.size.trim()) && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {varieties.map((v, i) => v.size.trim() ? (
+                        <span
+                          key={i}
+                          className="flex items-center gap-1 bg-white border border-zinc-200 text-zinc-700 text-xs font-medium px-2.5 py-1 rounded-full"
+                        >
+                          {v.size}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveVariety(i)}
+                            className="text-zinc-300 hover:text-red-500 transition-colors ml-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ) : null)}
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <Input
                       value={newSize}
@@ -702,29 +756,6 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
                     </button>
                   </div>
                 </div>
-
-                {varieties.length > 0 && (
-                  <div>
-                    <p className="text-sm font-medium text-zinc-500 mb-0">Созданные варианты</p>
-                    <div className="flex flex-wrap gap-1.5 mt-1.5">
-                      {varieties.map((v, i) => (
-                        <span
-                          key={i}
-                          className="flex items-center gap-1 bg-white border border-zinc-200 text-zinc-700 text-xs font-medium px-2.5 py-1 rounded-full"
-                        >
-                          {(v.size && v.name === v.size) ? v.size : `${v.name}${v.size ? ` · ${v.size}` : ""}`}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveVariety(i)}
-                            className="text-zinc-300 hover:text-red-500 transition-colors ml-0.5"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </Card>
 
               {/* ── 3. ДЛЯ ПОДБОРА БУКЕТА ───────────────────────────────────── */}
