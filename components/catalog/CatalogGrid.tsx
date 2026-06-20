@@ -41,6 +41,31 @@ function vaseLifeLabel(
   return null
 }
 
+// Возвращает уникальные сорта (не дублирующие flower.name) и уникальные размеры
+function getVariantMeta(
+  flowerName: string,
+  varieties: { name: string; size: string | null }[]
+): { sortNames: string[]; sizes: string[] } {
+  const nameLower = flowerName.toLowerCase()
+
+  const sortNames = [...new Set(
+    varieties
+      .filter(v => {
+        const n = (v.name ?? "").trim()
+        const s = (v.size ?? "").trim()
+        // исключаем случаи name === size (старые данные без отдельного сорта)
+        return n && n !== s && !nameLower.includes(n.toLowerCase())
+      })
+      .map(v => v.name.trim())
+  )]
+
+  const sizes = [...new Set(
+    varieties.map(v => (v.size ?? "").trim()).filter(Boolean)
+  )]
+
+  return { sortNames, sizes }
+}
+
 type ViewMode = "grid" | "list"
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -261,7 +286,7 @@ export function CatalogGrid({ flowers }: Props) {
               const colors     = CATEGORY_COLORS[f.category] ?? DEFAULT_COLORS
               const hasPhoto   = !!f.primary_image_url
               const vl         = vaseLifeLabel(f.vase_life_min_days, f.vase_life_max_days)
-              const namedVars  = f.varieties.filter((v) => !(v.size && v.name === v.size)).slice(0, 3)
+              const { sortNames, sizes } = getVariantMeta(f.name, f.varieties)
               const colorNames = f.colors.slice(0, 3)
               const usageTags  = (f.usage_tags ?? []).slice(0, 3)
               return (
@@ -299,10 +324,16 @@ export function CatalogGrid({ flowers }: Props) {
                       )}
                     </div>
 
-                    {/* Сорта */}
-                    {namedVars.length > 0 && (
+                    {/* Сорт (если не вошёл в название товара) */}
+                    {sortNames.length > 0 && (
                       <p className="text-[11px] text-zinc-500 leading-snug">
-                        {namedVars.map((v) => v.name).join(" · ")}
+                        {sortNames.join(", ")}
+                      </p>
+                    )}
+                    {/* Размеры */}
+                    {sizes.length > 0 && (
+                      <p className="text-[11px] text-zinc-500 leading-snug">
+                        {sizes.join(", ")}
                       </p>
                     )}
 
@@ -375,7 +406,7 @@ export function CatalogGrid({ flowers }: Props) {
                   const colors    = CATEGORY_COLORS[f.category] ?? DEFAULT_COLORS
                   const hasPhoto  = !!f.primary_image_url
                   const vl        = vaseLifeLabel(f.vase_life_min_days, f.vase_life_max_days)
-                  const namedVars = f.varieties.filter((v) => !(v.size && v.name === v.size)).slice(0, 2)
+                  const { sortNames, sizes } = getVariantMeta(f.name, f.varieties)
                   const colorNames = f.colors.slice(0, 2)
                   return (
                     <tr
@@ -409,9 +440,14 @@ export function CatalogGrid({ flowers }: Props) {
                           {f.sku && (
                             <span className="text-[11px] font-mono text-zinc-400">{f.sku}</span>
                           )}
-                          {namedVars.length > 0 && (
+                          {sortNames.length > 0 && (
                             <span className="text-[11px] text-zinc-400">
-                              {namedVars.map((v) => v.name).join(" · ")}
+                              {sortNames.join(", ")}
+                            </span>
+                          )}
+                          {sizes.length > 0 && (
+                            <span className="text-[11px] text-zinc-400">
+                              {sizes.join(", ")}
                             </span>
                           )}
                           {colorNames.length > 0 && colorNames.map((c) => (
