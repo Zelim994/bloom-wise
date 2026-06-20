@@ -319,6 +319,11 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
+    // Страховка: размеры без сорта не должны попасть в БД
+    if (varieties.some(v => v.size.trim()) && !newVarietyName.trim()) {
+      setError("Сначала укажите сорт/вид")
+      return
+    }
     startTransition(async () => {
       const result = await upsertFlower({
         id:              flower?.id,
@@ -438,17 +443,18 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
     const size = newSize.trim()
     const sortName = newVarietyName.trim()
     if (!size) return
+    if (!sortName) return  // нельзя добавить размер без сорта
     // Dedup по размеру (сорт один для всех)
     if (varieties.some(v => v.size.trim().toLowerCase() === size.toLowerCase())) return
     if (flower?.id) {
       startTransition(async () => {
-        const result = await addFlowerVariety(flower.id, sortName || size, size)
-        if (result.id) setVarieties((v) => [...v, { id: result.id, name: sortName || size, size }])
+        const result = await addFlowerVariety(flower.id, sortName, size)
+        if (result.id) setVarieties((v) => [...v, { id: result.id, name: sortName, size }])
         setNewSize("")
         router.refresh()
       })
     } else {
-      setVarieties((v) => [...v, { name: sortName || size, size }])
+      setVarieties((v) => [...v, { name: sortName, size }])
       setNewSize("")
     }
   }
@@ -749,12 +755,15 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
                     <button
                       type="button"
                       onClick={handleAddSize}
-                      disabled={!newSize.trim()}
+                      disabled={!newSize.trim() || !newVarietyName.trim()}
                       className="h-9 w-9 flex items-center justify-center rounded-md bg-rose-500 hover:bg-rose-600 text-white disabled:opacity-40 transition-colors shrink-0"
                     >
                       <Plus className="h-4 w-4" />
                     </button>
                   </div>
+                  {!newVarietyName.trim() && (
+                    <p className="text-xs text-zinc-400 mt-1">Сначала укажите сорт/вид</p>
+                  )}
                 </div>
               </Card>
 
