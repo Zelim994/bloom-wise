@@ -37,7 +37,7 @@ export async function validateAndDeleteInventoryBatch(
 ): Promise<BatchDeleteResult> {
   const { data: inv } = await supabase
     .from("inventory_items")
-    .select("organization_id, flower_id, quantity_in, quantity_remaining, purchase_id")
+    .select("organization_id, flower_id, quantity_in, quantity_remaining, purchase_id, variety_id, color_id")
     .eq("id", inventoryItemId)
     .single()
 
@@ -77,6 +77,8 @@ export async function validateAndDeleteInventoryBatch(
       source_type: "purchase",
       source_id: inv.purchase_id ?? null,
       comment: "Отмена позиции прихода",
+      variety_id: inv.variety_id ?? null,
+      color_id: inv.color_id ?? null,
     })
     if (smErr) {
       console.error("[validateAndDeleteInventoryBatch] stock_movements insert:", smErr.message)
