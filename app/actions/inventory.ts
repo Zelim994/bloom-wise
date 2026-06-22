@@ -104,16 +104,35 @@ export async function getFlowerInventoryItems(flowerId: string): Promise<Invento
   }))
 }
 
-// История движений по цветку
-export async function getFlowerMovements(flowerId: string): Promise<StockMovement[]> {
+// История движений по цветку — с вариантом и цветом
+export type StockMovementWithVariant = StockMovement & {
+  variety_name: string | null
+  variety_size: string | null
+  color_name:   string | null
+}
+
+export async function getFlowerMovements(flowerId: string): Promise<StockMovementWithVariant[]> {
   const supabase = await createClient()
+  type RawMovement = StockMovement & {
+    flower_varieties: { id: string; name: string; size: string | null } | null
+    flower_colors:    { id: string; name: string } | null
+  }
   const { data } = await supabase
     .from("stock_movements")
-    .select("*")
+    .select(`
+      *,
+      flower_varieties:variety_id (id, name, size),
+      flower_colors:color_id (id, name)
+    `)
     .eq("flower_id", flowerId)
     .order("created_at", { ascending: false })
     .limit(100)
-  return data ?? []
+  return ((data ?? []) as unknown as RawMovement[]).map((m) => ({
+    ...m,
+    variety_name: m.flower_varieties?.name ?? null,
+    variety_size: m.flower_varieties?.size ?? null,
+    color_name:   m.flower_colors?.name    ?? null,
+  }))
 }
 
 // ─── flower info fields that can be edited ───────────────────────────────────

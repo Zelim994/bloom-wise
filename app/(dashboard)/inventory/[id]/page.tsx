@@ -300,6 +300,11 @@ export default async function InventoryItemPage({
                 <div key={m.id} className="flex items-start justify-between px-5 py-3 gap-4">
                   <div className="min-w-0">
                     <p className={`text-sm font-medium ${meta.cls}`}>{meta.label}</p>
+                    {[m.variety_name, m.variety_size, m.color_name].some(Boolean) ? (
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        {[m.variety_name, m.variety_size, m.color_name].filter(Boolean).join(" · ")}
+                      </p>
+                    ) : null}
                     {m.source_type && (
                       <p className="text-xs text-zinc-400 mt-0.5">{m.source_type}</p>
                     )}
