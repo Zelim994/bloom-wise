@@ -24,7 +24,7 @@ export default async function BuilderPage() {
       </div>
 
       <div className="flex-1">
-        <BuilderLayout flowers={flowers} />
+        <BuilderLayout flowers={flowers} showAIPanel />
       </div>
     </div>
   )

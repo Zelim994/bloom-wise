@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback } from "react"
 import { StockPanel } from "./StockPanel"
 import { BouquetPanel } from "./BouquetPanel"
 import { FinancePanel } from "./FinancePanel"
+import { AIVisualizationPanel } from "./AIVisualizationPanel"
 import type { FlowerForBuilder, BouquetItem, BouquetData, InitialBuilderItem } from "@/types/builder"
 
 // Re-export for backward compatibility with components that import from this file
@@ -14,6 +15,7 @@ interface Props {
   onChange?: (data: BouquetData) => void
   initialItems?: InitialBuilderItem[]
   initialSalePrice?: number
+  showAIPanel?: boolean
 }
 
 type Tab = "stock" | "bouquet" | "finance"
@@ -33,7 +35,7 @@ function findFlower(
   )
 }
 
-export function BuilderLayout({ flowers, onChange, initialItems, initialSalePrice }: Props) {
+export function BuilderLayout({ flowers, onChange, initialItems, initialSalePrice, showAIPanel = false }: Props) {
   const [items, setItems] = useState<BouquetItem[]>(() => {
     if (!initialItems?.length) return []
     return initialItems.map((item) => {
@@ -209,6 +211,7 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
   ]
 
   return (
+    <>
     <div className="flex flex-col h-[440px] rounded-xl border border-zinc-200 overflow-hidden">
       {/* Mobile tabs */}
       <div className="flex border-b border-zinc-200 lg:hidden shrink-0">
@@ -276,5 +279,7 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
         </div>
       </div>
     </div>
+    {showAIPanel && <AIVisualizationPanel items={items} />}
+    </>
   )
 }
