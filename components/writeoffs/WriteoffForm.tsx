@@ -6,10 +6,13 @@ import { Plus, Trash2, ArrowLeft, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createWriteoffAct, type FlowerForWriteoff } from "@/app/actions/writeoffs"
+import { createWriteoffAct, type FlowerForWriteoff, type FlowerBatch } from "@/app/actions/writeoffs"
 
 type WriteoffLine = {
   _id: string
+  // position_key = "flower_id:variety_id:color_id" — только для поиска в positionMap
+  position_key: string
+  // настоящий UUID цветка — уходит на сервер при проведении
   flower_id: string
   inventory_item_id: string
   quantity: string
@@ -32,12 +35,42 @@ function today() {
 function makeLine(): WriteoffLine {
   return {
     _id: Math.random().toString(36).slice(2),
+    position_key: "",
     flower_id: "",
     inventory_item_id: "",
     quantity: "",
     reason: "Брак",
     comment: "",
   }
+}
+
+// Строка дропдауна товара: "Роза Эквадор · 80 · Белый — 10 шт"
+function positionLabel(f: FlowerForWriteoff): string {
+  const parts: string[] = [f.name]
+  if (f.variety_size) parts.push(f.variety_size)
+  if (f.color_name) parts.push(f.color_name)
+  return `${parts.join(" · ")} — ${f.current_stock} ${f.unit}`
+}
+
+// Строка дропдауна партии: "★ 22 июн · 90 · Белый · 2 шт · ₽15/шт"
+function batchLabel(b: FlowerBatch, unit: string, isFirst: boolean): string {
+  const date = new Date(b.arrived_at + "T00:00:00").toLocaleDateString("ru", {
+    day: "numeric",
+    month: "short",
+  })
+  const parts: string[] = [date]
+  if (b.variety_size) parts.push(b.variety_size)
+  if (b.color_name) parts.push(b.color_name)
+  parts.push(`${b.quantity_remaining} ${unit}`)
+  parts.push(`₽${b.cost_price}/шт`)
+  if (b.expires_at) {
+    const exp = new Date(b.expires_at + "T00:00:00").toLocaleDateString("ru", {
+      day: "numeric",
+      month: "short",
+    })
+    parts.push(`до ${exp}`)
+  }
+  return `${isFirst ? "★ " : ""}${parts.join(" · ")}`
 }
 
 interface Props {
@@ -53,17 +86,19 @@ export function WriteoffForm({ flowers }: Props) {
   const [actComment, setActComment] = useState("")
   const [lines, setLines] = useState<WriteoffLine[]>([makeLine()])
 
-  const flowerMap = new Map(flowers.map((f) => [f.id, f]))
+  // Ключ: position_key → позиция
+  const positionMap = new Map(flowers.map((f) => [f.position_key, f]))
 
   function updateLine(id: string, field: keyof WriteoffLine, value: string) {
     setLines((prev) =>
       prev.map((line) => {
         if (line._id !== id) return line
         const updated = { ...line, [field]: value }
-        // Когда меняется цветок — автоматически выбираем первую (FIFO) партию
-        if (field === "flower_id") {
-          const flower = flowerMap.get(value)
-          updated.inventory_item_id = flower?.batches[0]?.id ?? ""
+        // При смене позиции — сохраняем настоящий flower_id и выбираем первую (FIFO) партию
+        if (field === "position_key") {
+          const pos = positionMap.get(value)
+          updated.flower_id = pos?.flower_id ?? ""
+          updated.inventory_item_id = pos?.batches[0]?.id ?? ""
           updated.quantity = ""
         }
         return updated
@@ -83,8 +118,8 @@ export function WriteoffForm({ flowers }: Props) {
   }
 
   const totalLoss = lines.reduce((sum, line) => {
-    const flower = flowerMap.get(line.flower_id)
-    const batch = flower?.batches.find((b) => b.id === line.inventory_item_id)
+    const pos = positionMap.get(line.position_key)
+    const batch = pos?.batches.find((b) => b.id === line.inventory_item_id)
     const qty = Number(line.quantity) || 0
     return sum + (batch?.cost_price ?? 0) * qty
   }, 0)
@@ -101,13 +136,13 @@ export function WriteoffForm({ flowers }: Props) {
       return
     }
 
-    // Проверяем превышение остатка
+    // Проверяем превышение остатка партии
     for (const line of filled) {
-      const flower = flowerMap.get(line.flower_id)
-      const batch = flower?.batches.find((b) => b.id === line.inventory_item_id)
+      const pos = positionMap.get(line.position_key)
+      const batch = pos?.batches.find((b) => b.id === line.inventory_item_id)
       if (batch && Number(line.quantity) > batch.quantity_remaining) {
         setError(
-          `${flower?.name}: в партии только ${batch.quantity_remaining} ${flower?.unit ?? "шт"}, указано ${line.quantity}`
+          `${pos?.name}: в партии только ${batch.quantity_remaining} ${pos?.unit ?? "шт"}, указано ${line.quantity}`
         )
         return
       }
@@ -118,11 +153,11 @@ export function WriteoffForm({ flowers }: Props) {
         writeoff_date: writeoffDate,
         comment: actComment,
         items: filled.map((line) => {
-          const flower = flowerMap.get(line.flower_id)
-          const batch = flower?.batches.find((b) => b.id === line.inventory_item_id)
+          const pos = positionMap.get(line.position_key)
+          const batch = pos?.batches.find((b) => b.id === line.inventory_item_id)
           const qty = Number(line.quantity)
           return {
-            flower_id: line.flower_id,
+            flower_id: line.flower_id,   // настоящий UUID, не position_key
             inventory_item_id: line.inventory_item_id,
             quantity: qty,
             reason: line.reason,
@@ -179,8 +214,8 @@ export function WriteoffForm({ flowers }: Props) {
             <thead>
               <tr className="border-b border-zinc-100 bg-zinc-50">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wide w-8">#</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wide min-w-[200px]">Товар</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wide min-w-[220px]">Партия</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wide min-w-[220px]">Товар</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wide min-w-[240px]">Партия</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide w-24">Кол-во</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wide w-44">Причина</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wide w-28">Себест. / шт</th>
@@ -190,8 +225,8 @@ export function WriteoffForm({ flowers }: Props) {
             </thead>
             <tbody>
               {lines.map((line, idx) => {
-                const flower = flowerMap.get(line.flower_id)
-                const batch = flower?.batches.find((b) => b.id === line.inventory_item_id)
+                const pos = positionMap.get(line.position_key)
+                const batch = pos?.batches.find((b) => b.id === line.inventory_item_id)
                 const qty = Number(line.quantity) || 0
                 const costPerUnit = batch?.cost_price ?? 0
                 const lineTotal = costPerUnit * qty
@@ -205,32 +240,32 @@ export function WriteoffForm({ flowers }: Props) {
                   >
                     <td className="px-4 py-2.5 text-zinc-400 text-xs">{idx + 1}</td>
 
-                    {/* Товар */}
+                    {/* Товар — отдельная позиция по (flower_id + variety_id + color_id) */}
                     <td className="px-4 py-2.5">
                       <select
-                        value={line.flower_id}
-                        onChange={(e) => updateLine(line._id, "flower_id", e.target.value)}
+                        value={line.position_key}
+                        onChange={(e) => updateLine(line._id, "position_key", e.target.value)}
                         className="w-full rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
                       >
                         <option value="">— Выберите товар —</option>
                         {flowers.map((f) => (
-                          <option key={f.id} value={f.id}>
-                            {f.name} — {f.current_stock} {f.unit}
+                          <option key={f.position_key} value={f.position_key}>
+                            {positionLabel(f)}
                           </option>
                         ))}
                       </select>
-                      {flower && (
+                      {pos && (
                         <p className="text-xs text-zinc-400 mt-0.5 px-0.5">
-                          {flower.category}
+                          {pos.category}
                         </p>
                       )}
                     </td>
 
-                    {/* Партия */}
+                    {/* Партия — только партии выбранной позиции */}
                     <td className="px-4 py-2.5">
-                      {!line.flower_id ? (
+                      {!line.position_key ? (
                         <span className="text-xs text-zinc-300">—</span>
-                      ) : !flower || flower.batches.length === 0 ? (
+                      ) : !pos || pos.batches.length === 0 ? (
                         <div className="flex items-center gap-1.5 text-amber-600 text-xs">
                           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                           Нет партий
@@ -241,13 +276,9 @@ export function WriteoffForm({ flowers }: Props) {
                           onChange={(e) => updateLine(line._id, "inventory_item_id", e.target.value)}
                           className="w-full rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-zinc-800 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
                         >
-                          {flower.batches.map((b, bi) => (
+                          {pos.batches.map((b, bi) => (
                             <option key={b.id} value={b.id}>
-                              {bi === 0 ? "★ " : ""}
-                              {new Date(b.arrived_at + "T00:00:00").toLocaleDateString("ru", { day: "numeric", month: "short" })}
-                              {" · "}{b.quantity_remaining} {flower.unit}
-                              {" · ₽"}{b.cost_price}/шт
-                              {b.expires_at ? ` · до ${new Date(b.expires_at + "T00:00:00").toLocaleDateString("ru", { day: "numeric", month: "short" })}` : ""}
+                              {batchLabel(b, pos.unit, bi === 0)}
                             </option>
                           ))}
                         </select>

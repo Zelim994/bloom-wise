@@ -25,54 +25,126 @@ export type FlowerBatch = {
   cost_price: number
   quantity_remaining: number
   expires_at: string | null
+  variety_id: string | null
+  variety_name: string | null
+  variety_size: string | null
+  color_id: string | null
+  color_name: string | null
 }
 
 export type FlowerForWriteoff = {
-  id: string
+  // position_key = "flower_id:variety_id:color_id" — только для UI-навигации
+  position_key: string
+  // настоящий UUID цветка — используется при проведении списания
+  flower_id: string
   name: string
   unit: string
   category: string
+  variety_id: string | null
+  variety_name: string | null
+  variety_size: string | null
+  color_id: string | null
+  color_name: string | null
   current_stock: number
   batches: FlowerBatch[]
 }
 
-// Цветы с остатком + все их партии (для формы списания, без async per-row)
+// Складские позиции по (flower_id + variety_id + color_id) — для формы списания
 export async function getFlowersWithInventory(): Promise<FlowerForWriteoff[]> {
   const supabase = await createClient()
 
-  const [flowersRes, stockRes, itemsRes] = await Promise.all([
-    supabase.from("flowers").select("id, name, unit, category").eq("is_active", true).order("name"),
-    supabase.from("flower_stock").select("flower_id, current_stock"),
+  const [variantStockRes, itemsRes] = await Promise.all([
+    // flower_variant_stock уже содержит variety_name, variety_size, color_name и current_stock
+    supabase
+      .from("flower_variant_stock")
+      .select(
+        "flower_id, variety_id, color_id, flower_name, flower_unit, flower_category, variety_name, variety_size, color_name, current_stock"
+      ),
     supabase
       .from("inventory_items")
-      .select("id, flower_id, arrived_at, cost_price, quantity_remaining, expires_at")
+      .select("id, flower_id, variety_id, color_id, arrived_at, cost_price, quantity_remaining, expires_at")
       .gt("quantity_remaining", 0)
       .order("arrived_at", { ascending: true }),
   ])
 
-  const stockMap = new Map(
-    (stockRes.data ?? []).map((s) => [s.flower_id, Number(s.current_stock ?? 0)])
-  )
+  // Строим map позиций из flower_variant_stock
+  type PositionMeta = {
+    flower_id: string
+    name: string
+    unit: string
+    category: string
+    variety_id: string | null
+    variety_name: string | null
+    variety_size: string | null
+    color_id: string | null
+    color_name: string | null
+    current_stock: number
+  }
 
+  const positionMap = new Map<string, PositionMeta>()
+  for (const row of variantStockRes.data ?? []) {
+    const key = `${row.flower_id}:${row.variety_id ?? "none"}:${row.color_id ?? "none"}`
+    if (!row.flower_id) continue
+    positionMap.set(key, {
+      flower_id: row.flower_id,
+      name: row.flower_name ?? "",
+      unit: row.flower_unit ?? "",
+      category: row.flower_category ?? "",
+      variety_id: row.variety_id ?? null,
+      variety_name: row.variety_name ?? null,
+      variety_size: row.variety_size ?? null,
+      color_id: row.color_id ?? null,
+      color_name: row.color_name ?? null,
+      current_stock: Number(row.current_stock ?? 0),
+    })
+  }
+
+  // Группируем партии по position_key; variety/color берём из positionMap
   const batchMap = new Map<string, FlowerBatch[]>()
   for (const item of itemsRes.data ?? []) {
-    if (!batchMap.has(item.flower_id)) batchMap.set(item.flower_id, [])
-    batchMap.get(item.flower_id)!.push({
+    const key = `${item.flower_id}:${item.variety_id ?? "none"}:${item.color_id ?? "none"}`
+    const pos = positionMap.get(key)
+    if (!batchMap.has(key)) batchMap.set(key, [])
+    batchMap.get(key)!.push({
       id: item.id,
       arrived_at: item.arrived_at,
       cost_price: item.cost_price ?? 0,
       quantity_remaining: item.quantity_remaining ?? 0,
       expires_at: item.expires_at ?? null,
+      variety_id: item.variety_id ?? null,
+      variety_name: pos?.variety_name ?? null,
+      variety_size: pos?.variety_size ?? null,
+      color_id: item.color_id ?? null,
+      color_name: pos?.color_name ?? null,
     })
   }
 
-  return (flowersRes.data ?? [])
-    .map((f) => ({
-      ...f,
-      current_stock: stockMap.get(f.id) ?? 0,
-      batches: batchMap.get(f.id) ?? [],
-    }))
-    .filter((f) => f.current_stock > 0 && f.batches.length > 0)
+  const result: FlowerForWriteoff[] = []
+  for (const [key, pos] of positionMap.entries()) {
+    const batches = batchMap.get(key) ?? []
+    if (pos.current_stock <= 0 || batches.length === 0) continue
+    result.push({
+      position_key: key,
+      flower_id: pos.flower_id,
+      name: pos.name,
+      unit: pos.unit,
+      category: pos.category,
+      variety_id: pos.variety_id,
+      variety_name: pos.variety_name,
+      variety_size: pos.variety_size,
+      color_id: pos.color_id,
+      color_name: pos.color_name,
+      current_stock: pos.current_stock,
+      batches,
+    })
+  }
+
+  // Сортировка: по имени, потом по размеру
+  return result.sort((a, b) => {
+    const nc = a.name.localeCompare(b.name, "ru")
+    if (nc !== 0) return nc
+    return (a.variety_size ?? "").localeCompare(b.variety_size ?? "")
+  })
 }
 
 // Оставляем для обратной совместимости
