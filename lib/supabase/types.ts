@@ -1554,6 +1554,7 @@ export type Database = {
       stock_movements: {
         Row: {
           branch_id: string | null
+          color_id: string | null
           comment: string | null
           created_at: string | null
           created_by: string | null
@@ -1565,9 +1566,11 @@ export type Database = {
           quantity: number
           source_id: string | null
           source_type: string | null
+          variety_id: string | null
         }
         Insert: {
           branch_id?: string | null
+          color_id?: string | null
           comment?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -1579,9 +1582,11 @@ export type Database = {
           quantity: number
           source_id?: string | null
           source_type?: string | null
+          variety_id?: string | null
         }
         Update: {
           branch_id?: string | null
+          color_id?: string | null
           comment?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -1593,6 +1598,7 @@ export type Database = {
           quantity?: number
           source_id?: string | null
           source_type?: string | null
+          variety_id?: string | null
         }
         Relationships: [
           {
@@ -1600,6 +1606,13 @@ export type Database = {
             columns: ["branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_color_id_fkey"
+            columns: ["color_id"]
+            isOneToOne: false
+            referencedRelation: "flower_colors"
             referencedColumns: ["id"]
           },
           {
@@ -1628,6 +1641,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_variety_id_fkey"
+            columns: ["variety_id"]
+            isOneToOne: false
+            referencedRelation: "flower_varieties"
             referencedColumns: ["id"]
           },
         ]
