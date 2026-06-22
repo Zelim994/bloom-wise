@@ -187,7 +187,7 @@ export async function createWriteoffAct(formData: {
     // Проверяем партию
     const { data: invItem } = await supabase
       .from("inventory_items")
-      .select("quantity_remaining, cost_price")
+      .select("quantity_remaining, cost_price, variety_id, color_id")
       .eq("id", item.inventory_item_id)
       .single()
 
@@ -214,7 +214,7 @@ export async function createWriteoffAct(formData: {
 
     if (we || !writeoffRow) return { error: we?.message ?? "Ошибка создания списания" }
 
-    // Движение в stock_movements
+    // Движение в stock_movements — variety/color берём из inventory_items, не из формы
     const { error: me } = await supabase.from("stock_movements").insert({
       organization_id: orgId,
       flower_id: item.flower_id,
@@ -224,6 +224,8 @@ export async function createWriteoffAct(formData: {
       source_type: "writeoff",
       source_id: writeoffRow.id,
       comment: item.reason || null,
+      variety_id: invItem.variety_id ?? null,
+      color_id: invItem.color_id ?? null,
     })
     if (me) return { error: me.message }
 
