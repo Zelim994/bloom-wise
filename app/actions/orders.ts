@@ -545,18 +545,29 @@ export async function writeOffOrderStock(
   // Fetch all bouquet items for this order (order may have multiple bouquets)
   const { data: bouquets, error: bouquetError } = await supabase
     .from("bouquets")
-    .select("id, bouquet_items(flower_id, quantity)")
+    .select("id, bouquet_items(flower_id, variety_id, color_id, quantity)")
     .eq("order_id", orderId)
 
   if (bouquetError) return { ok: false, error: bouquetError.message }
 
   const items = (bouquets ?? []).flatMap(
-    (b) => (b.bouquet_items ?? []) as Array<{ flower_id: string; quantity: number }>
+    (b) =>
+      (b.bouquet_items ?? []) as Array<{
+        flower_id: string
+        variety_id?: string | null
+        color_id?: string | null
+        quantity: number
+      }>
   )
   if (items.length === 0) return { ok: false, error: "В заказе нет цветов для списания" }
 
-  // Build FIFO allocation plan
-  const planItems = items.map((i) => ({ flower_id: i.flower_id, quantity: i.quantity }))
+  // Build FIFO allocation plan — variety_id/color_id preserved for precise variant matching
+  const planItems = items.map((i) => ({
+    flower_id: i.flower_id,
+    variety_id: i.variety_id ?? null,
+    color_id: i.color_id ?? null,
+    quantity: i.quantity,
+  }))
   const plan = await buildOrderStockPlan(supabase, orgId, planItems)
   if (!plan.ok) return { ok: false, error: plan.error }
 
