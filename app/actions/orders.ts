@@ -8,6 +8,8 @@ import { buildOrderStockPlan, writeOffOrderStockViaRpc, returnOrderStockViaRpc }
 
 export type BouquetItemForEdit = {
   flower_id: string
+  variety_id?: string | null
+  color_id?: string | null
   quantity: number
   unit_cost: number
 }
@@ -39,7 +41,7 @@ export async function getOrder(id: string): Promise<OrderWithCustomer | null> {
   const supabase = await createClient()
   const { data } = await supabase
     .from("orders")
-    .select("*, customers(full_name, phone), bouquets(id, cost_price, sale_price, profit, margin_percent, bouquet_items(flower_id, quantity, unit_cost))")
+    .select("*, customers(full_name, phone), bouquets(id, cost_price, sale_price, profit, margin_percent, bouquet_items(flower_id, variety_id, color_id, quantity, unit_cost))")
     .eq("id", id)
     .single()
   if (!data) return null
@@ -120,6 +122,8 @@ export type BouquetPayload = {
     unit: string
     quantity: number
     unit_cost: number
+    variety_id?: string | null
+    color_id?: string | null
   }>
   cost_price: number
   sale_price: number
@@ -266,16 +270,21 @@ export async function createOrder(formData: {
       .single()
 
     if (bouquetRow) {
-      await supabase.from("bouquet_items").insert(
-        b.items.map((item) => ({
+      const bouquetRows = b.items.map((item) => {
+        const flowerId = item.flower_id
+        if (!flowerId) throw new Error("Не удалось определить flower_id для позиции букета")
+        return {
           bouquet_id: bouquetRow.id,
-          flower_id: item.flower_id,
+          flower_id: flowerId,
+          variety_id: item.variety_id ?? null,
+          color_id: item.color_id ?? null,
           product_id: null,
           quantity: item.quantity,
           unit_cost: item.unit_cost,
           total_cost: item.quantity * item.unit_cost,
-        }))
-      )
+        }
+      })
+      await supabase.from("bouquet_items").insert(bouquetRows)
     }
 
     // Store cost_price on the order
@@ -432,16 +441,21 @@ export async function updateOrder(
     }
 
     if (bouquetId && b.items.length > 0) {
-      await supabase.from("bouquet_items").insert(
-        b.items.map((item) => ({
+      const bouquetRows = b.items.map((item) => {
+        const flowerId = item.flower_id
+        if (!flowerId) throw new Error("Не удалось определить flower_id для позиции букета")
+        return {
           bouquet_id: bouquetId!,
-          flower_id: item.flower_id,
+          flower_id: flowerId,
+          variety_id: item.variety_id ?? null,
+          color_id: item.color_id ?? null,
           product_id: null,
           quantity: item.quantity,
           unit_cost: item.unit_cost,
           total_cost: item.quantity * item.unit_cost,
-        }))
-      )
+        }
+      })
+      await supabase.from("bouquet_items").insert(bouquetRows)
     }
 
     await supabase
