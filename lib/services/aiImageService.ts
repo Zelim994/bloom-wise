@@ -22,9 +22,18 @@ export async function generateBouquetImageFromPrompt(
 
     const image = response.data?.[0]
 
-    const imageUrl =
-      image?.url ??
-      (image?.b64_json ? `data:image/png;base64,${image.b64_json}` : null)
+    let imageUrl: string | null = null
+    if (image?.b64_json) {
+      imageUrl = `data:image/png;base64,${image.b64_json}`
+    } else if (image?.url) {
+      // Fetch from OpenAI server-side so the client always gets a data URL.
+      // The URL here comes from the OpenAI API response, not user input.
+      const fetched = await fetch(image.url)
+      if (fetched.ok) {
+        const buf = Buffer.from(await fetched.arrayBuffer())
+        imageUrl = `data:image/png;base64,${buf.toString("base64")}`
+      }
+    }
 
     if (!imageUrl) {
       return { error: "Не удалось получить изображение от AI" }

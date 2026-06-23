@@ -1,5 +1,7 @@
 "use server"
 
+import { randomUUID } from "crypto"
+import { createClient } from "@/lib/supabase/server"
 import { generateBouquetImageFromPrompt } from "@/lib/services/aiImageService"
 
 type SelectedItem = {
@@ -30,6 +32,17 @@ export type GeneratePayload = {
 
 export type GenerateResult =
   | { success: true; imageUrl: string; promptUsed: string }
+  | { success: false; error: string }
+
+export type SavePayload = {
+  imageUrl: string
+  prompt: string
+  selectedItems: SelectedItem[]
+  visualizationParams: VisualizationParams
+}
+
+export type SaveResult =
+  | { success: true; imagePath: string }
   | { success: false; error: string }
 
 export async function generateBouquetImage(
@@ -111,4 +124,84 @@ export async function generateBouquetImage(
   }
 
   return { success: true, imageUrl: result.imageUrl, promptUsed: enhancedPrompt }
+}
+
+export async function saveAIBouquetGeneration(
+  payload: SavePayload
+): Promise<SaveResult> {
+  const { imageUrl, prompt, selectedItems, visualizationParams } = payload
+
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: "Необходима авторизация" }
+
+  // profiles.id = auth.users.id, но FK в ai_requests.created_by ссылается на profiles(id).
+  // Используем profile.id явно, и organization_id берём оттуда же.
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, organization_id")
+    .eq("id", user.id)
+    .single()
+
+  if (profileError || !profile?.id || !profile.organization_id) {
+    return { success: false, error: "Не удалось определить профиль пользователя" }
+  }
+
+  const orgId = profile.organization_id
+
+  // Only data URLs are accepted — HTTP URLs are rejected to prevent SSRF.
+  // aiImageService always returns data: URLs (converts remote URLs server-side).
+  if (!imageUrl.startsWith("data:image/")) {
+    return { success: false, error: "Неверный формат изображения" }
+  }
+
+  const base64 = imageUrl.split(",")[1]
+  const imageData = Buffer.from(base64, "base64")
+
+  const generationId = randomUUID()
+  const imagePath = `${orgId}/${generationId}.png`
+
+  const { error: uploadError } = await supabase.storage
+    .from("ai-generations")
+    .upload(imagePath, imageData, { contentType: "image/png", upsert: false })
+
+  if (uploadError) {
+    return { success: false, error: `Ошибка загрузки изображения: ${uploadError.message}` }
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("ai_requests")
+    .insert({
+      organization_id: orgId,
+      created_by: profile.id,
+      request_type: "bouquet_image",
+      mode: "free_idea",
+      prompt,
+      image_path: imagePath,
+      model_used: process.env.OPENAI_IMAGE_MODEL || "gpt-image-1",
+      input_params: {
+        selected_items: selectedItems,
+        visualization_params: visualizationParams,
+      },
+      response_data: {
+        provider: "openai",
+        image_path: imagePath,
+        saved_from: "builder",
+      },
+    })
+    .select("id")
+    .single()
+
+  if (insertError || !inserted?.id) {
+    await supabase.storage.from("ai-generations").remove([imagePath])
+    return {
+      success: false,
+      error: insertError
+        ? `Ошибка сохранения записи: ${insertError.message}`
+        : "Запись не была создана (RLS или ошибка БД)",
+    }
+  }
+
+  return { success: true, imagePath }
 }

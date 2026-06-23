@@ -79,10 +79,12 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          image_path: string | null
           input_params: Json | null
           mode: string | null
           model_used: string | null
           organization_id: string
+          prompt: string | null
           request_type: string | null
           response_data: Json | null
           tokens_used: number | null
@@ -92,10 +94,12 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          image_path?: string | null
           input_params?: Json | null
           mode?: string | null
           model_used?: string | null
           organization_id: string
+          prompt?: string | null
           request_type?: string | null
           response_data?: Json | null
           tokens_used?: number | null
@@ -105,10 +109,12 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          image_path?: string | null
           input_params?: Json | null
           mode?: string | null
           model_used?: string | null
           organization_id?: string
+          prompt?: string | null
           request_type?: string | null
           response_data?: Json | null
           tokens_used?: number | null

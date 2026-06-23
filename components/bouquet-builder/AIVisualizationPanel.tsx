@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Sparkles, ImageOff, Check, Download, RefreshCw, AlertCircle, Loader2, ChevronDown, ChevronUp, Copy } from "lucide-react"
 import type { BouquetItem } from "@/types/builder"
-import { generateBouquetImage } from "@/app/actions/ai"
+import { generateBouquetImage, saveAIBouquetGeneration } from "@/app/actions/ai"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -121,6 +121,8 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
   const [promptUsed, setPromptUsed] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const hasItems = items.length > 0
 
@@ -147,12 +149,55 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const handleSave = async () => {
+    if (!imageUrl || !promptUsed) return
+    setSaveStatus("saving")
+    setSaveError(null)
+
+    try {
+      const result = await saveAIBouquetGeneration({
+        imageUrl,
+        prompt: promptUsed,
+        selectedItems: items.map((i) => ({
+          flower_id: i.flower_id,
+          variety_id: i.variety_id ?? null,
+          color_id: i.color_id ?? null,
+          name: i.name,
+          variety_name: i.variety_name ?? null,
+          variety_size: i.variety_size ?? null,
+          color_name: i.color_name ?? null,
+          quantity: i.quantity,
+        })),
+        visualizationParams: {
+          style: params.style,
+          shape: params.shape,
+          palette: params.palette || undefined,
+          wrapping: params.wrapping,
+          occasion: params.occasion,
+          comment: params.comment || undefined,
+        },
+      })
+
+      if (result.success) {
+        setSaveStatus("saved")
+      } else {
+        setSaveStatus("error")
+        setSaveError(result.error)
+      }
+    } catch (err) {
+      setSaveStatus("error")
+      setSaveError(err instanceof Error ? err.message : "Ошибка при сохранении")
+    }
+  }
+
   const handleGenerate = async () => {
     if (!prompt) return
     setIsGenerating(true)
     setGenError(null)
     setImageUrl(null)
     setPromptUsed(null)
+    setSaveStatus("idle")
+    setSaveError(null)
 
     const result = await generateBouquetImage({
       prompt,
@@ -540,18 +585,31 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
                 </>
               )}
 
-              {/* Save to history — disabled, Этап 3 */}
-              <button
-                type="button"
-                disabled
-                title="Будет доступно в Этапе 3"
-                className="flex items-center gap-2 border border-zinc-100 bg-zinc-50 text-zinc-400 text-sm font-medium px-4 py-2 rounded-lg cursor-not-allowed"
-              >
-                Сохранить в историю
-                <span className="text-[10px] bg-zinc-200 text-zinc-500 rounded px-1.5 py-0.5 font-semibold">
-                  Этап 3
+              {saveStatus === "saved" ? (
+                <span className="flex items-center gap-2 border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-medium px-4 py-2 rounded-lg">
+                  <Check className="h-4 w-4" />
+                  Сохранено в историю
                 </span>
-              </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={!imageUrl || saveStatus === "saving"}
+                  className="flex items-center gap-2 border border-zinc-200 bg-white hover:bg-zinc-50 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                >
+                  {saveStatus === "saving" ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Сохранение…
+                    </>
+                  ) : (
+                    "Сохранить в историю"
+                  )}
+                </button>
+              )}
+              {saveStatus === "error" && saveError && (
+                <p className="text-xs text-red-500">{saveError}</p>
+              )}
             </div>
           </div>
         )}
