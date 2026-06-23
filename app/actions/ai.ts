@@ -205,3 +205,119 @@ export async function saveAIBouquetGeneration(
 
   return { success: true, imagePath }
 }
+
+// ─── Этап 3.4: история генераций ─────────────────────────────────────────────
+
+export type AIGenerationItem = {
+  id: string
+  created_at: string
+  image_path: string | null
+  signed_url: string | null
+  model_used: string | null
+  prompt: string | null
+  selected_items: Array<{
+    name: string
+    quantity: number
+    variety_name: string | null
+    variety_size: string | null
+    color_name: string | null
+  }>
+  visualization_params: {
+    style: string | null
+    shape: string | null
+    wrapping: string | null
+    occasion: string | null
+    palette: string | null
+    comment: string | null
+  }
+}
+
+export type GetGenerationsResult =
+  | { success: true; items: AIGenerationItem[] }
+  | { success: false; error: string }
+
+export async function getAIBouquetGenerations(): Promise<GetGenerationsResult> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: "Необходима авторизация" }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, organization_id")
+    .eq("id", user.id)
+    .single()
+
+  if (profileError || !profile?.organization_id) {
+    return { success: false, error: "Профиль не найден" }
+  }
+
+  const { data: rows, error: rowsError } = await supabase
+    .from("ai_requests")
+    .select("id, created_at, image_path, model_used, prompt, input_params")
+    .eq("organization_id", profile.organization_id)
+    .eq("request_type", "bouquet_image")
+    .order("created_at", { ascending: false })
+    .limit(50)
+
+  if (rowsError) {
+    return { success: false, error: `Ошибка чтения истории: ${rowsError.message}` }
+  }
+
+  const items = await Promise.all(
+    (rows ?? []).map(async (row): Promise<AIGenerationItem> => {
+      let signed_url: string | null = null
+      if (row.image_path) {
+        const { data: urlData } = await supabase.storage
+          .from("ai-generations")
+          .createSignedUrl(row.image_path, 60 * 60)
+        signed_url = urlData?.signedUrl ?? null
+      }
+
+      // Безопасный разбор JSONB — не падаем от старых/битых записей
+      const params =
+        row.input_params !== null && typeof row.input_params === "object" && !Array.isArray(row.input_params)
+          ? (row.input_params as Record<string, unknown>)
+          : {}
+      const rawItems = Array.isArray(params.selected_items) ? params.selected_items : []
+      const rawViz =
+        params.visualization_params !== null &&
+        typeof params.visualization_params === "object" &&
+        !Array.isArray(params.visualization_params)
+          ? (params.visualization_params as Record<string, unknown>)
+          : {}
+
+      return {
+        id: row.id,
+        created_at: row.created_at,
+        image_path: row.image_path,
+        signed_url,
+        model_used: row.model_used,
+        prompt: row.prompt,
+        selected_items: rawItems.map((item: unknown) => {
+          const i =
+            item !== null && typeof item === "object" && !Array.isArray(item)
+              ? (item as Record<string, unknown>)
+              : {}
+          return {
+            name: typeof i.name === "string" ? i.name : "",
+            quantity: typeof i.quantity === "number" ? i.quantity : 0,
+            variety_name: typeof i.variety_name === "string" ? i.variety_name : null,
+            variety_size: typeof i.variety_size === "string" ? i.variety_size : null,
+            color_name: typeof i.color_name === "string" ? i.color_name : null,
+          }
+        }),
+        visualization_params: {
+          style: typeof rawViz.style === "string" ? rawViz.style : null,
+          shape: typeof rawViz.shape === "string" ? rawViz.shape : null,
+          wrapping: typeof rawViz.wrapping === "string" ? rawViz.wrapping : null,
+          occasion: typeof rawViz.occasion === "string" ? rawViz.occasion : null,
+          palette: typeof rawViz.palette === "string" ? rawViz.palette : null,
+          comment: typeof rawViz.comment === "string" ? rawViz.comment : null,
+        },
+      }
+    })
+  )
+
+  return { success: true, items }
+}
