@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { Sparkles, ImageOff, Check } from "lucide-react"
+import { Sparkles, ImageOff, Check, Download, RefreshCw, AlertCircle, Loader2, ChevronDown, ChevronUp, Copy } from "lucide-react"
 import type { BouquetItem } from "@/types/builder"
+import { generateBouquetImage } from "@/app/actions/ai"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -15,9 +16,11 @@ type VisualizationParams = {
   comment: string
 }
 
-// ─── Prompt builder ───────────────────────────────────────────────────────────
+// ─── Prompt builder (for preview display) ────────────────────────────────────
 
 function buildPrompt(items: BouquetItem[], p: VisualizationParams): string {
+  const totalQuantity = items.reduce((sum, i) => sum + i.quantity, 0)
+
   const lines = items.map((item) => {
     const parts: string[] = [item.name]
     if (item.variety_name && !item.name.includes(item.variety_name)) {
@@ -25,21 +28,50 @@ function buildPrompt(items: BouquetItem[], p: VisualizationParams): string {
     }
     if (item.variety_size) parts.push(`размер ${item.variety_size}`)
     if (item.color_name) parts.push(`цвет ${item.color_name}`)
-    return `- ${parts.join(", ")} — ${item.quantity} шт`
+    return `- ${item.quantity} видимых цветочных головок: ${parts.join(", ")}`
   })
 
   const sections: string[] = [
-    "Создай реалистичную визуализацию букета для цветочного салона.\n",
-    `Состав букета:\n${lines.join("\n")}\n`,
+    "ФОТОРЕАЛИЗМ:",
+    "Создай максимально реалистичную фотографию настоящего букета, как будто его собрал профессиональный флорист и сфотографировал на камеру в цветочном салоне.",
+    "- живые натуральные цветы, не пластиковые, не мультяшные, не 3D-рендер;",
+    "- реалистичные лепестки с естественными изгибами, фактурой и небольшими несовершенствами;",
+    "- естественные зелёные листья и стебли;",
+    "- профессиональная флористическая сборка;",
+    "- мягкий естественный свет;",
+    "- реалистичная глубина резкости;",
+    "- чистый светлый фон;",
+    "- коммерческое фото для отправки клиенту в WhatsApp;",
+    "- без людей, без рук, без текста, без логотипов, без лишних предметов.\n",
+    `СОСТАВ БУКЕТА (${totalQuantity} цветочных головок):`,
+    lines.join("\n"),
+    `\nОбщее количество цветочных головок в букете: ${totalQuantity}.`,
+    `Постарайся визуально показать около ${totalQuantity} хорошо различимых цветочных головок.`,
+    "Не уменьшая количество, собери букет так, чтобы большая часть головок была видна сверху и спереди.",
+    `Если точное количество сложно показать из-за плотной композиции, сохрани визуальное ощущение полного букета из ${totalQuantity} цветов: букет должен выглядеть объёмным, плотным и соответствовать указанному количеству.\n`,
+    "СТИЛЬ И ФОРМА:",
     `Стиль: ${p.style}`,
     `Форма: ${p.shape}`,
+    `Повод: ${p.occasion}\n`,
+    "УПАКОВКА:",
+    `Используй только выбранный тип упаковки: ${p.wrapping}.`,
+    `Если выбрана матовая бумага — упаковка должна быть однотонной или спокойной, без ярких разноцветных листов, если пользователь отдельно не указал яркие цвета.\n`,
   ]
-  if (p.palette) sections.push(`Цветовая гамма: ${p.palette}`)
-  sections.push(`Упаковка: ${p.wrapping}`)
-  sections.push(`Повод: ${p.occasion}`)
-  if (p.comment) sections.push(`Пожелание клиента: ${p.comment}`)
+  if (p.palette) {
+    sections.push(
+      `ЦВЕТОВАЯ ГАММА:\nСоблюдай указанную цветовую гамму: ${p.palette}.\nНе добавляй контрастные цвета, если они не указаны пользователем.\n`
+    )
+  }
+  if (p.comment) {
+    sections.push(`ПОЖЕЛАНИЕ КЛИЕНТА:\n${p.comment}\n`)
+  }
   sections.push(
-    "\nТребования к изображению:\nреалистичный букет, профессиональная флористика, чистый светлый фон, без текста на изображении, без людей, без лишних предметов."
+    "НЕ ДОБАВЛЯТЬ:",
+    "- другие виды цветов;",
+    "- другие цвета цветов;",
+    "- декоративные цветы, которых нет в составе;",
+    "- искусственные украшения, если они не указаны;",
+    "- ягоды, сухоцветы, гипсофилу, зелень или аксессуары, если пользователь не выбрал их."
   )
 
   return sections.join("\n")
@@ -83,6 +115,12 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
     comment: "",
   })
   const [prompt, setPrompt] = useState<string | null>(null)
+  const [promptVisible, setPromptVisible] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [promptUsed, setPromptUsed] = useState<string | null>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
 
   const hasItems = items.length > 0
 
@@ -94,14 +132,70 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
       >
     ) => setParams((p) => ({ ...p, [field]: e.target.value }))
 
-  const handlePrepare = () => setPrompt(buildPrompt(items, params))
+  const handlePrepare = () => {
+    setPrompt(buildPrompt(items, params))
+    setPromptVisible(false)
+    setImageUrl(null)
+    setPromptUsed(null)
+    setGenError(null)
+  }
 
-  // Financial summary from item prices
+  const handleCopyPrompt = async () => {
+    if (!prompt) return
+    await navigator.clipboard.writeText(prompt)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleGenerate = async () => {
+    if (!prompt) return
+    setIsGenerating(true)
+    setGenError(null)
+    setImageUrl(null)
+    setPromptUsed(null)
+
+    const result = await generateBouquetImage({
+      prompt,
+      selectedItems: items.map((i) => ({
+        flower_id: i.flower_id,
+        variety_id: i.variety_id ?? null,
+        color_id: i.color_id ?? null,
+        name: i.name,
+        variety_name: i.variety_name ?? null,
+        variety_size: i.variety_size ?? null,
+        color_name: i.color_name ?? null,
+        quantity: i.quantity,
+      })),
+      visualizationParams: {
+        style: params.style,
+        shape: params.shape,
+        palette: params.palette || undefined,
+        wrapping: params.wrapping,
+        occasion: params.occasion,
+        comment: params.comment || undefined,
+      },
+    })
+
+    setIsGenerating(false)
+
+    if (result.success) {
+      setImageUrl(result.imageUrl)
+      setPromptUsed(result.promptUsed)
+    } else {
+      setGenError(result.error)
+    }
+  }
+
+  const handleGenerateAnother = () => {
+    setImageUrl(null)
+    setPromptUsed(null)
+    setGenError(null)
+    handleGenerate()
+  }
+
+  // Financial summary
   const costPrice = items.reduce((s, i) => s + i.quantity * i.unit_cost, 0)
-  const salePrice = items.reduce(
-    (s, i) => s + i.quantity * (i.sale_price ?? 0),
-    0
-  )
+  const salePrice = items.reduce((s, i) => s + i.quantity * (i.sale_price ?? 0), 0)
   const profit = salePrice - costPrice
   const margin = salePrice > 0 ? (profit / salePrice) * 100 : 0
 
@@ -115,7 +209,7 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
         <div>
           <h2 className="text-sm font-semibold text-zinc-800">AI-визуализация</h2>
           <p className="text-xs text-zinc-400">
-            Подготовьте описание букета для будущей генерации изображения
+            Подготовьте описание букета и сгенерируйте изображение
           </p>
         </div>
       </div>
@@ -200,13 +294,14 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 shrink-0">
                 <Check className="h-3 w-3 text-emerald-600" strokeWidth={3} />
               </span>
-              <span className="text-sm font-medium text-zinc-700">AI-запрос подготовлен</span>
+              <span className="text-sm font-medium text-zinc-700">
+                AI-запрос подготовлен. Можно сгенерировать изображение.
+              </span>
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              {/* Left column: composition + params */}
+              {/* Left: composition + params */}
               <div className="space-y-3">
-                {/* Composition */}
                 <div className="rounded-lg bg-zinc-50 border border-zinc-100 p-3.5">
                   <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide mb-2">
                     Состав букета
@@ -232,7 +327,6 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
                     })}
                   </ul>
 
-                  {/* Financial summary */}
                   {(costPrice > 0 || salePrice > 0) && (
                     <div className="mt-3 pt-2.5 border-t border-zinc-200 grid grid-cols-3 gap-2 text-xs">
                       {costPrice > 0 && (
@@ -254,11 +348,7 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
                       {salePrice > 0 && costPrice > 0 && (
                         <div>
                           <p className="text-zinc-400">Маржа</p>
-                          <p
-                            className={`font-semibold ${
-                              margin >= 30 ? "text-emerald-600" : "text-amber-600"
-                            }`}
-                          >
+                          <p className={`font-semibold ${margin >= 30 ? "text-emerald-600" : "text-amber-600"}`}>
                             {margin.toFixed(0)}%
                           </p>
                         </div>
@@ -267,7 +357,6 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
                   )}
                 </div>
 
-                {/* Visualization params */}
                 <div className="rounded-lg bg-zinc-50 border border-zinc-100 p-3.5">
                   <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide mb-2">
                     Параметры визуализации
@@ -294,37 +383,175 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
                 </div>
               </div>
 
-              {/* Right column: prompt text + placeholder */}
+              {/* Right: prompt controls + image area */}
               <div className="space-y-3">
-                {/* Prompt */}
                 <div className="rounded-lg bg-zinc-50 border border-zinc-100 p-3.5">
-                  <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide mb-2">
-                    Текст запроса
-                  </p>
-                  <pre className="text-xs text-zinc-600 whitespace-pre-wrap font-sans leading-relaxed">
-                    {prompt}
-                  </pre>
+                  {/* Header row */}
+                  <div className="flex items-center justify-between mb-2.5">
+                    <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">
+                      AI-запрос
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleCopyPrompt}
+                        className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-700 transition-colors px-2 py-1 rounded hover:bg-zinc-100"
+                      >
+                        {copied ? (
+                          <Check className="h-3 w-3 text-emerald-500" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )}
+                        {copied ? "Скопировано" : "Скопировать"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPromptVisible((v) => !v)}
+                        className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-700 transition-colors px-2 py-1 rounded hover:bg-zinc-100"
+                      >
+                        {promptVisible ? (
+                          <ChevronUp className="h-3 w-3" />
+                        ) : (
+                          <ChevronDown className="h-3 w-3" />
+                        )}
+                        {promptVisible ? "Скрыть" : "Показать prompt"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Compact params summary */}
+                  {(() => {
+                    const totalQuantity = items.reduce((s, i) => s + i.quantity, 0)
+                    const tags = [
+                      `${totalQuantity} цветков`,
+                      params.style,
+                      params.shape,
+                      params.wrapping,
+                      params.occasion,
+                      params.palette || null,
+                    ].filter(Boolean) as string[]
+                    return (
+                      <div className="flex flex-wrap gap-1.5">
+                        {tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center rounded-md bg-white border border-zinc-200 px-2 py-0.5 text-[11px] text-zinc-600 font-medium"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )
+                  })()}
+
+                  {/* Collapsible full prompt */}
+                  {promptVisible && (
+                    <pre className="mt-3 pt-3 border-t border-zinc-200 text-xs text-zinc-600 whitespace-pre-wrap font-sans leading-relaxed max-h-64 overflow-y-auto">
+                      {prompt}
+                    </pre>
+                  )}
                 </div>
 
-                {/* Image placeholder */}
-                <div className="rounded-lg border-2 border-dashed border-zinc-200 bg-zinc-50 flex flex-col items-center justify-center py-10 px-4 text-center">
-                  <ImageOff className="h-9 w-9 text-zinc-300 mb-2.5" />
-                  <p className="text-sm font-medium text-zinc-500">
-                    Здесь появится AI-визуализация букета
-                  </p>
-                  <p className="text-xs text-zinc-400 mt-1">на следующем этапе</p>
-                </div>
+                {/* Image area */}
+                {!imageUrl && !isGenerating && !genError && (
+                  <div className="rounded-lg border-2 border-dashed border-zinc-200 bg-zinc-50 flex flex-col items-center justify-center py-10 px-4 text-center">
+                    <ImageOff className="h-9 w-9 text-zinc-300 mb-2.5" />
+                    <p className="text-sm font-medium text-zinc-500">
+                      Здесь появится AI-визуализация букета
+                    </p>
+                  </div>
+                )}
 
-                {/* Disabled generate button */}
+                {isGenerating && (
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 flex flex-col items-center justify-center py-12 px-4 text-center">
+                    <Loader2 className="h-8 w-8 text-violet-400 animate-spin mb-3" />
+                    <p className="text-sm font-medium text-zinc-600">Генерируем визуализацию…</p>
+                    <p className="text-xs text-zinc-400 mt-1">обычно занимает 10–20 секунд</p>
+                  </div>
+                )}
+
+                {genError && (
+                  <div className="rounded-lg border border-red-100 bg-red-50 p-4 flex gap-3">
+                    <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-700">{genError}</p>
+                  </div>
+                )}
+
+                {imageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <div className="space-y-1.5">
+                    <div className="rounded-lg overflow-hidden border border-zinc-200">
+                      <img
+                        src={imageUrl}
+                        alt="AI-визуализация букета"
+                        className="w-full h-auto"
+                      />
+                    </div>
+                    <p className="text-[11px] text-zinc-400 text-center leading-relaxed">
+                      AI-визуализация примерная. Точный состав и количество цветов указаны в списке букета.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              {!imageUrl ? (
                 <button
                   type="button"
-                  disabled
-                  className="w-full flex items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-400 text-sm font-medium px-4 py-2.5 cursor-not-allowed"
+                  onClick={handleGenerate}
+                  disabled={isGenerating}
+                  className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
                 >
-                  <Sparkles className="h-4 w-4" />
-                  Сгенерировать изображение — скоро
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Генерируем…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Сгенерировать изображение
+                    </>
+                  )}
                 </button>
-              </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleGenerateAnother}
+                    disabled={isGenerating}
+                    className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Сгенерировать ещё вариант
+                  </button>
+
+                  <a
+                    href={imageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                  >
+                    <Download className="h-4 w-4" />
+                    Открыть изображение
+                  </a>
+                </>
+              )}
+
+              {/* Save to history — disabled, Этап 3 */}
+              <button
+                type="button"
+                disabled
+                title="Будет доступно в Этапе 3"
+                className="flex items-center gap-2 border border-zinc-100 bg-zinc-50 text-zinc-400 text-sm font-medium px-4 py-2 rounded-lg cursor-not-allowed"
+              >
+                Сохранить в историю
+                <span className="text-[10px] bg-zinc-200 text-zinc-500 rounded px-1.5 py-0.5 font-semibold">
+                  Этап 3
+                </span>
+              </button>
             </div>
           </div>
         )}
