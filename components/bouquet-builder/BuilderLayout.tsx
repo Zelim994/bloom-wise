@@ -5,7 +5,8 @@ import { StockPanel } from "./StockPanel"
 import { BouquetPanel } from "./BouquetPanel"
 import { FinancePanel } from "./FinancePanel"
 import { AIVisualizationPanel } from "./AIVisualizationPanel"
-import type { FlowerForBuilder, BouquetItem, BouquetData, InitialBuilderItem } from "@/types/builder"
+import { AISelectionPanel } from "./AISelectionPanel"
+import type { FlowerForBuilder, BouquetItem, BouquetData, InitialBuilderItem, AISuggestion } from "@/types/builder"
 
 // Re-export for backward compatibility with components that import from this file
 export type { FlowerForBuilder, BouquetItem, BouquetData, InitialBuilderItem } from "@/types/builder"
@@ -204,6 +205,51 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
     }
   }
 
+  function handleApplyAISuggestions(suggestions: AISuggestion[]) {
+    setItems((prev) => {
+      const next = [...prev]
+      for (const { flower, quantity } of suggestions) {
+        const existingIdx = next.findIndex(
+          (i) =>
+            i.flower_id === flower.flower_id &&
+            (i.variety_id ?? null) === (flower.variety_id ?? null) &&
+            (i.color_id ?? null) === (flower.color_id ?? null)
+        )
+        if (existingIdx !== -1) {
+          const existing = next[existingIdx]
+          next[existingIdx] = {
+            ...existing,
+            quantity: Math.min(existing.quantity + quantity, flower.current_stock),
+          }
+        } else {
+          next.push({
+            _id: Math.random().toString(36).slice(2),
+            flower_id: flower.flower_id,
+            variety_id: flower.variety_id,
+            color_id: flower.color_id,
+            variety_name: flower.variety_name,
+            variety_size: flower.variety_size,
+            color_name: flower.color_name,
+            name: flower.name,
+            unit: flower.unit,
+            quantity: Math.min(quantity, flower.current_stock),
+            unit_cost: flower.unit_cost,
+            sale_price: flower.sale_price,
+            current_stock: flower.current_stock,
+          })
+        }
+      }
+      if (!userEditedPrice) {
+        const sp = computeSuggested(next)
+        setSalePrice(sp)
+        notify(next, sp)
+      } else {
+        notify(next, salePrice)
+      }
+      return next
+    })
+  }
+
   const tabs: { key: Tab; label: string; badge?: number }[] = [
     { key: "stock", label: "Склад", badge: flowers.length },
     { key: "bouquet", label: "Букет", badge: items.length > 0 ? items.length : undefined },
@@ -279,6 +325,9 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
         </div>
       </div>
     </div>
+    {showAIPanel && (
+      <AISelectionPanel flowers={flowers} onApply={handleApplyAISuggestions} />
+    )}
     {showAIPanel && <AIVisualizationPanel items={items} />}
     </>
   )

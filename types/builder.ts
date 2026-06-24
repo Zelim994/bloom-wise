@@ -60,3 +60,10 @@ export type InitialBuilderItem = {
   variety_id?: string | null
   color_id?: string | null
 }
+
+export type AISuggestion = {
+  flower: FlowerForBuilder
+  quantity: number
+  totalCost: number
+  totalSale: number
+}
