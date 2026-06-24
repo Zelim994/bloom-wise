@@ -111,6 +111,18 @@ function buildVariant(
   return suggestions
 }
 
+// Канонический ключ варианта для дедупликации.
+// Сортируем по flower.id чтобы порядок не влиял на сравнение.
+function variantKey(suggestions: AISuggestion[]): string {
+  return [...suggestions]
+    .sort((a, b) => a.flower.id.localeCompare(b.flower.id))
+    .map(
+      (s) =>
+        `${s.flower.flower_id}:${s.flower.variety_id ?? ""}:${s.flower.color_id ?? ""}:${s.quantity}`
+    )
+    .join("|")
+}
+
 function buildAllVariants(
   flowers: FlowerForBuilder[],
   budget: number
@@ -123,14 +135,14 @@ function buildAllVariants(
     return { variants: [], error: "no_positions" }
   }
 
-  const results: VariantResult[] = []
+  const raw: VariantResult[] = []
 
   for (const config of VARIANT_CONFIGS) {
     const suggestions = buildVariant(eligible, budget, config)
     if (!suggestions) continue
     const totalSale = +suggestions.reduce((s, i) => s + i.totalSale, 0).toFixed(2)
     const totalCost = +suggestions.reduce((s, i) => s + i.totalCost, 0).toFixed(2)
-    results.push({
+    raw.push({
       label: config.label,
       description: config.description,
       suggestions,
@@ -141,11 +153,31 @@ function buildAllVariants(
     })
   }
 
-  if (results.length === 0) {
+  if (raw.length === 0) {
     return { variants: [], error: "budget_too_small" }
   }
 
-  return { variants: results, error: null }
+  // Убираем варианты с одинаковым составом
+  const seen = new Set<string>()
+  const unique: VariantResult[] = []
+  for (const r of raw) {
+    const key = variantKey(r.suggestions)
+    if (!seen.has(key)) {
+      seen.add(key)
+      unique.push(r)
+    }
+  }
+
+  // Если после дедупликации остался один вариант — переименовываем
+  if (unique.length === 1) {
+    unique[0] = {
+      ...unique[0],
+      label: "Оптимальный вариант",
+      description: "",
+    }
+  }
+
+  return { variants: unique, error: null }
 }
 
 // ─── Компонент ───────────────────────────────────────────────────────────────
@@ -194,7 +226,11 @@ export function AISelectionPanel({ flowers, onApply }: Props) {
           </div>
           <div>
             <p className="text-sm font-semibold text-zinc-800">ИИ подбирает букет из наличия</p>
-            <p className="text-[11px] text-zinc-400">Три варианта по бюджету из доступного склада</p>
+            <p className="text-[11px] text-zinc-400">
+              {variants && variants.length === 1
+                ? "Оптимальный состав из доступного склада"
+                : "Варианты по бюджету из доступного склада"}
+            </p>
           </div>
         </div>
         {open ? (
@@ -255,9 +291,14 @@ export function AISelectionPanel({ flowers, onApply }: Props) {
             </div>
           )}
 
-          {/* ── 3 карточки вариантов ─────────────────────────────────── */}
+          {/* ── Карточки вариантов ───────────────────────────────────── */}
           {variants && variants.length > 0 && (
             <div className="space-y-3">
+              {variants.length === 1 && (
+                <p className="text-xs text-zinc-400">
+                  Для текущего бюджета и остатков найден один оптимальный состав.
+                </p>
+              )}
               {variants.map((v, idx) => {
                 const isApplied = appliedIdx === idx
                 return (
