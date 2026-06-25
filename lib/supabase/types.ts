@@ -1961,6 +1961,27 @@ export type Database = {
         }
         Returns: Json
       }
+      create_team_invitation: {
+        Args: {
+          p_role: string
+          p_invited_name?: string | null
+          p_invited_phone?: string | null
+          p_invited_email?: string | null
+        }
+        Returns: Json
+      }
+      accept_team_invitation: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      revoke_team_invitation: {
+        Args: { p_invitation_id: string }
+        Returns: Json
+      }
+      get_team_invitation_preview: {
+        Args: { p_token: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
