@@ -2,9 +2,9 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { ChevronLeft, Users } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
-import { Badge } from "@/components/ui/badge"
 import { ALL_ROLE_LABELS } from "@/lib/team/roles"
 import { TeamRoleSelect } from "@/components/settings/TeamRoleSelect"
+import { TeamInvitationsPanel } from "@/components/settings/TeamInvitationsPanel"
 
 const roleOrder: Record<string, number> = {
   owner: 0,
@@ -55,6 +55,34 @@ export default async function TeamPage() {
   const ownerCount = sorted.filter((m) => m.role === "owner").length
   const canManage = profile.role === "owner" || profile.role === "admin"
 
+  type ActiveInvitation = {
+    id: string
+    role: string
+    invited_name: string | null
+    invited_phone: string | null
+    invited_email: string | null
+    token: string
+    expires_at: string
+    created_at: string
+  }
+
+  let activeInvitations: ActiveInvitation[] = []
+
+  if (canManage) {
+    const { data: invitationsData, error: invitationsError } = await supabase
+      .from("team_invitations")
+      .select("id, role, invited_name, invited_phone, invited_email, token, expires_at, created_at")
+      .eq("organization_id", profile.organization_id)
+      .is("accepted_at", null)
+      .is("revoked_at", null)
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false })
+
+    if (!invitationsError) {
+      activeInvitations = invitationsData ?? []
+    }
+  }
+
   return (
     <div className="max-w-2xl space-y-6">
       {/* Заголовок */}
@@ -72,7 +100,7 @@ export default async function TeamPage() {
 
       {/* Информационный блок */}
       <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-500">
-        Владелец может управлять ролями сотрудников. Приглашения сотрудников появятся на следующем этапе.
+        Владелец и администраторы могут приглашать сотрудников по ссылке. Роли защищены на уровне базы данных.
       </div>
 
       {/* Список сотрудников */}
@@ -140,21 +168,15 @@ export default async function TeamPage() {
         )}
       </div>
 
-      {/* Кнопка приглашения — только owner/admin, disabled */}
-      {canManage && (
-        <div className="flex items-center gap-3">
-          <button
-            disabled
-            className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-400 cursor-not-allowed"
-          >
-            Пригласить сотрудника
-          </button>
-          <Badge className="bg-amber-100 text-amber-600 border-0 text-xs">Скоро</Badge>
-        </div>
-      )}
-      {!canManage && (
+      {/* Приглашения — только owner/admin */}
+      {canManage ? (
+        <TeamInvitationsPanel
+          invitations={activeInvitations}
+          currentUserRole={profile.role as "owner" | "admin"}
+        />
+      ) : (
         <p className="text-xs text-zinc-400">
-          Управление сотрудниками доступно только владельцу или администратору.
+          Управление приглашениями доступно владельцу и администраторам.
         </p>
       )}
     </div>

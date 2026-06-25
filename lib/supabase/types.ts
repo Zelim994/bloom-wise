@@ -1870,6 +1870,57 @@ export type Database = {
           },
         ]
       }
+      team_invitations: {
+        Row: {
+          id: string
+          organization_id: string
+          invited_by: string
+          role: string
+          invited_name: string | null
+          invited_phone: string | null
+          invited_email: string | null
+          token: string
+          expires_at: string
+          accepted_at: string | null
+          accepted_by: string | null
+          revoked_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          invited_by: string
+          role: string
+          invited_name?: string | null
+          invited_phone?: string | null
+          invited_email?: string | null
+          token?: string
+          expires_at?: string
+          accepted_at?: string | null
+          accepted_by?: string | null
+          revoked_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          invited_by?: string
+          role?: string
+          invited_name?: string | null
+          invited_phone?: string | null
+          invited_email?: string | null
+          token?: string
+          expires_at?: string
+          accepted_at?: string | null
+          accepted_by?: string | null
+          revoked_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       flower_stock: {
