@@ -27,12 +27,16 @@ export async function updateOrganizationSettings(
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, organization_id")
+    .select("id, organization_id, role")
     .eq("id", user.id)
     .single()
 
   if (profileError || !profile?.organization_id) {
     return { error: "Профиль не найден" }
+  }
+
+  if (profile.role !== "owner" && profile.role !== "admin") {
+    return { error: "Недостаточно прав" }
   }
 
   const orgId = profile.organization_id
