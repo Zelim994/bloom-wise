@@ -40,6 +40,8 @@ export default async function OrgSettingsPage() {
     ownerPhone: profile.phone ?? "",
   }
 
+  const logoUrl = s.logo_url ?? null
+
   return (
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center gap-3">
@@ -51,7 +53,7 @@ export default async function OrgSettingsPage() {
           <p className="text-xs text-zinc-400">Название, контакты, настройки салона</p>
         </div>
       </div>
-      <OrganizationSettingsForm initial={initial} />
+      <OrganizationSettingsForm initial={initial} logoUrl={logoUrl} />
     </div>
   )
 }

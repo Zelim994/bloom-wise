@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { updateOrganizationSettings, type OrgSettingsInput } from "@/app/actions/settings"
+import { useRef, useState, useTransition } from "react"
+import { updateOrganizationSettings, uploadOrganizationLogo, type OrgSettingsInput } from "@/app/actions/settings"
 
 const CURRENCIES = [
   { value: "RUB", label: "₽ Рубль (RUB)" },
@@ -28,11 +28,56 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-export function OrganizationSettingsForm({ initial }: { initial: OrgSettingsInput }) {
+export function OrganizationSettingsForm({
+  initial,
+  logoUrl,
+}: {
+  initial: OrgSettingsInput
+  logoUrl?: string | null
+}) {
   const [form, setForm] = useState<OrgSettingsInput>(initial)
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle")
   const [errorMsg, setErrorMsg] = useState("")
   const [isPending, startTransition] = useTransition()
+
+  // Logo upload state
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(logoUrl ?? null)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoStatus, setLogoStatus] = useState<"idle" | "success" | "error">("idle")
+  const [logoError, setLogoError] = useState("")
+  const [isLogoUploading, startLogoTransition] = useTransition()
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null
+    setLogoFile(file)
+    setLogoStatus("idle")
+    if (file) setPreviewUrl(URL.createObjectURL(file))
+  }
+
+  const handleLogoUpload = () => {
+    if (!logoFile) {
+      setLogoStatus("error")
+      setLogoError("Выберите файл")
+      return
+    }
+    setLogoStatus("idle")
+    startLogoTransition(async () => {
+      const fd = new FormData()
+      fd.append("logo", logoFile)
+      const result = await uploadOrganizationLogo(fd)
+      if (result.error) {
+        setLogoStatus("error")
+        setLogoError(result.error)
+      } else {
+        setLogoStatus("success")
+        setLogoFile(null)
+        if (fileInputRef.current) fileInputRef.current.value = ""
+        // Cache-bust so the browser loads the updated image
+        setPreviewUrl((result.url ?? "") + "?t=" + Date.now())
+      }
+    })
+  }
 
   const set =
     (key: keyof OrgSettingsInput) =>
@@ -59,7 +104,58 @@ export function OrganizationSettingsForm({ initial }: { initial: OrgSettingsInpu
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-lg">
+    <div className="space-y-8 max-w-lg">
+      {/* Логотип салона */}
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-zinc-700">Логотип салона</h2>
+        <div className="flex items-center gap-5">
+          {/* Preview */}
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 overflow-hidden">
+            {previewUrl ? (
+              <img src={previewUrl} alt="Логотип" className="h-full w-full object-cover" />
+            ) : (
+              <span className="text-3xl">🌸</span>
+            )}
+          </div>
+          {/* Controls */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <label className="cursor-pointer rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 hover:border-zinc-300 transition-colors">
+                Выбрать файл
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handleLogoChange}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={handleLogoUpload}
+                disabled={isLogoUploading || !logoFile}
+                className="rounded-lg bg-rose-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-rose-600 disabled:opacity-40"
+              >
+                {isLogoUploading ? "Загрузка..." : "Загрузить"}
+              </button>
+            </div>
+            <p className="text-[11px] text-zinc-400">PNG, JPG, WEBP до 2 МБ</p>
+            {logoFile && logoStatus === "idle" && (
+              <p className="text-[11px] text-zinc-500 truncate max-w-[200px]">{logoFile.name}</p>
+            )}
+            {logoStatus === "success" && (
+              <p className="text-[11px] text-green-600">✓ Логотип сохранён</p>
+            )}
+            {logoStatus === "error" && (
+              <p className="text-[11px] text-red-500">{logoError}</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-zinc-100" />
+
+    <form onSubmit={handleSubmit} className="space-y-6">
       {/* Данные салона */}
       <div className="space-y-4">
         <h2 className="text-sm font-semibold text-zinc-700">Данные салона</h2>
@@ -174,5 +270,6 @@ export function OrganizationSettingsForm({ initial }: { initial: OrgSettingsInpu
         {isPending ? "Сохранение..." : "Сохранить"}
       </button>
     </form>
+    </div>
   )
 }

@@ -70,7 +70,15 @@ const navGroups = [
   },
 ]
 
-export function Sidebar({ profile, orgName }: { profile: Profile | null; orgName?: string | null }) {
+export function Sidebar({
+  profile,
+  orgName,
+  orgLogoUrl,
+}: {
+  profile: Profile | null
+  orgName?: string | null
+  orgLogoUrl?: string | null
+}) {
   const pathname = usePathname()
 
   const isActive = (href: string) => {
@@ -82,9 +90,17 @@ export function Sidebar({ profile, orgName }: { profile: Profile | null; orgName
     <aside className="flex h-screen w-60 flex-col bg-[#0f0f11] border-r border-[#1f1f22] shrink-0">
       {/* Логотип */}
       <div className="flex items-center gap-2.5 px-5 py-5 border-b border-[#1f1f22]">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500">
-          <span className="text-base">🌸</span>
-        </div>
+        {orgLogoUrl ? (
+          <img
+            src={orgLogoUrl}
+            alt="Логотип"
+            className="h-8 w-8 rounded-lg object-cover"
+          />
+        ) : (
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500">
+            <span className="text-base">🌸</span>
+          </div>
+        )}
         <div>
           <span className="text-[15px] font-semibold tracking-tight text-white truncate">
             {orgName || "BloomWise"}

@@ -81,3 +81,74 @@ export async function updateOrganizationSettings(
 
   return {}
 }
+
+export async function uploadOrganizationLogo(
+  formData: FormData
+): Promise<{ error?: string; url?: string }> {
+  const supabase = await createClient()
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) return { error: "Не авторизован" }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, organization_id, role")
+    .eq("id", user.id)
+    .single()
+
+  if (profileError || !profile?.organization_id) return { error: "Профиль не найден" }
+  if (profile.role !== "owner" && profile.role !== "admin") return { error: "Недостаточно прав" }
+
+  const file = formData.get("logo")
+  if (!(file instanceof File) || file.size === 0) return { error: "Файл не выбран" }
+
+  const MAX_SIZE = 2 * 1024 * 1024
+  if (file.size > MAX_SIZE) return { error: "Файл больше 2 МБ" }
+
+  const ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp"]
+  if (!ALLOWED_MIME.includes(file.type)) return { error: "Разрешены только PNG, JPG, WEBP" }
+
+  const extMap: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+  }
+  const ext = extMap[file.type]
+  const path = `${profile.organization_id}/logo/logo.${ext}`
+
+  const { error: uploadError } = await supabase.storage
+    .from("organization-assets")
+    .upload(path, file, { upsert: true, contentType: file.type })
+
+  if (uploadError) return { error: uploadError.message }
+
+  const { data: { publicUrl } } = supabase.storage
+    .from("organization-assets")
+    .getPublicUrl(path)
+
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("settings")
+    .eq("id", profile.organization_id)
+    .single()
+
+  const existing = (org?.settings as Record<string, unknown>) ?? {}
+  const newSettings = {
+    ...existing,
+    logo_url: publicUrl,
+    logo_path: path,
+  }
+
+  const { error: updateError } = await supabase
+    .from("organizations")
+    .update({ settings: newSettings })
+    .eq("id", profile.organization_id)
+
+  if (updateError) return { error: updateError.message }
+
+  revalidatePath("/settings")
+  revalidatePath("/settings/org")
+  revalidatePath("/", "layout")
+
+  return { url: publicUrl }
+}

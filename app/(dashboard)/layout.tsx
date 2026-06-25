@@ -33,14 +33,20 @@ export default async function DashboardLayout({
   const { data: org } = profile?.organization_id
     ? await supabase
         .from("organizations")
-        .select("name")
+        .select("name, settings")
         .eq("id", profile.organization_id)
         .single()
     : { data: null }
 
+  const orgSettings = (org?.settings as Record<string, string | null>) ?? {}
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#f8f8fa]">
-      <Sidebar profile={profile} orgName={org?.name ?? null} />
+      <Sidebar
+        profile={profile}
+        orgName={org?.name ?? null}
+        orgLogoUrl={orgSettings.logo_url ?? null}
+      />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header profile={profile} />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
