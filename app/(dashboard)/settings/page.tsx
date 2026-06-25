@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 
 const sections = [
   { icon: Building2, title: "Организация", desc: "Название, контакты, настройки салона", href: "/settings/org", ready: true },
-  { icon: Users, title: "Команда", desc: "Пользователи, роли, приглашения", href: "/settings/team", ready: false },
+  { icon: Users, title: "Команда", desc: "Пользователи, роли, приглашения", href: "/settings/team", ready: true },
   { icon: GitBranch, title: "Филиалы", desc: "Точки продаж и их настройки", href: "/settings/branches", ready: false },
   { icon: Truck, title: "Поставщики", desc: "Справочник поставщиков", href: "/settings/suppliers", ready: false },
 ]
