@@ -1954,6 +1954,13 @@ export type Database = {
         }
         Returns: Json
       }
+      update_team_member_role: {
+        Args: {
+          p_target_profile_id: string
+          p_new_role: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
