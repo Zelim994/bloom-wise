@@ -30,9 +30,17 @@ export default async function DashboardLayout({
     await supabase.rpc("create_my_organization", { p_org_name: salonName })
   }
 
+  const { data: org } = profile?.organization_id
+    ? await supabase
+        .from("organizations")
+        .select("name")
+        .eq("id", profile.organization_id)
+        .single()
+    : { data: null }
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#f8f8fa]">
-      <Sidebar profile={profile} />
+      <Sidebar profile={profile} orgName={org?.name ?? null} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header profile={profile} />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>

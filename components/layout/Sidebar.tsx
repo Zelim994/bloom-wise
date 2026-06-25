@@ -70,7 +70,7 @@ const navGroups = [
   },
 ]
 
-export function Sidebar({ profile }: { profile: Profile | null }) {
+export function Sidebar({ profile, orgName }: { profile: Profile | null; orgName?: string | null }) {
   const pathname = usePathname()
 
   const isActive = (href: string) => {
@@ -86,8 +86,8 @@ export function Sidebar({ profile }: { profile: Profile | null }) {
           <span className="text-base">🌸</span>
         </div>
         <div>
-          <span className="text-[15px] font-semibold tracking-tight text-white">
-            BloomWise
+          <span className="text-[15px] font-semibold tracking-tight text-white truncate">
+            {orgName || "BloomWise"}
           </span>
           <p className="text-[10px] text-zinc-500 leading-none mt-0.5">Цветочный салон</p>
         </div>
