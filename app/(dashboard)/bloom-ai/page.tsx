@@ -1,6 +1,7 @@
-import { Sparkles, ImageOff, Calendar, ChevronDown } from "lucide-react"
+import { Sparkles, ImageOff, Calendar } from "lucide-react"
 import Link from "next/link"
 import { getAIBouquetGenerations } from "@/app/actions/ai"
+import { PromptDetails } from "@/components/ai/PromptDetails"
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString("ru-RU", {
@@ -158,17 +159,7 @@ export default async function BloomAIPage() {
                   )}
 
                   {/* Prompt — скрыт по умолчанию */}
-                  {gen.prompt && (
-                    <details className="group">
-                      <summary className="flex cursor-pointer list-none items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600 transition-colors select-none">
-                        <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
-                        Показать prompt
-                      </summary>
-                      <pre className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-[11px] font-sans leading-relaxed text-zinc-500 whitespace-pre-wrap">
-                        {gen.prompt}
-                      </pre>
-                    </details>
-                  )}
+                  {gen.prompt && <PromptDetails prompt={gen.prompt} />}
                 </div>
               </div>
             )
