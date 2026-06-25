@@ -3,14 +3,8 @@ import { redirect } from "next/navigation"
 import { ChevronLeft, Users } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { Badge } from "@/components/ui/badge"
-
-const roleLabels: Record<string, string> = {
-  owner: "Владелец",
-  admin: "Администратор",
-  florist: "Флорист",
-  cashier: "Кассир",
-  viewer: "Наблюдатель",
-}
+import { ALL_ROLE_LABELS } from "@/lib/team/roles"
+import { TeamRoleSelect } from "@/components/settings/TeamRoleSelect"
 
 const roleOrder: Record<string, number> = {
   owner: 0,
@@ -58,6 +52,7 @@ export default async function TeamPage() {
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   )
 
+  const ownerCount = sorted.filter((m) => m.role === "owner").length
   const canManage = profile.role === "owner" || profile.role === "admin"
 
   return (
@@ -77,7 +72,7 @@ export default async function TeamPage() {
 
       {/* Информационный блок */}
       <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-500">
-        Управление ролями и приглашения сотрудников появятся на следующих этапах.
+        Владелец может управлять ролями сотрудников. Приглашения сотрудников появятся на следующем этапе.
       </div>
 
       {/* Список сотрудников */}
@@ -107,9 +102,18 @@ export default async function TeamPage() {
 
               {/* Роль */}
               <div className="shrink-0 text-right space-y-1">
-                <p className="text-xs font-medium text-zinc-600">
-                  {roleLabels[member.role] ?? member.role}
-                </p>
+                {canManage ? (
+                  <TeamRoleSelect
+                    memberId={member.id}
+                    currentRole={member.role}
+                    currentUserRole={profile.role}
+                    ownerCount={ownerCount}
+                  />
+                ) : (
+                  <p className="text-xs font-medium text-zinc-600">
+                    {ALL_ROLE_LABELS[member.role] ?? member.role}
+                  </p>
+                )}
                 <p
                   className={`text-[11px] font-medium ${
                     member.is_active !== false

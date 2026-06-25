@@ -2,16 +2,9 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
+import { TEAM_ROLES, type TeamRole } from "@/lib/team/roles"
 
-export const TEAM_ROLES = ["admin", "florist", "cashier", "viewer"] as const
-export type TeamRole = (typeof TEAM_ROLES)[number]
-
-export const ROLE_LABELS: Record<TeamRole, string> = {
-  admin: "Администратор",
-  florist: "Флорист",
-  cashier: "Кассир",
-  viewer: "Наблюдатель",
-}
+export type { TeamRole }
 
 function mapTeamRoleError(code: string): string {
   const map: Record<string, string> = {
