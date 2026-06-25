@@ -31,9 +31,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 export function OrganizationSettingsForm({
   initial,
   logoUrl,
+  canManageSettings,
 }: {
   initial: OrgSettingsInput
   logoUrl?: string | null
+  canManageSettings: boolean
 }) {
   const [form, setForm] = useState<OrgSettingsInput>(initial)
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle")
@@ -105,6 +107,13 @@ export function OrganizationSettingsForm({
 
   return (
     <div className="space-y-8 max-w-lg">
+      {/* Баннер для ролей без прав */}
+      {!canManageSettings && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          У вас нет прав на изменение настроек организации. Вы можете просматривать данные, но редактирование доступно только владельцу или администратору.
+        </div>
+      )}
+
       {/* Логотип салона */}
       <div className="space-y-4">
         <h2 className="text-sm font-semibold text-zinc-700">Логотип салона</h2>
@@ -118,14 +127,15 @@ export function OrganizationSettingsForm({
             )}
           </div>
           {/* Controls */}
-          <div className="space-y-2">
+          <div className={`space-y-2 ${!canManageSettings ? "opacity-60" : ""}`}>
             <div className="flex items-center gap-2">
-              <label className="cursor-pointer rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 hover:border-zinc-300 transition-colors">
+              <label className={`rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors ${canManageSettings ? "cursor-pointer hover:border-zinc-300" : "cursor-not-allowed"}`}>
                 Выбрать файл
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
+                  disabled={!canManageSettings}
                   className="hidden"
                   onChange={handleLogoChange}
                 />
@@ -133,8 +143,8 @@ export function OrganizationSettingsForm({
               <button
                 type="button"
                 onClick={handleLogoUpload}
-                disabled={isLogoUploading || !logoFile}
-                className="rounded-lg bg-rose-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-rose-600 disabled:opacity-40"
+                disabled={isLogoUploading || !logoFile || !canManageSettings}
+                className="rounded-lg bg-rose-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {isLogoUploading ? "Загрузка..." : "Загрузить"}
               </button>
@@ -167,7 +177,8 @@ export function OrganizationSettingsForm({
             onChange={set("orgName")}
             required
             maxLength={100}
-            className={inputCn}
+            readOnly={!canManageSettings}
+            className={`${inputCn} ${!canManageSettings ? "cursor-not-allowed opacity-60" : ""}`}
             placeholder="Цветочный салон"
           />
         </Field>
@@ -177,7 +188,8 @@ export function OrganizationSettingsForm({
             type="tel"
             value={form.orgPhone}
             onChange={set("orgPhone")}
-            className={inputCn}
+            readOnly={!canManageSettings}
+            className={`${inputCn} ${!canManageSettings ? "cursor-not-allowed opacity-60" : ""}`}
             placeholder="+7 999 000-00-00"
           />
         </Field>
@@ -187,7 +199,8 @@ export function OrganizationSettingsForm({
             type="tel"
             value={form.orgWhatsapp}
             onChange={set("orgWhatsapp")}
-            className={inputCn}
+            readOnly={!canManageSettings}
+            className={`${inputCn} ${!canManageSettings ? "cursor-not-allowed opacity-60" : ""}`}
             placeholder="+7 999 000-00-00"
           />
         </Field>
@@ -197,14 +210,20 @@ export function OrganizationSettingsForm({
             type="text"
             value={form.orgAddress}
             onChange={set("orgAddress")}
-            className={inputCn}
+            readOnly={!canManageSettings}
+            className={`${inputCn} ${!canManageSettings ? "cursor-not-allowed opacity-60" : ""}`}
             placeholder="г. Москва, ул. Цветочная, 1"
           />
         </Field>
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="Валюта">
-            <select value={form.currency} onChange={set("currency")} className={inputCn}>
+            <select
+              value={form.currency}
+              onChange={set("currency")}
+              disabled={!canManageSettings}
+              className={`${inputCn} ${!canManageSettings ? "cursor-not-allowed opacity-60" : ""}`}
+            >
               {CURRENCIES.map((c) => (
                 <option key={c.value} value={c.value}>
                   {c.label}
@@ -213,7 +232,12 @@ export function OrganizationSettingsForm({
             </select>
           </Field>
           <Field label="Часовой пояс">
-            <select value={form.timezone} onChange={set("timezone")} className={inputCn}>
+            <select
+              value={form.timezone}
+              onChange={set("timezone")}
+              disabled={!canManageSettings}
+              className={`${inputCn} ${!canManageSettings ? "cursor-not-allowed opacity-60" : ""}`}
+            >
               {TIMEZONES.map((t) => (
                 <option key={t.value} value={t.value}>
                   {t.label}
@@ -235,7 +259,8 @@ export function OrganizationSettingsForm({
             type="text"
             value={form.ownerFullName}
             onChange={set("ownerFullName")}
-            className={inputCn}
+            readOnly={!canManageSettings}
+            className={`${inputCn} ${!canManageSettings ? "cursor-not-allowed opacity-60" : ""}`}
             placeholder="Иван Иванов"
           />
         </Field>
@@ -245,7 +270,8 @@ export function OrganizationSettingsForm({
             type="tel"
             value={form.ownerPhone}
             onChange={set("ownerPhone")}
-            className={inputCn}
+            readOnly={!canManageSettings}
+            className={`${inputCn} ${!canManageSettings ? "cursor-not-allowed opacity-60" : ""}`}
             placeholder="+7 999 000-00-00"
           />
         </Field>
@@ -264,8 +290,8 @@ export function OrganizationSettingsForm({
 
       <button
         type="submit"
-        disabled={isPending}
-        className="rounded-lg bg-rose-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-600 disabled:opacity-50"
+        disabled={isPending || !canManageSettings}
+        className="rounded-lg bg-rose-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isPending ? "Сохранение..." : "Сохранить"}
       </button>

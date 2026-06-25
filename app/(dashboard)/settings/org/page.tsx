@@ -15,7 +15,7 @@ export default async function OrgSettingsPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, organization_id, full_name, phone")
+    .select("id, organization_id, role, full_name, phone")
     .eq("id", user.id)
     .single()
 
@@ -41,6 +41,7 @@ export default async function OrgSettingsPage() {
   }
 
   const logoUrl = s.logo_url ?? null
+  const canManageSettings = profile.role === "owner" || profile.role === "admin"
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -53,7 +54,11 @@ export default async function OrgSettingsPage() {
           <p className="text-xs text-zinc-400">Название, контакты, настройки салона</p>
         </div>
       </div>
-      <OrganizationSettingsForm initial={initial} logoUrl={logoUrl} />
+      <OrganizationSettingsForm
+        initial={initial}
+        logoUrl={logoUrl}
+        canManageSettings={canManageSettings}
+      />
     </div>
   )
 }
