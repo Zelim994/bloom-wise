@@ -29,9 +29,9 @@ function formatDate(iso: string) {
 export default async function InvitePage({
   params,
 }: {
-  params: { token: string }
+  params: Promise<{ token: string }>
 }) {
-  const { token } = params
+  const { token } = await params
   const supabase = await createClient()
 
   const { data: raw } = await supabase.rpc("get_team_invitation_preview", {

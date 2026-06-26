@@ -4,8 +4,6 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { TEAM_ROLES, type TeamRole } from "@/lib/team/roles"
 
-export type { TeamRole }
-
 function mapTeamRoleError(code: string): string {
   const map: Record<string, string> = {
     not_authenticated:                "Нужно войти в систему",
