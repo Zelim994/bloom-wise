@@ -1,16 +1,21 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
+import { getSafeNext } from "@/lib/auth/next"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Mail } from "lucide-react"
 
-export default function RegisterPage() {
+function RegisterContent() {
   const router = useRouter()
+  const rawNext = useSearchParams().get("next")
+  const safeNext = getSafeNext(rawNext)
+  const isInviteFlow = safeNext?.startsWith("/invite/") === true
+
   const [fullName, setFullName] = useState("")
   const [salonName, setSalonName] = useState("")
   const [email, setEmail] = useState("")
@@ -26,18 +31,23 @@ export default function RegisterPage() {
 
     const supabase = createClient()
 
-    // 1. Регистрируем пользователя, сохраняем название салона в metadata
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    const userData = isInviteFlow
+      ? { full_name: fullName }
+      : { full_name: fullName, role: "owner", salon_name: salonName }
+
+    const signUpOptions: Parameters<typeof supabase.auth.signUp>[0] = {
       email,
       password,
-      options: {
-        data: {
-          full_name: fullName,
-          role: "owner",
-          salon_name: salonName,
-        },
-      },
-    })
+      options: { data: userData },
+    }
+
+    // Invite flow: указываем emailRedirectTo, чтобы callback знал о приглашении
+    if (isInviteFlow && safeNext) {
+      signUpOptions.options!.emailRedirectTo =
+        `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNext)}`
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.signUp(signUpOptions)
 
     if (authError) {
       setError(authError.message)
@@ -45,21 +55,26 @@ export default function RegisterPage() {
       return
     }
 
-    // 2. Если нет сессии — Supabase отправил письмо для подтверждения
+    // Нет сессии — письмо для подтверждения отправлено
     if (!authData.session) {
       setEmailSent(true)
       setLoading(false)
       return
     }
 
-    // 3. Сессия есть (подтверждение отключено) — сразу создаём организацию
-    if (authData.user) {
+    // Сессия есть (подтверждение отключено)
+    // Invite flow: не создаём организацию — redirect на /invite/[token]
+    if (authData.user && !isInviteFlow) {
       await supabase.rpc("create_my_organization", { p_org_name: salonName })
     }
 
-    router.push("/")
+    router.push(safeNext || "/")
     router.refresh()
   }
+
+  const loginHref = safeNext
+    ? `/login?next=${encodeURIComponent(safeNext)}`
+    : "/login"
 
   // Экран "Проверьте почту"
   if (emailSent) {
@@ -80,9 +95,11 @@ export default function RegisterPage() {
             </p>
             <p className="text-sm font-medium text-zinc-800 mb-4">{email}</p>
             <p className="text-xs text-zinc-400 mb-6">
-              Перейдите по ссылке в письме — после этого вы сможете войти в BloomWise.
+              {isInviteFlow
+                ? "Перейдите по ссылке в письме — после этого вы вернётесь к странице приглашения."
+                : "Перейдите по ссылке в письме — после этого вы сможете войти в BloomWise."}
             </p>
-            <Link href="/login">
+            <Link href={loginHref}>
               <Button
                 variant="outline"
                 className="w-full border-zinc-200 text-zinc-700"
@@ -106,24 +123,31 @@ export default function RegisterPage() {
             </div>
           </div>
           <h1 className="text-xl font-bold text-zinc-900">BloomWise</h1>
-          <p className="text-sm text-zinc-500 mt-1">Создай аккаунт для своего салона</p>
+          <p className="text-sm text-zinc-500 mt-1">
+            {isInviteFlow
+              ? "Создайте аккаунт, чтобы принять приглашение"
+              : "Создай аккаунт для своего салона"}
+          </p>
         </div>
 
         <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <form onSubmit={handleRegister} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="salonName" className="text-sm font-medium text-zinc-700">
-                Название салона
-              </Label>
-              <Input
-                id="salonName"
-                placeholder="Цветочный рай"
-                value={salonName}
-                onChange={(e) => setSalonName(e.target.value)}
-                required
-                className="h-10 border-zinc-200"
-              />
-            </div>
+            {/* Название салона — только для нового владельца */}
+            {!isInviteFlow && (
+              <div className="space-y-1.5">
+                <Label htmlFor="salonName" className="text-sm font-medium text-zinc-700">
+                  Название салона
+                </Label>
+                <Input
+                  id="salonName"
+                  placeholder="Цветочный рай"
+                  value={salonName}
+                  onChange={(e) => setSalonName(e.target.value)}
+                  required
+                  className="h-10 border-zinc-200"
+                />
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label htmlFor="fullName" className="text-sm font-medium text-zinc-700">
@@ -187,7 +211,7 @@ export default function RegisterPage() {
 
           <p className="mt-4 text-center text-sm text-zinc-500">
             Уже есть аккаунт?{" "}
-            <Link href="/login" className="text-rose-500 hover:text-rose-600 font-medium">
+            <Link href={loginHref} className="text-rose-500 hover:text-rose-600 font-medium">
               Войти
             </Link>
           </p>
@@ -197,3 +221,10 @@ export default function RegisterPage() {
   )
 }
 
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterContent />
+    </Suspense>
+  )
+}

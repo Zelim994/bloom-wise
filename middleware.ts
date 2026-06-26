@@ -25,18 +25,29 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const isAuthPage = request.nextUrl.pathname.startsWith("/login") ||
-                     request.nextUrl.pathname.startsWith("/register")
+  const pathname = request.nextUrl.pathname
+
+  // Пути, доступные без авторизации
+  const isPublicPath =
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/invite/") ||
+    pathname.startsWith("/auth/callback")
+
+  // Пути, куда авторизованный пользователь не должен попадать
+  const isAuthOnlyPath =
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/register")
 
   // Не авторизован → на /login
-  if (!user && !isAuthPage) {
+  if (!user && !isPublicPath) {
     const url = request.nextUrl.clone()
     url.pathname = "/login"
     return NextResponse.redirect(url)
   }
 
   // Уже авторизован → с /login или /register на главную
-  if (user && isAuthPage) {
+  if (user && isAuthOnlyPath) {
     const url = request.nextUrl.clone()
     url.pathname = "/"
     return NextResponse.redirect(url)

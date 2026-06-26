@@ -1,17 +1,21 @@
 import { createClient } from "@/lib/supabase/server"
+import { getSafeNext } from "@/lib/auth/next"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
-  const next = searchParams.get("next") ?? "/"
+  const rawNext = searchParams.get("next")
 
   if (code) {
     const supabase = await createClient()
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      if (data.user) {
+      const safeNext = getSafeNext(rawNext) ?? "/"
+      const isInviteFlow = safeNext.startsWith("/invite/")
+
+      if (data.user && !isInviteFlow) {
         const salonName =
           (data.user.user_metadata?.salon_name as string | undefined) ?? "Мой салон"
         const { error: rpcError } = await supabase.rpc("create_my_organization", {
@@ -22,11 +26,6 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Prevent open redirect: only allow same-origin relative paths
-      const safeNext =
-        next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\")
-          ? next
-          : "/"
       return NextResponse.redirect(`${origin}${safeNext}`)
     }
   }

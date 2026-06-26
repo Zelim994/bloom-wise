@@ -1,15 +1,20 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
+import { getSafeNext } from "@/lib/auth/next"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter()
+  const rawNext = useSearchParams().get("next")
+  const safeNext = getSafeNext(rawNext)
+  const isInviteFlow = safeNext?.startsWith("/invite/") === true
+
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
@@ -33,25 +38,27 @@ export default function LoginPage() {
       return
     }
 
-    // После входа проверяем: есть ли у пользователя организация
-    // Если нет (подтвердил email, но орг ещё не создана) — создаём
-    if (data.user) {
+    // Invite flow: не создаём организацию — acceptTeamInvitation сделает это
+    if (data.user && !isInviteFlow) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("*")
+        .select("organization_id")
         .eq("id", data.user.id)
         .single()
 
       if (!profile?.organization_id) {
-        // Создаём организацию через SECURITY DEFINER функцию (обходит RLS)
         const salonName = data.user.user_metadata?.salon_name ?? "Мой салон"
         await supabase.rpc("create_my_organization", { p_org_name: salonName })
       }
     }
 
-    router.push("/")
+    router.push(safeNext || "/")
     router.refresh()
   }
+
+  const registerHref = safeNext
+    ? `/register?next=${encodeURIComponent(safeNext)}`
+    : "/register"
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f8f8fa]">
@@ -63,7 +70,9 @@ export default function LoginPage() {
             </div>
           </div>
           <h1 className="text-xl font-bold text-zinc-900">BloomWise</h1>
-          <p className="text-sm text-zinc-500 mt-1">Войди в рабочий центр</p>
+          <p className="text-sm text-zinc-500 mt-1">
+            {isInviteFlow ? "Войдите, чтобы принять приглашение" : "Войди в рабочий центр"}
+          </p>
         </div>
 
         <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
@@ -115,12 +124,20 @@ export default function LoginPage() {
 
           <p className="mt-4 text-center text-sm text-zinc-500">
             Нет аккаунта?{" "}
-            <Link href="/register" className="text-rose-500 hover:text-rose-600 font-medium">
+            <Link href={registerHref} className="text-rose-500 hover:text-rose-600 font-medium">
               Зарегистрироваться
             </Link>
           </p>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
   )
 }
