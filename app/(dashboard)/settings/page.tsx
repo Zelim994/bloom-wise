@@ -1,13 +1,11 @@
 import Link from "next/link"
-import { Building2, Users, GitBranch, Truck, ChevronRight } from "lucide-react"
+import { Building2, Users, Truck, ChevronRight } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 
 const sections = [
-  { icon: Building2, title: "Организация", desc: "Название, контакты, настройки салона", href: "/settings/org", ready: true },
-  { icon: Users, title: "Команда", desc: "Пользователи, роли, приглашения", href: "/settings/team", ready: true },
-  { icon: GitBranch, title: "Филиалы", desc: "Точки продаж и их настройки", href: "/settings/branches", ready: false },
-  { icon: Truck, title: "Поставщики", desc: "Справочник поставщиков", href: "/settings/suppliers", ready: true },
+  { icon: Building2, title: "Организация", desc: "Название, контакты, настройки салона", href: "/settings/org" },
+  { icon: Users, title: "Команда", desc: "Пользователи, роли, приглашения", href: "/settings/team" },
+  { icon: Truck, title: "Поставщики", desc: "Справочник поставщиков", href: "/settings/suppliers" },
 ]
 
 export default function SettingsPage() {
@@ -27,15 +25,11 @@ export default function SettingsPage() {
                   <h3 className="text-sm font-semibold text-zinc-800">{s.title}</h3>
                   <p className="text-xs text-zinc-400">{s.desc}</p>
                 </div>
-                {s.ready
-                  ? <ChevronRight className="h-4 w-4 text-zinc-300" />
-                  : <Badge className="bg-amber-100 text-amber-600 border-0 text-xs">Скоро</Badge>}
+                <ChevronRight className="h-4 w-4 text-zinc-300" />
               </CardContent>
             </Card>
           )
-          return s.ready
-            ? <Link key={s.title} href={s.href}>{card}</Link>
-            : <div key={s.title}>{card}</div>
+          return <Link key={s.title} href={s.href}>{card}</Link>
         })}
       </div>
     </div>
