@@ -498,24 +498,47 @@ export async function sendWhatsAppMessage(
 
 export async function updateOrderPayment(
   id: string,
+  // total_amount in this payload is intentionally ignored — we load it from DB
   data: { payment_method: string; paid_amount: number; total_amount: number }
 ): Promise<{ error?: string }> {
-  const paymentStatus =
-    data.paid_amount <= 0
-      ? "unpaid"
-      : data.paid_amount >= data.total_amount
-      ? "paid"
-      : "partial"
+  const paidAmount =
+    typeof data.paid_amount === "number" && !isNaN(data.paid_amount) && data.paid_amount >= 0
+      ? data.paid_amount
+      : 0
 
   const supabase = await createClient()
+  const orgId = await getOrgId(supabase)
+  if (!orgId) return { error: "Организация не найдена" }
+
+  // Load total_amount from DB — never trust client payload for financial calculations
+  const { data: order } = await supabase
+    .from("orders")
+    .select("id, total_amount, status")
+    .eq("id", id)
+    .eq("organization_id", orgId)
+    .single()
+
+  if (!order) return { error: "Заказ не найден" }
+  if (order.status === "cancelled") return { error: "Нельзя редактировать оплату отменённого заказа" }
+
+  const dbTotalAmount = order.total_amount ?? 0
+
+  const paymentStatus =
+    paidAmount <= 0
+      ? "unpaid"
+      : paidAmount < dbTotalAmount
+      ? "partial"
+      : "paid"
+
   const { error } = await supabase
     .from("orders")
     .update({
-      payment_method: data.payment_method,
-      paid_amount: data.paid_amount,
+      payment_method: data.payment_method || null,
+      paid_amount: paidAmount,
       payment_status: paymentStatus,
     })
     .eq("id", id)
+    .eq("organization_id", orgId)
   if (error) return { error: error.message }
   revalidatePath(`/orders/${id}`)
   return {}
