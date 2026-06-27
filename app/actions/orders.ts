@@ -376,12 +376,13 @@ export async function updateOrder(
 
   const { data: existingOrder } = await supabase
     .from("orders")
-    .select("id, customer_id, status")
+    .select("id, customer_id, status, stock_written_off")
     .eq("id", orderId)
     .eq("organization_id", orgId)
     .single()
   if (!existingOrder) return { error: "Заказ не найден" }
   if (existingOrder.status === "cancelled") return { error: "Отменённый заказ нельзя редактировать" }
+  if (existingOrder.stock_written_off) return { error: "Нельзя изменить заказ после списания склада" }
 
   // Update or create customer
   let customerId = existingOrder.customer_id
