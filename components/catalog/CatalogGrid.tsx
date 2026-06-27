@@ -139,14 +139,6 @@ export function CatalogGrid({ flowers }: Props) {
           </button>
         </div>
 
-        {/* ── Stats strip ── */}
-        <div className="flex items-center gap-4 px-4 py-2.5 rounded-xl border border-zinc-200 bg-white text-sm">
-          <span className="text-zinc-500">
-            Всего позиций:{" "}
-            <span className="font-semibold text-zinc-800">{flowers.length}</span>
-          </span>
-        </div>
-
         {/* ── Category tabs ── */}
         <div className="flex gap-1.5 flex-wrap">
           {CATEGORIES.map((cat) => {
