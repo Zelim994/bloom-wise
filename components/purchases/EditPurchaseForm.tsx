@@ -102,7 +102,6 @@ export function EditPurchaseForm({ purchase, suppliers }: Props) {
             item_id: i.item_id,
             inventory_item_id: i.inventory_item_id,
             flower_id: i.flower_id,
-            quantity: i.quantity,
             cost_price: cp,
             effective_cost: cp + deliveryPerUnit,
             extra_costs: Math.round(deliveryPerUnit * i.quantity * 100) / 100,

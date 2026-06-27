@@ -258,7 +258,6 @@ export type UpdatePurchaseItem = {
   item_id: string
   inventory_item_id: string | null
   flower_id: string
-  quantity: number
   cost_price: number
   effective_cost: number
   extra_costs: number
@@ -344,8 +343,23 @@ export async function updatePurchase(
   const { supplierId, error: supplierError } = await findOrCreateSupplier(supabase, orgId, formData.supplier_name)
   if (supplierError) return { error: supplierError }
 
+  // Загружаем реальные quantity из БД — не доверяем client payload
+  const itemIds = formData.items.map((i) => i.item_id)
+  const dbQuantityMap = new Map<string, number>()
+  if (itemIds.length > 0) {
+    const { data: dbItems, error: dbErr } = await supabase
+      .from("purchase_items")
+      .select("id, purchase_id, quantity")
+      .in("id", itemIds)
+    if (dbErr || !dbItems) return { error: "Не удалось загрузить позиции закупки" }
+    if (dbItems.length !== itemIds.length) return { error: "Некоторые позиции не найдены" }
+    const wrongPurchase = dbItems.find((i) => i.purchase_id !== purchaseId)
+    if (wrongPurchase) return { error: "Позиции не принадлежат данной закупке" }
+    for (const i of dbItems) dbQuantityMap.set(i.id, i.quantity)
+  }
+
   const totalAmount =
-    formData.items.reduce((s, i) => s + i.quantity * i.cost_price, 0) +
+    formData.items.reduce((s, i) => s + (dbQuantityMap.get(i.item_id) ?? 0) * i.cost_price, 0) +
     (formData.delivery_cost ?? 0)
 
   const { error: pe } = await supabase
