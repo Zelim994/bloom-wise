@@ -298,15 +298,54 @@ export async function createOrder(formData: {
   return { id: orderId }
 }
 
+const ALLOWED_STATUSES = ["new", "in_progress", "ready", "delivered"] as const
+type AllowedStatus = (typeof ALLOWED_STATUSES)[number]
+
+const VALID_TRANSITIONS: Record<AllowedStatus, AllowedStatus | null> = {
+  new: "in_progress",
+  in_progress: "ready",
+  ready: "delivered",
+  delivered: null,
+}
+
 export async function updateOrderStatus(
   id: string,
   status: string
 ): Promise<{ error?: string }> {
+  if (status === "cancelled") {
+    return { error: "Для отмены заказа используйте кнопку «Отменить»" }
+  }
+  if (!(ALLOWED_STATUSES as readonly string[]).includes(status)) {
+    return { error: "Недопустимый статус заказа" }
+  }
+  const targetStatus = status as AllowedStatus
+
   const supabase = await createClient()
+  const orgId = await getOrgId(supabase)
+  if (!orgId) return { error: "Организация не найдена" }
+
+  const { data: order } = await supabase
+    .from("orders")
+    .select("id, status, stock_written_off")
+    .eq("id", id)
+    .eq("organization_id", orgId)
+    .single()
+
+  if (!order) return { error: "Заказ не найден" }
+  if (order.status === "cancelled") return { error: "Нельзя изменить статус отменённого заказа" }
+  if (order.status === "delivered") return { error: "Нельзя изменить статус выданного заказа" }
+
+  const currentStatus = order.status as AllowedStatus
+  const allowedNext = VALID_TRANSITIONS[currentStatus]
+  if (allowedNext !== targetStatus) {
+    return { error: `Недопустимый переход статуса: ${order.status} → ${targetStatus}` }
+  }
+
   const { error } = await supabase
     .from("orders")
-    .update({ status })
+    .update({ status: targetStatus })
     .eq("id", id)
+    .eq("organization_id", orgId)
   if (error) return { error: error.message }
   revalidatePath("/orders")
   revalidatePath(`/orders/${id}`)
