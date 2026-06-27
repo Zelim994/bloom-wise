@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import type { Purchase, Flower, Supplier } from "@/lib/supabase/types"
+import type { Purchase, Supplier } from "@/lib/supabase/types"
 import { findOrCreateSupplier, validateAndDeleteInventoryBatch, createPurchaseAtomicViaRpc } from "@/lib/services/purchaseService"
 import { getOrgId } from "@/lib/services/organizationService"
 

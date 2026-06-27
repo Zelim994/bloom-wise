@@ -71,8 +71,6 @@ export default async function CustomerDetailPage({
   const allOrders = orders ?? []
   const activeOrders = allOrders.filter((o) => o.status !== "cancelled")
   const totalSpent = activeOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
-  const contactPhone = customer.phone ?? customer.whatsapp
-
   return (
     <div className="space-y-6 max-w-2xl">
       {/* Back + action */}

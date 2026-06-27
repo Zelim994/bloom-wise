@@ -10,11 +10,6 @@ const reasonColors: Record<string, string> = {
   "Другое": "bg-zinc-100 text-zinc-600",
 }
 
-function pluralize(n: number) {
-  if (n % 10 === 1 && n % 100 !== 11) return "акт"
-  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return "акта"
-  return "актов"
-}
 
 export default async function WriteoffsPage() {
   const writeoffs = await getWriteoffs()

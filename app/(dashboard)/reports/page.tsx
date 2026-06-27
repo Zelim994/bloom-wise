@@ -28,7 +28,6 @@ export default async function ReportsPage() {
   ])
 
   const monthName = now.toLocaleDateString("ru", { month: "long", year: "numeric" })
-  const margin = stats.revenue > 0 ? ((stats.revenue - (stats.revenue - stats.paid)) / stats.revenue) * 100 : 0
   const maxQty = topFlowers[0]?.quantity ?? 1
 
   return (

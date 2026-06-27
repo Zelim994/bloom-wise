@@ -6,14 +6,6 @@ import { updateOrderStatus, updateOrderPayment, cancelOrder } from "@/app/action
 
 type Status = "new" | "in_progress" | "ready" | "delivered" | "cancelled"
 
-const STATUS_LABELS: Record<Status, string> = {
-  new: "Новый",
-  in_progress: "В работе",
-  ready: "Готов",
-  delivered: "Выдан",
-  cancelled: "Отменён",
-}
-
 const STATUS_TRANSITIONS: Record<Status, { next?: Status; nextLabel?: string; canCancel: boolean }> = {
   new: { next: "in_progress", nextLabel: "Взять в работу", canCancel: true },
   in_progress: { next: "ready", nextLabel: "Готов к выдаче", canCancel: true },

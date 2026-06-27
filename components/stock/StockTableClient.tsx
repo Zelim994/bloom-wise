@@ -252,7 +252,6 @@ export function StockTableClient({ rows }: { rows: StockRow[] }) {
                 const rowKey  = `${r.flower_id}|${r.variety_id ?? ""}|${r.color_id ?? ""}`
                 const vLabel  = variantLabel(r)
                 const isLow   = r.status === "low"
-                const isAging = r.status === "aging"
 
                 return (
                   <tr

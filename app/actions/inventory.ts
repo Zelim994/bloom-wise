@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import type { Flower, InventoryItem, StockMovement } from "@/lib/supabase/types"
+import type { Flower, StockMovement } from "@/lib/supabase/types"
 import { getOrgId } from "@/lib/services/organizationService"
 
 export type FlowerWithStock = Flower & { current_stock: number }

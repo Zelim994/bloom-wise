@@ -523,7 +523,6 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
                 )}
 
                 {imageUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <div className="space-y-1.5">
                     <div className="rounded-lg overflow-hidden border border-zinc-200">
                       <img
