@@ -38,7 +38,11 @@ export function OrderStatusActions({ orderId, status, totalAmount, paidAmount, p
   }
 
   function cancel() {
-    if (!confirm("Отменить заказ?")) return
+    const message =
+      paidAmount > 0
+        ? `По заказу уже есть оплата: ${paidAmount} ₸.\nОтменить заказ?\n\nВажно: возврат денег нужно оформить отдельно.`
+        : "Отменить заказ?"
+    if (!confirm(message)) return
     startTransition(async () => {
       const result = await cancelOrder(orderId)
       if (!result.ok) {
