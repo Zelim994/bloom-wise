@@ -237,6 +237,7 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
   // ── Init ─────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!open) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setError("")
     setDuplicateFlower(null)
     setPhotoFile(null)

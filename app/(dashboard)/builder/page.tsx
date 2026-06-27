@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { getFlowersForBuilder } from "@/app/actions/builder"
 import { BuilderLayout } from "@/components/bouquet-builder/BuilderLayout"
 
@@ -14,12 +15,12 @@ export default async function BuilderPage() {
           </p>
         </div>
         {flowers.length === 0 && (
-          <a
+          <Link
             href="/purchases/new"
             className="text-sm text-rose-500 hover:underline"
           >
             Оформить приход →
-          </a>
+          </Link>
         )}
       </div>
 
