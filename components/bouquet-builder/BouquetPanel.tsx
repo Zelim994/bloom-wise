@@ -41,7 +41,10 @@ export function BouquetPanel({ items, onQuantityChange, onRemove }: Props) {
         ) : (
           <div className="divide-y divide-zinc-50">
             {items.map((item) => {
-              const lineTotal = item.quantity * item.unit_cost
+              const lineCost = item.quantity * item.unit_cost
+              const lineSale = item.sale_price != null && item.sale_price > 0
+                ? item.quantity * item.sale_price
+                : null
               const variant = variantLine(item)
               return (
                 <div
@@ -53,9 +56,11 @@ export function BouquetPanel({ items, onQuantityChange, onRemove }: Props) {
                     {variant && (
                       <p className="text-xs text-zinc-500 truncate">{variant}</p>
                     )}
-                    <p className="text-xs text-zinc-400 mt-0.5">
-                      ₽{item.unit_cost}/{item.unit}
-                    </p>
+                    {lineSale == null && (
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        себ. ₽{item.unit_cost}/{item.unit}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Input
@@ -67,9 +72,23 @@ export function BouquetPanel({ items, onQuantityChange, onRemove }: Props) {
                       className="w-14 h-8 text-center text-sm border-zinc-200 tabular-nums px-1"
                     />
                     <span className="text-xs text-zinc-400 w-5 shrink-0">{item.unit}</span>
-                    <span className="text-sm font-semibold text-zinc-700 tabular-nums w-14 text-right shrink-0">
-                      ₽{lineTotal.toLocaleString("ru")}
-                    </span>
+                    {lineSale != null ? (
+                      <div className="flex flex-col items-end shrink-0 w-16">
+                        <span className="text-sm font-semibold text-emerald-700 tabular-nums">
+                          ₽{lineSale.toLocaleString("ru")}
+                        </span>
+                        <span className="text-[10px] text-zinc-400 leading-none mt-0.5">
+                          себ. ₽{lineCost.toLocaleString("ru")}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-end shrink-0 w-14">
+                        <span className="text-sm font-semibold text-zinc-700 tabular-nums">
+                          ₽{lineCost.toLocaleString("ru")}
+                        </span>
+                        <span className="text-[10px] text-zinc-400 leading-none">себ.</span>
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() => onRemove(item._id)}

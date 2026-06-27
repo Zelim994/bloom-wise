@@ -81,6 +81,11 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
     [items]
   )
 
+  const totalQuantity = useMemo(
+    () => items.reduce((s, i) => s + i.quantity, 0),
+    [items]
+  )
+
   const salePriceNum = Number(salePrice) || 0
   const profit = salePriceNum - costPrice
   const margin = salePriceNum > 0 ? (profit / salePriceNum) * 100 : 0
@@ -205,6 +210,13 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
     }
   }
 
+  function handleResetToSuggested() {
+    setUserEditedPrice(false)
+    const sp = computeSuggested(items)
+    setSalePrice(sp)
+    notify(items, sp)
+  }
+
   function handleApplyAISuggestions(suggestions: AISuggestion[]) {
     setItems((prev) => {
       const next = [...prev]
@@ -318,9 +330,12 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
             profit={profit}
             margin={margin}
             itemCount={items.length}
+            totalQuantity={totalQuantity}
             suggestedSalePrice={suggestedSalePrice}
             hasMissingPrices={hasMissingPrices}
+            isManualPrice={userEditedPrice}
             onChange={handleSalePriceChange}
+            onResetToSuggested={handleResetToSuggested}
           />
         </div>
       </div>

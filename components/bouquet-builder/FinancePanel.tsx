@@ -10,12 +10,15 @@ interface Props {
   profit: number
   margin: number
   itemCount: number
+  totalQuantity?: number
   suggestedSalePrice?: number
   hasMissingPrices?: boolean
+  isManualPrice?: boolean
   onChange: (v: string) => void
+  onResetToSuggested?: () => void
 }
 
-export function FinancePanel({ costPrice, salePrice, profit, margin, itemCount, suggestedSalePrice, hasMissingPrices, onChange }: Props) {
+export function FinancePanel({ costPrice, salePrice, profit, margin, itemCount, totalQuantity, suggestedSalePrice, hasMissingPrices, isManualPrice, onChange, onResetToSuggested }: Props) {
   const salePriceNum = Number(salePrice) || 0
   const hasData = costPrice > 0 || salePriceNum > 0
 
@@ -26,24 +29,42 @@ export function FinancePanel({ costPrice, salePrice, profit, margin, itemCount, 
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* Cost price */}
+        {/* PRIMARY: Sale price big card */}
         <div className="rounded-xl bg-white border border-zinc-100 px-4 py-3">
           <p className="text-[10px] text-zinc-400 uppercase tracking-wide font-semibold mb-1">
-            Себестоимость
+            Цена продажи букета
           </p>
-          <p className="text-2xl font-bold text-zinc-800 tabular-nums">
-            ₽{costPrice.toLocaleString("ru", { maximumFractionDigits: 0 })}
+          <p className={`text-2xl font-bold tabular-nums ${salePriceNum > 0 ? "text-zinc-800" : "text-zinc-300"}`}>
+            {salePriceNum > 0
+              ? `₽${salePriceNum.toLocaleString("ru", { maximumFractionDigits: 0 })}`
+              : "—"}
           </p>
           {itemCount > 0 && (
-            <p className="text-xs text-zinc-400 mt-0.5">{itemCount} позиций</p>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              {totalQuantity != null && totalQuantity > 0 ? `${totalQuantity} шт · ` : ""}{itemCount} поз.
+            </p>
           )}
         </div>
 
-        {/* Sale price */}
+        {/* SECONDARY: Cost price */}
+        {costPrice > 0 && (
+          <p className="text-xs text-zinc-500 px-1">
+            Себестоимость: ₽{costPrice.toLocaleString("ru", { maximumFractionDigits: 0 })}
+          </p>
+        )}
+
+        {/* Sale price input */}
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
-            Цена продажи, ₽
-          </Label>
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
+              Цена продажи букета, ₽
+            </Label>
+            {isManualPrice && (
+              <span className="text-[10px] text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded">
+                вручную
+              </span>
+            )}
+          </div>
           <Input
             type="number"
             min={0}
@@ -54,9 +75,20 @@ export function FinancePanel({ costPrice, salePrice, profit, margin, itemCount, 
             className="border-zinc-200 h-10 text-base font-semibold tabular-nums bg-white"
           />
           {suggestedSalePrice != null && suggestedSalePrice > 0 && (
-            <p className="text-xs text-zinc-400">
-              Рекомендуемая: ₽{suggestedSalePrice.toLocaleString("ru", { maximumFractionDigits: 0 })}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-zinc-400">
+                Рекомендуемая: ₽{suggestedSalePrice.toLocaleString("ru", { maximumFractionDigits: 0 })}
+              </p>
+              {isManualPrice && onResetToSuggested && (
+                <button
+                  type="button"
+                  onClick={onResetToSuggested}
+                  className="text-xs text-rose-500 hover:text-rose-600 font-medium ml-2 shrink-0"
+                >
+                  Применить
+                </button>
+              )}
+            </div>
           )}
           {hasMissingPrices && (
             <p className="text-xs text-amber-500">

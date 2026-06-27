@@ -105,12 +105,18 @@ export function StockPanel({ flowers, items, onAdd }: Props) {
                   {subtitle && (
                     <p className="text-xs text-zinc-500 truncate">{subtitle}</p>
                   )}
-                  <p className="text-xs text-zinc-400 mt-0.5">
-                    {f.current_stock} {f.unit} · себ. ₽{f.unit_cost}
-                    {f.sale_price != null && f.sale_price > 0 && (
-                      <span className="text-emerald-600"> · прод. ₽{f.sale_price}</span>
-                    )}
-                  </p>
+                  {f.sale_price != null && f.sale_price > 0 ? (
+                    <>
+                      <p className="text-xs text-emerald-600 font-medium mt-0.5">
+                        прод. ₽{f.sale_price}/шт · {f.current_stock} {f.unit}
+                      </p>
+                      <p className="text-xs text-zinc-400">себ. ₽{f.unit_cost}/шт</p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-zinc-400 mt-0.5">
+                      ₽{f.unit_cost}/шт · {f.current_stock} {f.unit}
+                    </p>
+                  )}
                 </div>
                 <button
                   type="button"
