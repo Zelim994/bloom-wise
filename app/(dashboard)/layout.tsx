@@ -22,6 +22,10 @@ export default async function DashboardLayout({
     .eq("id", user.id)
     .single()
 
+  if (profile?.is_active === false) {
+    redirect("/deactivated")
+  }
+
   // Пользователь подтвердил email, но ещё не создал организацию
   // (например, пришёл через /auth/callback, минуя login)
   if (profile && !profile.organization_id) {

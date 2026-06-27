@@ -4,6 +4,25 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { TEAM_ROLES, type TeamRole } from "@/lib/team/roles"
 
+function mapToggleActiveError(code: string): string {
+  const map: Record<string, string> = {
+    not_authenticated:                   "Нужно войти в систему",
+    target_profile_id_required:          "Не выбран сотрудник",
+    is_active_required:                  "Не указан статус",
+    caller_profile_not_found:            "Профиль пользователя не найден",
+    caller_organization_not_found:       "Организация пользователя не найдена",
+    caller_is_inactive:                  "Ваш аккаунт отключён",
+    insufficient_permissions:            "Недостаточно прав",
+    cannot_toggle_self:                  "Нельзя изменить статус собственного аккаунта",
+    target_profile_not_found:            "Сотрудник не найден",
+    target_organization_not_found:       "Организация сотрудника не найдена",
+    cross_organization_forbidden:        "Нельзя менять статус сотрудника другой организации",
+    admin_cannot_toggle_owner_or_admin:  "Администратор не может отключить владельца или администратора",
+    cannot_deactivate_last_active_owner: "Нельзя отключить последнего активного владельца",
+  }
+  return map[code] ?? "Не удалось изменить статус сотрудника"
+}
+
 function mapTeamRoleError(code: string): string {
   const map: Record<string, string> = {
     not_authenticated:                "Нужно войти в систему",
@@ -89,5 +108,46 @@ export async function updateTeamMemberRole(
 
   revalidatePath("/settings/team")
 
+  return { success: true }
+}
+
+export async function toggleTeamMemberActive(
+  targetProfileId: string,
+  isActive: boolean
+): Promise<{ error?: string; success?: boolean }> {
+  if (!targetProfileId) {
+    return { error: "Не выбран сотрудник" }
+  }
+
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
+
+  if (userError || !user) {
+    return { error: "Нужно войти в систему" }
+  }
+
+  const { data: rpcResult, error: rpcError } = await supabase.rpc(
+    "toggle_team_member_active",
+    {
+      p_target_profile_id: targetProfileId,
+      p_is_active: isActive,
+    }
+  )
+
+  if (rpcError) {
+    return { error: rpcError.message }
+  }
+
+  const result = rpcResult as { ok?: boolean; error?: string } | null
+
+  if (result?.error) {
+    return { error: mapToggleActiveError(result.error) }
+  }
+
+  revalidatePath("/settings/team")
   return { success: true }
 }

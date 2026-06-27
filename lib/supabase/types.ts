@@ -2033,6 +2033,13 @@ export type Database = {
         Args: { p_token: string }
         Returns: Json
       }
+      toggle_team_member_active: {
+        Args: {
+          p_target_profile_id: string
+          p_is_active: boolean
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

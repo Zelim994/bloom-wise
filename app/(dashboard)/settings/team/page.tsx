@@ -4,6 +4,7 @@ import { ChevronLeft, Users } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { ALL_ROLE_LABELS } from "@/lib/team/roles"
 import { TeamRoleSelect } from "@/components/settings/TeamRoleSelect"
+import { TeamActiveToggle } from "@/components/settings/TeamActiveToggle"
 import { TeamInvitationsPanel } from "@/components/settings/TeamInvitationsPanel"
 
 const roleOrder: Record<string, number> = {
@@ -111,7 +112,11 @@ export default async function TeamPage() {
           sorted.map((member) => (
             <div
               key={member.id}
-              className="flex items-center gap-4 rounded-xl border border-zinc-200 bg-white px-4 py-3"
+              className={`flex items-center gap-4 rounded-xl border bg-white px-4 py-3 transition-opacity ${
+                member.is_active === false
+                  ? "opacity-60 border-zinc-100"
+                  : "border-zinc-200"
+              }`}
             >
               {/* Аватар-заглушка */}
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-500/10 text-rose-500 text-sm font-semibold">
@@ -151,6 +156,12 @@ export default async function TeamPage() {
                 >
                   {member.is_active !== false ? "Активен" : "Отключён"}
                 </p>
+                {canManage && member.id !== profile.id && (
+                  <TeamActiveToggle
+                    memberId={member.id}
+                    isActive={member.is_active !== false}
+                  />
+                )}
               </div>
 
               {/* Дата */}
