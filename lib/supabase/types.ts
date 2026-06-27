@@ -2040,6 +2040,14 @@ export type Database = {
         }
         Returns: Json
       }
+      create_writeoff_atomic: {
+        Args: {
+          p_writeoff_date: string
+          p_comment?: string | null
+          p_items: Json
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

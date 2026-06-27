@@ -3,7 +3,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { Writeoff } from "@/lib/supabase/types"
-import { getOrgId } from "@/lib/services/organizationService"
 
 export type WriteoffWithFlower = Writeoff & { flowers: { name: string; unit: string } | null }
 
@@ -180,62 +179,20 @@ export async function createWriteoffAct(formData: {
   if (formData.items.length === 0) return { error: "Добавьте хотя бы один товар" }
 
   const supabase = await createClient()
-  const orgId = await getOrgId(supabase)
-  if (!orgId) return { error: "Организация не найдена" }
 
-  for (const item of formData.items) {
-    // Проверяем партию
-    const { data: invItem } = await supabase
-      .from("inventory_items")
-      .select("quantity_remaining, cost_price, variety_id, color_id")
-      .eq("id", item.inventory_item_id)
-      .single()
-
-    if (!invItem) return { error: "Партия не найдена" }
-    if (invItem.quantity_remaining < item.quantity) {
-      return { error: `В партии только ${invItem.quantity_remaining} шт. Нельзя списать ${item.quantity}` }
-    }
-
-    // Запись списания
-    const { data: writeoffRow, error: we } = await supabase
-      .from("writeoffs")
-      .insert({
-        organization_id: orgId,
-        flower_id: item.flower_id,
-        inventory_item_id: item.inventory_item_id,
-        quantity: item.quantity,
-        reason: item.reason || null,
-        comment: item.comment || formData.comment || null,
-        writeoff_date: formData.writeoff_date,
-        loss_amount: item.loss_amount > 0 ? item.loss_amount : null,
-      })
-      .select("id")
-      .single()
-
-    if (we || !writeoffRow) return { error: we?.message ?? "Ошибка создания списания" }
-
-    // Движение в stock_movements — variety/color берём из inventory_items, не из формы
-    const { error: me } = await supabase.from("stock_movements").insert({
-      organization_id: orgId,
-      flower_id: item.flower_id,
+  const { error } = await supabase.rpc("create_writeoff_atomic", {
+    p_writeoff_date: formData.writeoff_date,
+    p_comment: formData.comment || null,
+    p_items: formData.items.map((item) => ({
       inventory_item_id: item.inventory_item_id,
-      quantity: -item.quantity,
-      movement_type: "writeoff",
-      source_type: "writeoff",
-      source_id: writeoffRow.id,
-      comment: item.reason || null,
-      variety_id: invItem.variety_id ?? null,
-      color_id: invItem.color_id ?? null,
-    })
-    if (me) return { error: me.message }
+      quantity: item.quantity,
+      reason: item.reason || null,
+      comment: item.comment || null,
+      loss_amount: item.loss_amount > 0 ? item.loss_amount : null,
+    })),
+  })
 
-    // Обновляем остаток партии
-    const { error: ue } = await supabase
-      .from("inventory_items")
-      .update({ quantity_remaining: invItem.quantity_remaining - item.quantity })
-      .eq("id", item.inventory_item_id)
-    if (ue) return { error: ue.message }
-  }
+  if (error) return { error: error.message }
 
   revalidatePath("/writeoffs")
   revalidatePath("/inventory")
