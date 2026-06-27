@@ -1,5 +1,6 @@
+import Link from "next/link"
 import { redirect } from "next/navigation"
-import { Building2 } from "lucide-react"
+import { Building2, ChevronLeft } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { OrganizationSettingsForm } from "@/components/settings/OrganizationSettingsForm"
 import type { OrgSettingsInput } from "@/app/actions/settings"
@@ -45,6 +46,13 @@ export default async function OrgSettingsPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
+      <Link
+        href="/settings"
+        className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
+      >
+        <ChevronLeft className="h-3.5 w-3.5" />
+        Настройки
+      </Link>
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100">
           <Building2 className="h-5 w-5 text-zinc-500" />
