@@ -525,6 +525,8 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
                 {imageUrl && (
                   <div className="space-y-1.5">
                     <div className="rounded-lg overflow-hidden border border-zinc-200">
+                      {/* AI images are generated as data: URLs, which next/image does not optimize. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={imageUrl}
                         alt="AI-визуализация букета"

@@ -121,7 +121,11 @@ export function OrganizationSettingsForm({
           {/* Preview */}
           <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 overflow-hidden">
             {previewUrl ? (
-              <img src={previewUrl} alt="Логотип" className="h-full w-full object-cover" />
+              <>
+                {/* Preview may be a blob: URL from a local file before upload. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={previewUrl} alt="Логотип" className="h-full w-full object-cover" />
+              </>
             ) : (
               <span className="text-3xl">🌸</span>
             )}

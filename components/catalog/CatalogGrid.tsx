@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import Image from "next/image"
 import { Plus, Search, LayoutGrid, List, Flower, ChevronRight, PackageX } from "lucide-react"
 import { CatalogFlowerForm } from "@/components/catalog/CatalogFlowerForm"
 import type { FlowerWithDetails } from "@/app/actions/catalog"
@@ -422,7 +423,7 @@ export function CatalogGrid({ flowers }: Props) {
                           hasPhoto ? "" : colors.placeholder
                         }`}>
                           {hasPhoto ? (
-                            <img src={f.primary_image_url!} alt={f.name} className="h-full w-full object-cover" />
+                            <Image src={f.primary_image_url!} alt={f.name} width={36} height={36} className="h-full w-full object-cover" />
                           ) : (
                             <div className="h-full w-full flex items-center justify-center">
                               <Flower className={`h-4 w-4 opacity-25 ${colors.text}`} />

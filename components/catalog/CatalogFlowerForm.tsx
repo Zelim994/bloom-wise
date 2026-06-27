@@ -560,6 +560,8 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
               <Card title="Основное">
                 {currentPhoto ? (
                   <div className="relative rounded-xl overflow-hidden border border-zinc-200 h-44">
+                    {/* Preview may be a blob: URL from a local file before upload. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={currentPhoto} alt="Фото товара" className="w-full h-full object-cover" />
                     <button
                       type="button"

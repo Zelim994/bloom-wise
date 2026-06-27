@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import type { Profile } from "@/lib/supabase/types"
@@ -91,9 +92,11 @@ export function Sidebar({
       {/* Логотип */}
       <div className="flex items-center gap-2.5 px-5 py-5 border-b border-[#1f1f22]">
         {orgLogoUrl ? (
-          <img
+          <Image
             src={orgLogoUrl}
-            alt="Логотип"
+            alt={orgName ?? "Логотип"}
+            width={32}
+            height={32}
             className="h-8 w-8 rounded-lg object-cover"
           />
         ) : (

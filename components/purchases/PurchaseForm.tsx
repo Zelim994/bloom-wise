@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useTransition, useMemo, useRef, useEffect } from "react"
+import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Plus, Trash2, ArrowLeft, ChevronDown, Truck, Info, Search, X, ChevronLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -291,7 +292,7 @@ function FlowerSelect({ flowers, value, onChange, onFlowerCreated }: FlowerSelec
                           >
                             <div className="shrink-0 w-8 h-8 rounded-lg overflow-hidden">
                               {f.primary_image_url ? (
-                                <img src={f.primary_image_url} alt={f.name} className="w-full h-full object-cover" />
+                                <Image src={f.primary_image_url} alt={f.name} width={32} height={32} className="w-full h-full object-cover" />
                               ) : (
                                 <div className={`w-full h-full flex items-center justify-center text-xs font-bold ${colors?.bg ?? "bg-zinc-100"} ${colors?.text ?? "text-zinc-500"}`}>
                                   {f.name.charAt(0).toUpperCase()}
