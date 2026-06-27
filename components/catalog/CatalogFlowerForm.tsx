@@ -290,6 +290,9 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
       setNewSize("")
       setNewColorName("")
     }
+  // initialName is intentionally read only when the sheet opens.
+  // Adding it to deps would re-initialize the form while the purchase search query changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, flower])
 
   // ── Photo upload ─────────────────────────────────────────────────────────────
