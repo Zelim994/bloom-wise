@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 
-export type MonthlyStats = {
+export type ReportStats = {
   revenue: number
   paid: number
   orderCount: number
@@ -18,23 +18,20 @@ export type TopFlower = {
   quantity: number
 }
 
-export async function getMonthlyStats(year: number, month: number): Promise<MonthlyStats> {
+export async function getReportStats(from: string, toExclusive: string): Promise<ReportStats> {
   const supabase = await createClient()
-
-  const from = `${year}-${String(month).padStart(2, "0")}-01`
-  const nextMonth = month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, "0")}-01`
 
   const [{ data: orders }, { data: writeoffs }] = await Promise.all([
     supabase
       .from("orders")
       .select("status, total_amount, paid_amount")
       .gte("order_date", from)
-      .lt("order_date", nextMonth),
+      .lt("order_date", toExclusive),
     supabase
       .from("writeoffs")
       .select("loss_amount")
       .gte("writeoff_date", from)
-      .lt("writeoff_date", nextMonth),
+      .lt("writeoff_date", toExclusive),
   ])
 
   const active = (orders ?? []).filter((o) => o.status !== "cancelled")

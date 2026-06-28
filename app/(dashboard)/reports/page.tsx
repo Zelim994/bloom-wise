@@ -1,5 +1,11 @@
 import { BarChart3, TrendingUp, ShoppingBag, AlertTriangle, CreditCard } from "lucide-react"
-import { getMonthlyStats, getTopFlowers } from "@/app/actions/reports"
+import { getReportStats, getTopFlowers } from "@/app/actions/reports"
+import { ReportsPeriodTabs } from "@/components/reports/ReportsPeriodTabs"
+import {
+  getPeriodDateRange,
+  VALID_PERIODS,
+  type Period,
+} from "@/lib/dashboard/periods"
 
 const statusLabels: Record<string, string> = {
   new: "Новые",
@@ -17,26 +23,46 @@ const statusDot: Record<string, string> = {
   cancelled: "bg-red-300",
 }
 
-export default async function ReportsPage() {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth() + 1
+const PERIOD_DISPLAY: Record<Period, string> = {
+  today:      "Сегодня",
+  "7d":       "Последние 7 дней",
+  month:      "Этот месяц",
+  last_month: "Прошлый месяц",
+  custom:     "Выбранный период",
+}
+
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string }>
+}) {
+  const { period: rawPeriod } = await searchParams
+  const period: Period = VALID_PERIODS.includes(rawPeriod as Period)
+    ? (rawPeriod as Period)
+    : "month"
+
+  const today = new Date()
+  const { from, to } = getPeriodDateRange(period, today)
+
+  // Fallback: если from/to null (custom без параметров) → текущий месяц
+  const safeFrom = from ?? `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`
+  const safeTo = to ?? new Date(today.getTime() + 86_400_000).toISOString().split("T")[0]
 
   const [stats, topFlowers] = await Promise.all([
-    getMonthlyStats(year, month),
+    getReportStats(safeFrom, safeTo),
     getTopFlowers(),
   ])
 
-  const monthName = now.toLocaleDateString("ru", { month: "long", year: "numeric" })
   const maxQty = topFlowers[0]?.quantity ?? 1
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold text-zinc-900">Отчёты</h1>
-          <p className="text-sm text-zinc-500 mt-0.5 capitalize">{monthName}</p>
+          <p className="text-sm text-zinc-500 mt-0.5">{PERIOD_DISPLAY[period]}</p>
         </div>
+        <ReportsPeriodTabs currentPeriod={period} />
       </div>
 
       {/* Ключевые метрики */}
@@ -111,9 +137,10 @@ export default async function ReportsPage() {
         <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
           <div className="px-5 py-4 border-b border-zinc-100">
             <h2 className="text-sm font-semibold text-zinc-800">Заказы по статусу</h2>
+            <p className="text-xs text-zinc-400 mt-0.5">{PERIOD_DISPLAY[period].toLowerCase()}</p>
           </div>
           {stats.ordersByStatus.length === 0 ? (
-            <p className="py-8 text-center text-sm text-zinc-400">Нет данных за месяц</p>
+            <p className="py-8 text-center text-sm text-zinc-400">Нет данных за выбранный период</p>
           ) : (
             <div className="p-5 space-y-3">
               {stats.ordersByStatus
@@ -149,7 +176,10 @@ export default async function ReportsPage() {
         <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
           <div className="px-5 py-4 border-b border-zinc-100 flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-rose-400" />
-            <h2 className="text-sm font-semibold text-zinc-800">Топ цветов в букетах</h2>
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-800">Топ цветов в букетах</h2>
+              <p className="text-xs text-zinc-400 mt-0.5">За всё время</p>
+            </div>
           </div>
           {topFlowers.length === 0 ? (
             <p className="py-8 text-center text-sm text-zinc-400">Нет данных по букетам</p>

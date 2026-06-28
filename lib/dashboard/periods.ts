@@ -1,12 +1,13 @@
-export type Period = "today" | "7d" | "month" | "custom"
+export type Period = "today" | "7d" | "month" | "last_month" | "custom"
 
-export const VALID_PERIODS: Period[] = ["today", "7d", "month", "custom"]
+export const VALID_PERIODS: Period[] = ["today", "7d", "month", "last_month", "custom"]
 
 export const PERIOD_LABEL: Record<Period, string> = {
-  today:  "за сегодня",
-  "7d":   "за 7 дней",
-  month:  "за месяц",
-  custom: "за период",
+  today:       "за сегодня",
+  "7d":        "за 7 дней",
+  month:       "за месяц",
+  last_month:  "за прошлый месяц",
+  custom:      "за период",
 }
 
 export function getPeriodDateRange(
@@ -24,6 +25,11 @@ export function getPeriodDateRange(
   }
   if (period === "month") {
     return { from: pad(new Date(today.getFullYear(), today.getMonth(), 1)), to: pad(tomorrow) }
+  }
+  if (period === "last_month") {
+    const firstOfThisMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+    const firstOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+    return { from: pad(firstOfLastMonth), to: pad(firstOfThisMonth) }
   }
   if (period === "custom" && customFrom && customTo) {
     const toExclusive = pad(new Date(new Date(customTo + "T00:00:00").getTime() + 86_400_000))
