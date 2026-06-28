@@ -294,6 +294,47 @@ export async function addFlowerVariety(
 
 export async function deleteFlowerVariety(varietyId: string): Promise<{ error?: string }> {
   const supabase = await createClient()
+  const orgId = await getOrgId(supabase)
+  if (!orgId) return { error: "Организация не найдена" }
+
+  // Dependency guard: запрещаем hard delete сорта, если он уже используется
+  // в складе, истории движений или букетах. Проверяем по organization_id там,
+  // где колонка есть (inventory_items, stock_movements). У bouquet_items нет
+  // organization_id — изоляция обеспечивается RLS, variety_id уникален.
+  const [inv, mov, bou] = await Promise.all([
+    supabase
+      .from("inventory_items")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("variety_id", varietyId)
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("stock_movements")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("variety_id", varietyId)
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("bouquet_items")
+      .select("id")
+      .eq("variety_id", varietyId)
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  if (inv.error || mov.error || bou.error) {
+    return { error: "Не удалось проверить зависимости сорта" }
+  }
+
+  if (inv.data || mov.data || bou.data) {
+    return {
+      error:
+        "Нельзя удалить сорт: он уже используется в складе или истории. Архивируйте цветок или оставьте сорт для истории.",
+    }
+  }
+
   const { error } = await supabase.from("flower_varieties").delete().eq("id", varietyId)
   if (error) return { error: error.message }
   revalidatePath("/catalog")
@@ -318,6 +359,47 @@ export async function addFlowerColor(
 
 export async function deleteFlowerColor(colorId: string): Promise<{ error?: string }> {
   const supabase = await createClient()
+  const orgId = await getOrgId(supabase)
+  if (!orgId) return { error: "Организация не найдена" }
+
+  // Dependency guard: запрещаем hard delete цвета, если он уже используется
+  // в складе, истории движений или букетах. Проверяем по organization_id там,
+  // где колонка есть (inventory_items, stock_movements). У bouquet_items нет
+  // organization_id — изоляция обеспечивается RLS, color_id уникален.
+  const [inv, mov, bou] = await Promise.all([
+    supabase
+      .from("inventory_items")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("color_id", colorId)
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("stock_movements")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("color_id", colorId)
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("bouquet_items")
+      .select("id")
+      .eq("color_id", colorId)
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  if (inv.error || mov.error || bou.error) {
+    return { error: "Не удалось проверить зависимости цвета" }
+  }
+
+  if (inv.data || mov.data || bou.data) {
+    return {
+      error:
+        "Нельзя удалить цвет: он уже используется в складе или истории. Архивируйте цветок или оставьте цвет для истории.",
+    }
+  }
+
   const { error } = await supabase.from("flower_colors").delete().eq("id", colorId)
   if (error) return { error: error.message }
   revalidatePath("/catalog")
