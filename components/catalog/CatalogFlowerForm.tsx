@@ -464,6 +464,10 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
   }
 
   function handleRemoveVariety(index: number) {
+    const confirmed = confirm(
+      "Удалить сорт?\n\nЕсли сорт уже используется в складе, заказах или истории, удаление будет заблокировано.\n\nЭто действие нельзя отменить для неиспользуемого сорта."
+    )
+    if (!confirmed) return
     const v = varieties[index]
     if (v.id && flower?.id) {
       startTransition(async () => {
@@ -496,6 +500,10 @@ export function CatalogFlowerForm({ open, flower, onClose, mode = "sheet", initi
   }
 
   function handleRemoveColor(index: number) {
+    const confirmed = confirm(
+      "Удалить цвет?\n\nЕсли цвет уже используется в складе, заказах или истории, удаление будет заблокировано.\n\nЭто действие нельзя отменить для неиспользуемого цвета."
+    )
+    if (!confirmed) return
     const c = colors[index]
     if (c.id && flower?.id) {
       startTransition(async () => {
