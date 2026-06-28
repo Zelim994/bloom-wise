@@ -14,8 +14,9 @@ export async function GET(request: NextRequest) {
     if (!error) {
       const safeNext = getSafeNext(rawNext) ?? "/"
       const isInviteFlow = safeNext.startsWith("/invite/")
+      const isRecoveryFlow = safeNext === "/reset-password"
 
-      if (data.user && !isInviteFlow) {
+      if (data.user && !isInviteFlow && !isRecoveryFlow) {
         const salonName =
           (data.user.user_metadata?.salon_name as string | undefined) ?? "Мой салон"
         const { error: rpcError } = await supabase.rpc("create_my_organization", {

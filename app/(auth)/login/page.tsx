@@ -11,9 +11,11 @@ import { Label } from "@/components/ui/label"
 
 function LoginContent() {
   const router = useRouter()
-  const rawNext = useSearchParams().get("next")
+  const searchParams = useSearchParams()
+  const rawNext = searchParams.get("next")
   const safeNext = getSafeNext(rawNext)
   const isInviteFlow = safeNext?.startsWith("/invite/") === true
+  const resetSuccess = searchParams.get("reset") === "success"
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -76,6 +78,11 @@ function LoginContent() {
         </div>
 
         <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+          {resetSuccess && (
+            <div className="mb-4 rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2">
+              <p className="text-sm text-emerald-700">Пароль изменён. Войдите с новым паролем.</p>
+            </div>
+          )}
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-sm font-medium text-zinc-700">
@@ -93,9 +100,17 @@ function LoginContent() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-sm font-medium text-zinc-700">
-                Пароль
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-sm font-medium text-zinc-700">
+                  Пароль
+                </Label>
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-zinc-400 hover:text-rose-500 transition-colors"
+                >
+                  Забыли пароль?
+                </Link>
+              </div>
               <Input
                 id="password"
                 type="password"
