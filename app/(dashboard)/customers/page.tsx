@@ -1,4 +1,5 @@
-import { Users } from "lucide-react"
+import Link from "next/link"
+import { Users, Plus } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import {
   CustomersListClient,
@@ -27,9 +28,18 @@ export default async function CustomersPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold text-zinc-900">Клиенты</h1>
-        <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-500">
-          <Users className="h-4 w-4" />
-          {customers.length} {pluralClients(customers.length)}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-500">
+            <Users className="h-4 w-4" />
+            {customers.length} {pluralClients(customers.length)}
+          </div>
+          <Link
+            href="/customers/new"
+            className="flex items-center gap-1.5 bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-3.5 py-1.5 rounded-lg transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Добавить клиента
+          </Link>
         </div>
       </div>
 
