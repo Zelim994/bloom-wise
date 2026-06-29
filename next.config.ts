@@ -12,12 +12,15 @@ const tunnelOrigins = [
   "*.pinggy.io",
 ]
 
+const devTunnelOrigins =
+  process.env.NODE_ENV === "development" ? tunnelOrigins : []
+
 const nextConfig: NextConfig = {
-  allowedDevOrigins: tunnelOrigins,
+  allowedDevOrigins: devTunnelOrigins,
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
-      allowedOrigins: tunnelOrigins,
+      allowedOrigins: devTunnelOrigins,
     },
   },
   images: {
