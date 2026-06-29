@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Pencil, Trash2 } from "lucide-react"
-import { getRecipe, archiveRecipe } from "@/app/actions/recipes"
+import { ArrowLeft, Pencil } from "lucide-react"
+import { getRecipe } from "@/app/actions/recipes"
 import { Badge } from "@/components/ui/badge"
+import { DeleteRecipeButton } from "@/components/recipes/DeleteRecipeButton"
 
 const styleColors: Record<string, string> = {
   нежный: "bg-pink-100 text-pink-700",
@@ -63,21 +64,7 @@ export default async function RecipeDetailPage({
             <Pencil className="h-3.5 w-3.5" />
             Изменить
           </Link>
-          <form
-            action={async () => {
-              "use server"
-              await archiveRecipe(params.id)
-              redirect("/recipes")
-            }}
-          >
-            <button
-              type="submit"
-              className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-600 border border-red-100 rounded-lg px-3 py-1.5 hover:bg-red-50 transition-colors"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Удалить
-            </button>
-          </form>
+          <DeleteRecipeButton recipeId={recipe.id} />
         </div>
       </div>
 
