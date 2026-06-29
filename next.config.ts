@@ -3,24 +3,21 @@ import type { NextConfig } from "next";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseHostname = supabaseUrl ? new URL(supabaseUrl).hostname : undefined;
 
-const devTunnelOrigins =
-  process.env.NODE_ENV === "development"
-    ? [
-        "*.lhr.life",
-        "*.localhost.run",
-        "localhost.run",
-        "*.trycloudflare.com",
-        "*.pinggy.link",
-        "*.pinggy.io",
-      ]
-    : []
+const tunnelOrigins = [
+  "*.lhr.life",
+  "*.localhost.run",
+  "localhost.run",
+  "*.trycloudflare.com",
+  "*.pinggy.link",
+  "*.pinggy.io",
+]
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: devTunnelOrigins,
+  allowedDevOrigins: tunnelOrigins,
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
-      allowedOrigins: devTunnelOrigins,
+      allowedOrigins: tunnelOrigins,
     },
   },
   images: {
