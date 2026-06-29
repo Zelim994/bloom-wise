@@ -81,6 +81,10 @@ export function EditPurchaseForm({ purchase, suppliers }: Props) {
   }
 
   function handleDeleteItem(item_id: string) {
+    const confirmed = confirm(
+      "Удалить позицию закупки?\n\nЕсли эта партия уже использовалась в списаниях, заказах или движениях склада, удаление будет заблокировано.\n\nДля неиспользованной партии будет выполнена компенсация склада."
+    )
+    if (!confirmed) return
     setDeletedItemIds((prev) => [...prev, item_id])
     setItems((prev) => prev.filter((i) => i.item_id !== item_id))
   }
