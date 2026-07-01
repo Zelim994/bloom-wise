@@ -2,7 +2,7 @@
 
 import { randomUUID } from "crypto"
 import { createClient } from "@/lib/supabase/server"
-import { generateBouquetImageFromPrompt } from "@/lib/services/aiImageService"
+import { getImageProvider } from "@/lib/services/imageProviders"
 
 type SelectedItem = {
   flower_id?: string | null
@@ -45,12 +45,6 @@ export type SaveResult =
   | { success: true; imagePath: string }
   | { success: false; error: string }
 
-function estimateOpenAIImageCostCents(quality: string | undefined): number {
-  if (quality === "high") return 19
-  if (quality === "medium") return 7
-  if (quality === "low") return 4
-  return 7
-}
 
 export async function generateBouquetImage(
   payload: GeneratePayload
@@ -164,8 +158,7 @@ export async function generateBouquetImage(
     .filter(Boolean)
     .join("\n")
 
-  const model = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1"
-  const quality = process.env.OPENAI_IMAGE_QUALITY || "medium"
+  const provider = getImageProvider()
 
   // Insert attempt row BEFORE provider call — counted toward limit regardless of outcome
   const { data: attemptRow, error: attemptInsertError } = await supabase
@@ -177,15 +170,17 @@ export async function generateBouquetImage(
       mode: "free_idea",
       prompt: enhancedPrompt,
       image_path: null,
-      model_used: model,
+      model_used: provider.model,
       input_params: {
         selected_items: selectedItems,
         visualization_params: visualizationParams,
       },
       response_data: {
-        provider: "openai",
+        provider: provider.name,
         status: "started",
         estimated_cost_cents: 0,
+        quality: provider.quality,
+        model: provider.model,
         source: "builder",
       },
     })
@@ -200,28 +195,27 @@ export async function generateBouquetImage(
   }
 
   // Provider call
-  const result = await generateBouquetImageFromPrompt(enhancedPrompt)
+  const result = await provider.generateImage(enhancedPrompt)
 
   // Update attempt row with final status — soft fail: log but don't block the response
-  const updatedResponseData =
-    "error" in result
-      ? {
-          provider: "openai",
-          status: "error",
-          estimated_cost_cents: 0,
-          error_message: result.error,
-          quality,
-          model,
-          source: "builder",
-        }
-      : {
-          provider: "openai",
-          status: "success",
-          estimated_cost_cents: estimateOpenAIImageCostCents(quality),
-          quality,
-          model,
-          source: "builder",
-        }
+  const updatedResponseData = !result.success
+    ? {
+        provider: provider.name,
+        status: "error",
+        estimated_cost_cents: 0,
+        error_message: result.error,
+        quality: provider.quality,
+        model: provider.model,
+        source: "builder",
+      }
+    : {
+        provider: provider.name,
+        status: "success",
+        estimated_cost_cents: provider.estimateCostCents(),
+        quality: provider.quality,
+        model: provider.model,
+        source: "builder",
+      }
 
   const { error: updateError } = await supabase
     .from("ai_requests")
@@ -232,7 +226,7 @@ export async function generateBouquetImage(
     console.error("[AI] Failed to update attempt row after provider call:", updateError.message)
   }
 
-  if ("error" in result) {
+  if (!result.success) {
     return { success: false, error: result.error }
   }
 
