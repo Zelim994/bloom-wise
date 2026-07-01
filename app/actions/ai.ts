@@ -434,3 +434,98 @@ export async function getAIBouquetGenerations(): Promise<GetGenerationsResult> {
 
   return { success: true, items }
 }
+
+// ─── AI usage stats ───────────────────────────────────────────────────────────
+
+export type AIUsageStats = {
+  dailyLimit: number
+  todayCount: number
+  todaySuccess: number
+  todayFailed: number
+  todayCostCents: number
+  monthCount: number
+  monthCostCents: number
+}
+
+const ZERO_STATS: AIUsageStats = {
+  dailyLimit: 20,
+  todayCount: 0,
+  todaySuccess: 0,
+  todayFailed: 0,
+  todayCostCents: 0,
+  monthCount: 0,
+  monthCostCents: 0,
+}
+
+export async function getAIUsageStats(): Promise<AIUsageStats> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return ZERO_STATS
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, organization_id")
+    .eq("id", user.id)
+    .single()
+
+  if (!profile?.organization_id) return ZERO_STATS
+
+  const rawLimit = Number.parseInt(process.env.AI_DAILY_LIMIT_PER_ORG ?? "20", 10)
+  const dailyLimit = Number.isFinite(rawLimit) && rawLimit >= 1 ? rawLimit : 20
+
+  const now = new Date()
+  const todayStart = new Date(now)
+  todayStart.setHours(0, 0, 0, 0)
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+
+  const { data: rows, error } = await supabase
+    .from("ai_requests")
+    .select("created_at, response_data")
+    .eq("organization_id", profile.organization_id)
+    .eq("request_type", "ai_image_generation_attempt")
+    .gte("created_at", monthStart.toISOString())
+
+  if (error) {
+    console.error("[AI] Failed to load usage stats:", error.message)
+    return { ...ZERO_STATS, dailyLimit }
+  }
+
+  let todayCount = 0
+  let todaySuccess = 0
+  let todayFailed = 0
+  let todayCostCents = 0
+  let monthCount = 0
+  let monthCostCents = 0
+
+  for (const row of rows ?? []) {
+    const createdAt = new Date(row.created_at)
+    const responseData = row.response_data as Record<string, unknown> | null
+    const status = responseData?.status
+    const rawCost = status === "success" ? Number(responseData?.estimated_cost_cents ?? 0) : 0
+    const cost = Number.isFinite(rawCost) ? rawCost : 0
+
+    monthCount++
+    monthCostCents += cost
+
+    if (createdAt >= todayStart) {
+      todayCount++
+      if (status === "success") {
+        todaySuccess++
+        todayCostCents += cost
+      } else if (status === "error") {
+        todayFailed++
+      }
+    }
+  }
+
+  return {
+    dailyLimit,
+    todayCount,
+    todaySuccess,
+    todayFailed,
+    todayCostCents,
+    monthCount,
+    monthCostCents,
+  }
+}

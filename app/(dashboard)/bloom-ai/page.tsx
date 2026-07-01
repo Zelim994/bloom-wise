@@ -1,6 +1,6 @@
 import { Sparkles, ImageOff, Calendar } from "lucide-react"
 import Link from "next/link"
-import { getAIBouquetGenerations } from "@/app/actions/ai"
+import { getAIBouquetGenerations, getAIUsageStats } from "@/app/actions/ai"
 import { PromptDetails } from "@/components/ai/PromptDetails"
 
 function formatDate(iso: string): string {
@@ -13,8 +13,15 @@ function formatDate(iso: string): string {
   })
 }
 
+function formatUsd(cents: number) {
+  return `~$${(cents / 100).toFixed(2)}`
+}
+
 export default async function BloomAIPage() {
-  const result = await getAIBouquetGenerations()
+  const [result, stats] = await Promise.all([
+    getAIBouquetGenerations(),
+    getAIUsageStats(),
+  ])
   const generations = result.success ? result.items : []
   const fetchError = result.success ? null : result.error
 
@@ -28,6 +35,54 @@ export default async function BloomAIPage() {
         <div>
           <h1 className="text-xl font-bold text-zinc-900">Bloom AI</h1>
           <p className="text-sm text-zinc-500">История AI-визуализаций букетов</p>
+        </div>
+      </div>
+
+      {/* ── Usage stats ──────────────────────────────────────────────────────── */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {/* AI сегодня */}
+        <div className="rounded-2xl border border-zinc-200 bg-white p-5 space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">AI сегодня</p>
+          <div className="flex items-end justify-between gap-2">
+            <p className="text-2xl font-bold tabular-nums text-zinc-900">
+              {stats.todayCount}
+              <span className="text-base font-normal text-zinc-400 ml-1">из {stats.dailyLimit}</span>
+            </p>
+            {stats.todayCostCents > 0 && (
+              <p className="text-sm tabular-nums text-zinc-500">{formatUsd(stats.todayCostCents)}</p>
+            )}
+          </div>
+          {/* Progress bar */}
+          <div className="h-1.5 w-full rounded-full bg-zinc-100 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-rose-500 transition-all"
+              style={{ width: `${Math.min(100, (stats.todayCount / stats.dailyLimit) * 100)}%` }}
+            />
+          </div>
+          <div className="flex gap-3 text-xs text-zinc-500">
+            {stats.todaySuccess > 0 && <span>Успешно: <span className="font-medium text-zinc-700 tabular-nums">{stats.todaySuccess}</span></span>}
+            {stats.todayFailed > 0 && <span className="text-red-500">Ошибок: <span className="font-medium tabular-nums">{stats.todayFailed}</span></span>}
+            {stats.todayCount === 0 && <span className="text-zinc-400">Нет генераций сегодня</span>}
+          </div>
+        </div>
+
+        {/* AI за месяц */}
+        <div className="rounded-2xl border border-zinc-200 bg-white p-5 space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">AI за месяц</p>
+          <p className="text-2xl font-bold tabular-nums text-zinc-900">
+            {stats.monthCount}
+            <span className="text-base font-normal text-zinc-400 ml-1">
+              {stats.monthCount === 1 ? "генерация" : stats.monthCount >= 2 && stats.monthCount <= 4 ? "генерации" : "генераций"}
+            </span>
+          </p>
+          {stats.monthCostCents > 0 ? (
+            <p className="text-sm text-zinc-500">
+              Примерная стоимость:{" "}
+              <span className="font-medium tabular-nums text-zinc-700">{formatUsd(stats.monthCostCents)}</span>
+            </p>
+          ) : (
+            <p className="text-sm text-zinc-400">Нет расходов за месяц</p>
+          )}
         </div>
       </div>
 
