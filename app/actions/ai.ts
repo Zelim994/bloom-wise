@@ -45,11 +45,19 @@ export type SaveResult =
   | { success: true; imagePath: string }
   | { success: false; error: string }
 
+function estimateOpenAIImageCostCents(quality: string | undefined): number {
+  if (quality === "high") return 19
+  if (quality === "medium") return 7
+  if (quality === "low") return 4
+  return 7
+}
+
 export async function generateBouquetImage(
   payload: GeneratePayload
 ): Promise<GenerateResult> {
   const { selectedItems, visualizationParams } = payload
 
+  // Input validation — no provider call, not counted toward limit
   if (!payload.prompt?.trim()) {
     return { success: false, error: "Prompt не может быть пустым" }
   }
@@ -66,6 +74,45 @@ export async function generateBouquetImage(
     }
   }
 
+  // Auth + organization
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: "Необходима авторизация" }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, organization_id")
+    .eq("id", user.id)
+    .single()
+
+  if (profileError || !profile?.id || !profile.organization_id) {
+    return { success: false, error: "Профиль не найден" }
+  }
+
+  const orgId = profile.organization_id
+
+  // Daily rate limit
+  const rawLimit = Number.parseInt(process.env.AI_DAILY_LIMIT_PER_ORG ?? "20", 10)
+  const dailyLimit = Number.isFinite(rawLimit) && rawLimit >= 1 ? rawLimit : 20
+
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+
+  const { count } = await supabase
+    .from("ai_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId)
+    .eq("request_type", "ai_image_generation_attempt")
+    .gte("created_at", todayStart.toISOString())
+
+  if ((count ?? 0) >= dailyLimit) {
+    return {
+      success: false,
+      error: `Достигнут дневной лимит AI-генераций (${dailyLimit}). Попробуйте завтра.`,
+    }
+  }
+
+  // Build prompt
   const totalQuantity = selectedItems.reduce((sum, i) => sum + i.quantity, 0)
 
   const itemLines = selectedItems.map((item) => {
@@ -117,7 +164,73 @@ export async function generateBouquetImage(
     .filter(Boolean)
     .join("\n")
 
+  const model = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1"
+  const quality = process.env.OPENAI_IMAGE_QUALITY || "medium"
+
+  // Insert attempt row BEFORE provider call — counted toward limit regardless of outcome
+  const { data: attemptRow, error: attemptInsertError } = await supabase
+    .from("ai_requests")
+    .insert({
+      organization_id: orgId,
+      created_by: profile.id,
+      request_type: "ai_image_generation_attempt",
+      mode: "builder",
+      prompt: enhancedPrompt,
+      image_path: null,
+      model_used: model,
+      input_params: {
+        selected_items: selectedItems,
+        visualization_params: visualizationParams,
+      },
+      response_data: {
+        provider: "openai",
+        status: "started",
+        estimated_cost_cents: 0,
+        source: "builder",
+      },
+    })
+    .select("id")
+    .single()
+
+  if (attemptInsertError || !attemptRow?.id) {
+    return {
+      success: false,
+      error: "Не удалось зафиксировать AI-запрос. Попробуйте позже.",
+    }
+  }
+
+  // Provider call
   const result = await generateBouquetImageFromPrompt(enhancedPrompt)
+
+  // Update attempt row with final status — soft fail: log but don't block the response
+  const updatedResponseData =
+    "error" in result
+      ? {
+          provider: "openai",
+          status: "error",
+          estimated_cost_cents: 0,
+          error_message: result.error,
+          quality,
+          model,
+          source: "builder",
+        }
+      : {
+          provider: "openai",
+          status: "success",
+          estimated_cost_cents: estimateOpenAIImageCostCents(quality),
+          quality,
+          model,
+          source: "builder",
+        }
+
+  const { error: updateError } = await supabase
+    .from("ai_requests")
+    .update({ response_data: updatedResponseData })
+    .eq("id", attemptRow.id)
+
+  if (updateError) {
+    console.error("[AI] Failed to update attempt row after provider call:", updateError.message)
+  }
 
   if ("error" in result) {
     return { success: false, error: result.error }
