@@ -174,7 +174,7 @@ export async function generateBouquetImage(
       organization_id: orgId,
       created_by: profile.id,
       request_type: "ai_image_generation_attempt",
-      mode: "builder",
+      mode: "free_idea",
       prompt: enhancedPrompt,
       image_path: null,
       model_used: model,
