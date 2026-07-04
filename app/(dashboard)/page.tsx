@@ -16,6 +16,7 @@ import { StockAttentionWidget } from "@/components/dashboard/StockAttentionWidge
 import type { StockAlert } from "@/components/dashboard/StockAlertsWidget"
 import { OrdersAttentionWidget } from "@/components/dashboard/OrdersAttentionWidget"
 import { DashboardPeriodTabs } from "@/components/dashboard/DashboardPeriodTabs"
+import { GettingStarted } from "@/components/dashboard/GettingStarted"
 import {
   getPeriodDateRange,
   PERIOD_LABEL,
@@ -42,6 +43,12 @@ export default async function DashboardPage({
   let upcomingOrders: UpcomingOrder[] = []
   let stockAlerts: StockAlert[] = []
   let stats: StatItem[] = []
+
+  // Флаги первого запуска для блока "С чего начать"
+  let hasFlower = false
+  let hasStock = false
+  let hasCustomer = false
+  let hasOrder = false
 
   if (orgId) {
     const today = new Date()
@@ -71,6 +78,7 @@ export default async function DashboardPage({
     const [
       upcomingRes, periodOrdersRes, flowersRes, stockRes,
       agingRes, writeoffsRes, tomorrowRes,
+      customerCountRes, orderCountRes,
     ] = await Promise.all([
       // Ближайшие заказы (7 дней) для виджета
       supabase
@@ -94,6 +102,11 @@ export default async function DashboardPage({
         .eq("organization_id", orgId)
         .gte("order_date", tomorrowStr).lt("order_date", dayAfterStr)
         .not("status", "in", "(cancelled,delivered)"),
+      // Онбординг: есть ли хотя бы 1 клиент / заказ (только count, без данных)
+      supabase.from("customers").select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId),
+      supabase.from("orders").select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId),
     ])
 
     // Виджет "Ближайшие заказы"
@@ -227,6 +240,12 @@ export default async function DashboardPage({
         icon: TrendingDown, color: "text-red-500", bg: "bg-red-50",
       },
     ]
+
+    // Онбординг: done-флаги из уже загруженных данных + count-запросов
+    hasFlower = flowers.length > 0
+    hasStock = stockWithItems > 0
+    hasCustomer = (customerCountRes.count ?? 0) > 0
+    hasOrder = (orderCountRes.count ?? 0) > 0
   }
 
   return (
@@ -255,6 +274,14 @@ export default async function DashboardPage({
             </Button>
           </div>
         </div>
+
+        {/* Первый запуск: с чего начать (скрывается, когда все шаги done) */}
+        <GettingStarted
+          hasFlower={hasFlower}
+          hasStock={hasStock}
+          hasCustomer={hasCustomer}
+          hasOrder={hasOrder}
+        />
 
         {/* Переключатель периода + карточки KPI */}
         <div className="space-y-3">
