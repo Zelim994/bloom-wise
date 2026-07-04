@@ -1,21 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { StockTableClient, type StockRow } from "@/components/stock/StockTableClient"
 import type { FlowerVariantStock } from "@/lib/supabase/types"
-import { AGING_DAYS } from "@/lib/inventory/aging"
-
-const DEFAULT_LOW_THRESHOLD = 5
-
-function computeStatus(
-  stock: number,
-  minStock: number | null,
-  daysOnShelf: number | null,
-): StockRow["status"] {
-  if (stock <= 0) return "no_stock"
-  const threshold = minStock && minStock > 0 ? minStock : DEFAULT_LOW_THRESHOLD
-  if (stock <= threshold) return "low"
-  if (daysOnShelf !== null && daysOnShelf >= AGING_DAYS) return "aging"
-  return "ok"
-}
+import { getInventoryStatus } from "@/lib/inventory/status"
 
 export default async function InventoryPage() {
   const supabase = await createClient()
@@ -74,7 +60,7 @@ export default async function InventoryPage() {
       oldest_arrived_at: batch?.arrived_at    ?? null,
       oldest_cost_price: batch?.cost_price    ?? null,
       days_on_shelf:     daysOnShelf,
-      status:            computeStatus(stock, minStock > 0 ? minStock : null, daysOnShelf),
+      status:            getInventoryStatus(stock, minStock > 0 ? minStock : null, daysOnShelf),
     }
   })
 
