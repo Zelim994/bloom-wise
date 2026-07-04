@@ -25,7 +25,9 @@ import {
 } from "@/lib/dashboard/periods"
 import { createClient } from "@/lib/supabase/server"
 import { getOrgId } from "@/lib/services/organizationService"
-import { AGING_DAYS, getAgingCutoffDate, toISODateOnly } from "@/lib/inventory/aging"
+import { AGING_DAYS } from "@/lib/inventory/aging"
+import { getInventoryRows } from "@/lib/inventory/rows"
+import { DEFAULT_LOW_THRESHOLD } from "@/lib/inventory/status"
 
 
 export default async function DashboardPage({
@@ -57,7 +59,6 @@ export default async function DashboardPage({
     const tomorrowStr = new Date(today.getTime() + 86_400_000).toISOString().split("T")[0]
     const dayAfterStr  = new Date(today.getTime() + 2 * 86_400_000).toISOString().split("T")[0]
     const sevenDayStr  = new Date(today.getTime() + 7 * 86_400_000).toISOString().split("T")[0]
-    const agingCutoff = toISODateOnly(getAgingCutoffDate(today))
     const dateRange = getPeriodDateRange(period, today, rawFrom, rawTo)
 
     // KPI-запросы по периоду
@@ -77,8 +78,8 @@ export default async function DashboardPage({
     if (dateRange.to)   writeoffsQuery = writeoffsQuery.lt("writeoff_date", dateRange.to)
 
     const [
-      upcomingRes, periodOrdersRes, flowersRes, stockRes,
-      agingRes, writeoffsRes, tomorrowRes,
+      upcomingRes, periodOrdersRes, inventoryRowsRes,
+      writeoffsRes, tomorrowRes,
       customerCountRes, orderCountRes,
     ] = await Promise.all([
       // Ближайшие заказы (7 дней) для виджета
@@ -93,12 +94,8 @@ export default async function DashboardPage({
         .limit(30),
       // KPI по выбранному периоду
       periodOrdersQuery,
-      supabase.from("flowers").select("id, name, min_stock").eq("organization_id", orgId).eq("is_active", true),
-      supabase.from("flower_stock").select("flower_id, current_stock"),
-      // Залежавшиеся партии: имя цветка берём через embed без фильтра is_active,
-      // чтобы архивные цветы со старым остатком тоже попадали в предупреждение
-      supabase.from("inventory_items").select("flower_id, quantity_remaining, arrived_at, flowers(name)")
-        .eq("organization_id", orgId).gt("quantity_remaining", 0).lt("arrived_at", agingCutoff),
+      // Склад: тот же источник статусов (per-variant), что использует /inventory
+      getInventoryRows(supabase),
       // Списания по выбранному периоду
       writeoffsQuery,
       supabase.from("orders").select("id, type")
@@ -133,51 +130,48 @@ export default async function DashboardPage({
       }
     })
 
-    // Склад — внимание
-    const stockMap = new Map(
-      (stockRes.data ?? []).map((s) => [s.flower_id, Number(s.current_stock ?? 0)])
-    )
-    const flowers = flowersRes.data ?? []
-
-    // Залежавшиеся партии считаются независимо от flowers.is_active —
-    // архивный цветок со старым остатком всё ещё "залежался" физически на складе
-    type AgingRow = {
-      flower_id: string
-      arrived_at: string
-      flowers: { name: string } | null
-    }
-    const agingByFlower = new Map<string, { days: number; name: string }>()
-    for (const item of (agingRes.data ?? []) as AgingRow[]) {
-      const days = Math.floor((today.getTime() - new Date(item.arrived_at).getTime()) / 86_400_000)
-      const prev = agingByFlower.get(item.flower_id)
-      if (prev === undefined || days > prev.days) {
-        agingByFlower.set(item.flower_id, {
-          days,
-          name: item.flowers?.name ?? "Архивный цветок",
-        })
-      }
-    }
+    // Склад — внимание: тот же per-variant статус, что использует /inventory
+    // (getInventoryRows → getInventoryStatus), чтобы dashboard не расходился со складом
+    const { rows: inventoryRows, activeFlowerIds } = inventoryRowsRes
 
     const outAlerts: StockAlert[] = []
     const lowAlerts: StockAlert[] = []
+    const agingAlerts: StockAlert[] = []
 
-    for (const f of flowers) {
-      const stock = stockMap.get(f.id) ?? 0
-      const min = f.min_stock ?? 0
-      if (min > 0 && stock === 0) {
-        outAlerts.push({ name: f.name, stock, min, type: "out" })
-      } else if (min > 0 && stock <= min) {
-        lowAlerts.push({ name: f.name, stock, min, type: "low" })
-      }
+    const stockByFlower = new Map<string, number>()
+    for (const row of inventoryRows) {
+      stockByFlower.set(row.flower_id, (stockByFlower.get(row.flower_id) ?? 0) + row.current_stock)
     }
 
-    const agingAlerts: StockAlert[] = [...agingByFlower.entries()].map(([flowerId, info]) => ({
-      name: info.name,
-      stock: stockMap.get(flowerId) ?? 0,
-      min: 0,
-      type: "aging",
-      days: info.days,
-    }))
+    for (const row of inventoryRows) {
+      if (row.status === "ok") continue
+
+      const variant = [row.variety_name, row.variety_size].filter(Boolean).join(" ")
+      const label = [row.name, variant, row.color_name].filter((p) => p && p.length > 0).join(" · ")
+
+      if (row.status === "aging") {
+        // Залежавшийся остаток показываем всегда — даже если цветок архивный,
+        // старый остаток всё ещё физически лежит на складе и его надо продать/списать
+        agingAlerts.push({
+          name: label,
+          stock: row.current_stock,
+          min: 0,
+          type: "aging",
+          days: row.days_on_shelf ?? 0,
+        })
+        continue
+      }
+
+      // low / no_stock — предлагаем докупить только активные цветы,
+      // архивный цветок не нужно напоминать пополнять
+      if (!activeFlowerIds.has(row.flower_id)) continue
+
+      if (row.status === "no_stock") {
+        outAlerts.push({ name: label, stock: row.current_stock, min: row.min_stock ?? DEFAULT_LOW_THRESHOLD, type: "out" })
+      } else if (row.status === "low") {
+        lowAlerts.push({ name: label, stock: row.current_stock, min: row.min_stock ?? DEFAULT_LOW_THRESHOLD, type: "low" })
+      }
+    }
 
     stockAlerts = [...outAlerts, ...lowAlerts, ...agingAlerts]
 
@@ -191,8 +185,8 @@ export default async function DashboardPage({
 
     const tomorrowOrders    = tomorrowRes.data ?? []
     const tomorrowDeliveries = tomorrowOrders.filter((o) => (o as { type: string }).type === "delivery").length
-    const totalStock    = [...stockMap.values()].reduce((s, v) => s + v, 0)
-    const stockWithItems = [...stockMap.values()].filter((v) => v > 0).length
+    const totalStock    = [...stockByFlower.values()].reduce((s, v) => s + v, 0)
+    const stockWithItems = [...stockByFlower.values()].filter((v) => v > 0).length
     const lowStockCount  = outAlerts.length + lowAlerts.length
     const agingCount     = agingAlerts.length
 
@@ -261,7 +255,7 @@ export default async function DashboardPage({
     ]
 
     // Онбординг: done-флаги из уже загруженных данных + count-запросов
-    hasFlower = flowers.length > 0
+    hasFlower = activeFlowerIds.size > 0
     hasStock = stockWithItems > 0
     hasCustomer = (customerCountRes.count ?? 0) > 0
     hasOrder = (orderCountRes.count ?? 0) > 0
