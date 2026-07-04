@@ -1,8 +1,14 @@
 import Link from "next/link"
-import { AlertTriangle, Clock, CheckCircle2, ShoppingCart } from "lucide-react"
+import { AlertTriangle, Clock, CheckCircle2, PackageSearch, ShoppingCart } from "lucide-react"
 import type { StockAlert } from "@/components/dashboard/StockAlertsWidget"
 
-export function StockAttentionWidget({ alerts }: { alerts: StockAlert[] }) {
+export function StockAttentionWidget({
+  alerts,
+  isInventoryNotStarted,
+}: {
+  alerts: StockAlert[]
+  isInventoryNotStarted?: boolean
+}) {
   const lowItems  = alerts.filter((a) => a.type === "out" || a.type === "low").slice(0, 3)
   const agingItems = alerts.filter((a) => a.type === "aging").slice(0, 3)
   const hasIssues  = lowItems.length > 0 || agingItems.length > 0
@@ -19,7 +25,15 @@ export function StockAttentionWidget({ alerts }: { alerts: StockAlert[] }) {
         </Link>
       </div>
 
-      {!hasIssues ? (
+      {!hasIssues && isInventoryNotStarted ? (
+        <div className="flex flex-col items-center justify-center py-8 px-5 text-center">
+          <PackageSearch className="h-8 w-8 text-zinc-300 mb-2" />
+          <p className="text-sm font-medium text-zinc-700">Склад ещё не настроен</p>
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Добавьте цветы и оформите первую закупку, чтобы появились предупреждения по складу.
+          </p>
+        </div>
+      ) : !hasIssues ? (
         <div className="flex flex-col items-center justify-center py-8 px-5 text-center">
           <CheckCircle2 className="h-8 w-8 text-emerald-400 mb-2" />
           <p className="text-sm font-medium text-zinc-700">Всё в порядке</p>

@@ -248,6 +248,9 @@ export default async function DashboardPage({
     hasOrder = (orderCountRes.count ?? 0) > 0
   }
 
+  // Пустой склад: цветов ещё нет и остатков ещё нет (используется, чтобы не показывать ложное "Всё в порядке")
+  const isInventoryNotStarted = !hasFlower && !hasStock
+
   return (
     <div className="flex flex-col xl:flex-row gap-6 items-start">
 
@@ -303,7 +306,7 @@ export default async function DashboardPage({
             <UpcomingOrdersWidget orders={upcomingOrders} />
           </div>
           <div>
-            <StockAttentionWidget alerts={stockAlerts} />
+            <StockAttentionWidget alerts={stockAlerts} isInventoryNotStarted={isInventoryNotStarted} />
           </div>
         </div>
       </div>
