@@ -25,6 +25,7 @@ import {
 } from "@/lib/dashboard/periods"
 import { createClient } from "@/lib/supabase/server"
 import { getOrgId } from "@/lib/services/organizationService"
+import { AGING_DAYS, getAgingCutoffDate, toISODateOnly } from "@/lib/inventory/aging"
 
 
 export default async function DashboardPage({
@@ -56,7 +57,7 @@ export default async function DashboardPage({
     const tomorrowStr = new Date(today.getTime() + 86_400_000).toISOString().split("T")[0]
     const dayAfterStr  = new Date(today.getTime() + 2 * 86_400_000).toISOString().split("T")[0]
     const sevenDayStr  = new Date(today.getTime() + 7 * 86_400_000).toISOString().split("T")[0]
-    const tenDaysAgo = new Date(today.getTime() - 10 * 86_400_000).toISOString()
+    const agingCutoff = toISODateOnly(getAgingCutoffDate(today))
     const dateRange = getPeriodDateRange(period, today, rawFrom, rawTo)
 
     // KPI-запросы по периоду
@@ -94,8 +95,10 @@ export default async function DashboardPage({
       periodOrdersQuery,
       supabase.from("flowers").select("id, name, min_stock").eq("organization_id", orgId).eq("is_active", true),
       supabase.from("flower_stock").select("flower_id, current_stock"),
-      supabase.from("inventory_items").select("flower_id, quantity_remaining, arrived_at")
-        .eq("organization_id", orgId).gt("quantity_remaining", 0).lt("arrived_at", tenDaysAgo),
+      // Залежавшиеся партии: имя цветка берём через embed без фильтра is_active,
+      // чтобы архивные цветы со старым остатком тоже попадали в предупреждение
+      supabase.from("inventory_items").select("flower_id, quantity_remaining, arrived_at, flowers(name)")
+        .eq("organization_id", orgId).gt("quantity_remaining", 0).lt("arrived_at", agingCutoff),
       // Списания по выбранному периоду
       writeoffsQuery,
       supabase.from("orders").select("id, type")
@@ -136,16 +139,27 @@ export default async function DashboardPage({
     )
     const flowers = flowersRes.data ?? []
 
-    const agingMap = new Map<string, number>()
-    for (const item of agingRes.data ?? []) {
+    // Залежавшиеся партии считаются независимо от flowers.is_active —
+    // архивный цветок со старым остатком всё ещё "залежался" физически на складе
+    type AgingRow = {
+      flower_id: string
+      arrived_at: string
+      flowers: { name: string } | null
+    }
+    const agingByFlower = new Map<string, { days: number; name: string }>()
+    for (const item of (agingRes.data ?? []) as AgingRow[]) {
       const days = Math.floor((today.getTime() - new Date(item.arrived_at).getTime()) / 86_400_000)
-      const prev = agingMap.get(item.flower_id)
-      if (prev === undefined || days > prev) agingMap.set(item.flower_id, days)
+      const prev = agingByFlower.get(item.flower_id)
+      if (prev === undefined || days > prev.days) {
+        agingByFlower.set(item.flower_id, {
+          days,
+          name: item.flowers?.name ?? "Архивный цветок",
+        })
+      }
     }
 
     const outAlerts: StockAlert[] = []
     const lowAlerts: StockAlert[] = []
-    const agingAlerts: StockAlert[] = []
 
     for (const f of flowers) {
       const stock = stockMap.get(f.id) ?? 0
@@ -155,10 +169,15 @@ export default async function DashboardPage({
       } else if (min > 0 && stock <= min) {
         lowAlerts.push({ name: f.name, stock, min, type: "low" })
       }
-      if (agingMap.has(f.id)) {
-        agingAlerts.push({ name: f.name, stock, min, type: "aging", days: agingMap.get(f.id) })
-      }
     }
+
+    const agingAlerts: StockAlert[] = [...agingByFlower.entries()].map(([flowerId, info]) => ({
+      name: info.name,
+      stock: stockMap.get(flowerId) ?? 0,
+      min: 0,
+      type: "aging",
+      days: info.days,
+    }))
 
     stockAlerts = [...outAlerts, ...lowAlerts, ...agingAlerts]
 
@@ -235,7 +254,7 @@ export default async function DashboardPage({
       {
         label: "Залежались",
         value: agingCount > 0 ? `${agingCount} позиций` : "Всё свежее",
-        trend: agingCount > 0 ? "Старше 10 дней" : "Всё в порядке",
+        trend: agingCount > 0 ? `Старше ${AGING_DAYS} дней` : "Всё в порядке",
         up: agingCount === 0,
         icon: TrendingDown, color: "text-red-500", bg: "bg-red-50",
       },

@@ -1,9 +1,9 @@
 import { createClient } from "@/lib/supabase/server"
 import { StockTableClient, type StockRow } from "@/components/stock/StockTableClient"
 import type { FlowerVariantStock } from "@/lib/supabase/types"
+import { AGING_DAYS } from "@/lib/inventory/aging"
 
 const DEFAULT_LOW_THRESHOLD = 5
-const AGING_DAYS = 7
 
 function computeStatus(
   stock: number,
