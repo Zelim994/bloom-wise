@@ -10,15 +10,16 @@ type AttentionRow = {
   stock_returned: boolean
 }
 
-type Item = {
-  label: string
+export type OrderReminderItem = {
+  key: string
+  title: string
   count: number
   href: string
   icon: LucideIcon
   urgency: "warn" | "info"
 }
 
-function plural(n: number): string {
+export function plural(n: number): string {
   const m10 = n % 10
   const m100 = n % 100
   if (m100 >= 11 && m100 <= 19) return "заказов"
@@ -27,7 +28,10 @@ function plural(n: number): string {
   return "заказов"
 }
 
-export async function OrdersAttentionWidget() {
+export async function getOrderReminderItems(): Promise<{
+  hasOrders: boolean
+  items: OrderReminderItem[]
+}> {
   const supabase = await createClient()
   const orgId = await getOrgId(supabase)
 
@@ -41,6 +45,67 @@ export async function OrdersAttentionWidget() {
   }
 
   if (rows.length === 0) {
+    return { hasOrders: false, items: [] }
+  }
+
+  const needStockWriteOff = rows.filter(
+    (o) => o.status !== "cancelled" && !o.stock_written_off
+  ).length
+
+  const needPayment = rows.filter(
+    (o) =>
+      o.status !== "cancelled" &&
+      (o.payment_status === "unpaid" || o.payment_status === "partial")
+  ).length
+
+  const readyToGive = rows.filter((o) => o.status === "ready").length
+
+  const needStockReturn = rows.filter(
+    (o) => o.status === "cancelled" && o.stock_written_off && !o.stock_returned
+  ).length
+
+  const items: OrderReminderItem[] = [
+    {
+      key: "write_off",
+      title: "Нужно списать склад",
+      count: needStockWriteOff,
+      href: "/orders?stock=not_written_off",
+      icon: Package,
+      urgency: "warn",
+    },
+    {
+      key: "payment",
+      title: "Получить оплату",
+      count: needPayment,
+      href: "/orders?payment=open",
+      icon: Banknote,
+      urgency: "warn",
+    },
+    {
+      key: "ready",
+      title: "Готовые к выдаче",
+      count: readyToGive,
+      href: "/orders?status=ready",
+      icon: Gift,
+      urgency: "info",
+    },
+    {
+      key: "return",
+      title: "Проверить возврат склада",
+      count: needStockReturn,
+      href: "/orders?status=cancelled&stock=written_off",
+      icon: RotateCcw,
+      urgency: "warn",
+    },
+  ]
+
+  return { hasOrders: true, items }
+}
+
+export async function OrdersAttentionWidget() {
+  const { hasOrders, items } = await getOrderReminderItems()
+
+  if (!hasOrders) {
     return (
       <div className="rounded-xl border border-zinc-200 bg-white p-4">
         <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
@@ -62,53 +127,6 @@ export async function OrdersAttentionWidget() {
       </div>
     )
   }
-
-  const needStockWriteOff = rows.filter(
-    (o) => o.status !== "cancelled" && !o.stock_written_off
-  ).length
-
-  const needPayment = rows.filter(
-    (o) =>
-      o.status !== "cancelled" &&
-      (o.payment_status === "unpaid" || o.payment_status === "partial")
-  ).length
-
-  const readyToGive = rows.filter((o) => o.status === "ready").length
-
-  const needStockReturn = rows.filter(
-    (o) => o.status === "cancelled" && o.stock_written_off && !o.stock_returned
-  ).length
-
-  const items: Item[] = [
-    {
-      label: "Нужно списать склад",
-      count: needStockWriteOff,
-      href: "/orders?stock=not_written_off",
-      icon: Package,
-      urgency: "warn",
-    },
-    {
-      label: "Получить оплату",
-      count: needPayment,
-      href: "/orders?payment=open",
-      icon: Banknote,
-      urgency: "warn",
-    },
-    {
-      label: "Готовые к выдаче",
-      count: readyToGive,
-      href: "/orders?status=ready",
-      icon: Gift,
-      urgency: "info",
-    },
-    {
-      label: "Проверить возврат склада",
-      count: needStockReturn,
-      href: "/orders?status=cancelled&stock=written_off",
-      icon: RotateCcw,
-      urgency: "warn",
-    },
-  ]
 
   return (
     <div className="rounded-xl border border-zinc-200 bg-white p-4">
@@ -132,7 +150,7 @@ export async function OrdersAttentionWidget() {
 
             return (
               <Link
-                key={item.label}
+                key={item.key}
                 href={item.href}
                 className={`block rounded-lg border p-3 transition-colors ${active}`}
               >
@@ -140,7 +158,7 @@ export async function OrdersAttentionWidget() {
                   <div className="flex items-start gap-2.5 min-w-0">
                     <item.icon className={`h-4 w-4 shrink-0 mt-0.5 ${iconColor}`} />
                     <div className="min-w-0">
-                      <p className="text-xs font-medium text-zinc-800 leading-snug">{item.label}</p>
+                      <p className="text-xs font-medium text-zinc-800 leading-snug">{item.title}</p>
                       <p className={`text-xs font-semibold mt-0.5 ${countColor}`}>
                         {item.count} {plural(item.count)}
                       </p>
@@ -156,13 +174,13 @@ export async function OrdersAttentionWidget() {
 
           return (
             <div
-              key={item.label}
+              key={item.key}
               className="rounded-lg border border-zinc-100 bg-zinc-50 p-3"
             >
               <div className="flex items-center gap-2.5">
                 <item.icon className="h-4 w-4 shrink-0 text-zinc-300" />
                 <div>
-                  <p className="text-xs font-medium text-zinc-400 leading-snug">{item.label}</p>
+                  <p className="text-xs font-medium text-zinc-400 leading-snug">{item.title}</p>
                   <p className="text-xs text-emerald-500 mt-0.5">Всё чисто</p>
                 </div>
               </div>

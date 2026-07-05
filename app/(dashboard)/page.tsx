@@ -12,9 +12,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { StatsCard, type StatItem } from "@/components/dashboard/StatsCard"
 import { UpcomingOrdersWidget, type UpcomingOrder } from "@/components/dashboard/UpcomingOrdersWidget"
-import { StockAttentionWidget } from "@/components/dashboard/StockAttentionWidget"
 import type { StockAlert } from "@/components/dashboard/StockAlertsWidget"
-import { OrdersAttentionWidget } from "@/components/dashboard/OrdersAttentionWidget"
+import { DashboardRemindersPanel } from "@/components/dashboard/DashboardRemindersPanel"
 import { DashboardPeriodTabs } from "@/components/dashboard/DashboardPeriodTabs"
 import { GettingStarted } from "@/components/dashboard/GettingStarted"
 import {
@@ -313,20 +312,16 @@ export default async function DashboardPage({
           </div>
         </div>
 
-        {/* Заказы + Склад */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <div className="lg:col-span-2">
-            <UpcomingOrdersWidget orders={upcomingOrders} />
-          </div>
-          <div>
-            <StockAttentionWidget alerts={stockAlerts} isInventoryNotStarted={isInventoryNotStarted} />
-          </div>
-        </div>
+        {/* Заказы */}
+        <UpcomingOrdersWidget orders={upcomingOrders} />
       </div>
 
-      {/* Правая панель — Напоминания */}
+      {/* Правая панель — Напоминания (заказы + склад в одном attention-center) */}
       <div className="w-full xl:w-64 shrink-0 xl:sticky xl:top-6">
-        <OrdersAttentionWidget />
+        <DashboardRemindersPanel
+          stockAlerts={stockAlerts}
+          isInventoryNotStarted={isInventoryNotStarted}
+        />
       </div>
 
     </div>
