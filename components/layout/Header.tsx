@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname, useRouter } from "next/navigation"
-import { Bell, Search, LogOut } from "lucide-react"
+import { Bell, Search, LogOut, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -32,7 +32,13 @@ const pageTitles: Record<string, string> = {
   "/settings": "Настройки",
 }
 
-export function Header({ profile }: { profile: Profile | null }) {
+export function Header({
+  profile,
+  onOpenMobileNav,
+}: {
+  profile: Profile | null
+  onOpenMobileNav?: () => void
+}) {
   const pathname = usePathname()
   const router = useRouter()
   const title = pageTitles[pathname] ?? "BloomWise"
@@ -45,8 +51,21 @@ export function Header({ profile }: { profile: Profile | null }) {
   }
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-zinc-200 bg-white px-6 shrink-0">
-      <h1 className="text-[15px] font-semibold text-zinc-900">{title}</h1>
+    <header className="flex h-14 items-center justify-between border-b border-zinc-200 bg-white px-4 xl:px-6 shrink-0">
+      <div className="flex items-center gap-2 min-w-0">
+        {onOpenMobileNav && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0 text-zinc-500 hover:text-zinc-700 xl:hidden"
+            onClick={onOpenMobileNav}
+            aria-label="Открыть меню"
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
+        )}
+        <h1 className="text-[15px] font-semibold text-zinc-900 truncate">{title}</h1>
+      </div>
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-zinc-700">
           <Search className="h-4 w-4" />
