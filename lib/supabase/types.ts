@@ -2048,6 +2048,10 @@ export type Database = {
         }
         Returns: Json
       }
+      merge_organization_settings: {
+        Args: { p_patch: Json }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

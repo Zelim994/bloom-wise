@@ -41,29 +41,33 @@ export async function updateOrganizationSettings(
 
   const orgId = profile.organization_id
 
-  // Читаем текущий settings для merge (не затираем неизвестные ключи)
-  const { data: org } = await supabase
-    .from("organizations")
-    .select("settings")
-    .eq("id", orgId)
-    .single()
-
-  const existing = (org?.settings as Record<string, unknown>) ?? {}
-  const newSettings = {
-    ...existing,
-    phone: input.orgPhone.trim() || null,
-    whatsapp: input.orgWhatsapp.trim() || null,
-    address: input.orgAddress.trim() || null,
-    currency: input.currency || "RUB",
-    timezone: input.timezone || "Europe/Moscow",
-  }
-
+  // name обновляем напрямую — это не часть settings jsonb
   const { error: orgError } = await supabase
     .from("organizations")
-    .update({ name: input.orgName.trim(), settings: newSettings })
+    .update({ name: input.orgName.trim() })
     .eq("id", orgId)
 
   if (orgError) return { error: orgError.message }
+
+  // Атомарный merge settings через RPC (устраняет read-merge-write race
+  // с uploadOrganizationLogo — logo_url/logo_path больше не теряются)
+  const { data: rpcResult, error: rpcError } = await supabase.rpc(
+    "merge_organization_settings",
+    {
+      p_patch: {
+        phone: input.orgPhone.trim() || null,
+        whatsapp: input.orgWhatsapp.trim() || null,
+        address: input.orgAddress.trim() || null,
+        currency: input.currency || "RUB",
+        timezone: input.timezone || "Europe/Moscow",
+      },
+    }
+  )
+
+  if (rpcError) return { error: rpcError.message }
+
+  const settingsResult = rpcResult as { ok?: boolean; error?: string } | null
+  if (settingsResult?.error) return { error: settingsResult.error }
 
   const { error: profileUpdateError } = await supabase
     .from("profiles")
@@ -126,25 +130,17 @@ export async function uploadOrganizationLogo(
     .from("organization-assets")
     .getPublicUrl(path)
 
-  const { data: org } = await supabase
-    .from("organizations")
-    .select("settings")
-    .eq("id", profile.organization_id)
-    .single()
+  // Атомарный merge settings через RPC (устраняет read-merge-write race
+  // с updateOrganizationSettings — logo_url/logo_path больше не теряются)
+  const { data: rpcResult, error: rpcError } = await supabase.rpc(
+    "merge_organization_settings",
+    { p_patch: { logo_url: publicUrl, logo_path: path } }
+  )
 
-  const existing = (org?.settings as Record<string, unknown>) ?? {}
-  const newSettings = {
-    ...existing,
-    logo_url: publicUrl,
-    logo_path: path,
-  }
+  if (rpcError) return { error: rpcError.message }
 
-  const { error: updateError } = await supabase
-    .from("organizations")
-    .update({ settings: newSettings })
-    .eq("id", profile.organization_id)
-
-  if (updateError) return { error: updateError.message }
+  const settingsResult = rpcResult as { ok?: boolean; error?: string } | null
+  if (settingsResult?.error) return { error: settingsResult.error }
 
   revalidatePath("/settings")
   revalidatePath("/settings/org")
