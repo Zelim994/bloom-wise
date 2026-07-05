@@ -14,10 +14,10 @@ const STOCK_BADGE: Record<StockAlert["type"], string> = {
   low: "Мало",
   aging: "Залежался",
 }
-const STOCK_COLORS: Record<StockAlert["type"], { bg: string; hoverBg: string; text: string }> = {
-  out:   { bg: "bg-red-50",    hoverBg: "hover:bg-red-100",    text: "text-red-600" },
-  low:   { bg: "bg-orange-50", hoverBg: "hover:bg-orange-100", text: "text-orange-600" },
-  aging: { bg: "bg-amber-50",  hoverBg: "hover:bg-amber-100",  text: "text-amber-600" },
+const STOCK_COLORS: Record<StockAlert["type"], { bg: string; hoverBg: string; text: string; arrow: string }> = {
+  out:   { bg: "bg-red-50",    hoverBg: "hover:bg-red-100",    text: "text-red-600",    arrow: "text-red-400" },
+  low:   { bg: "bg-orange-50", hoverBg: "hover:bg-orange-100", text: "text-orange-600", arrow: "text-orange-400" },
+  aging: { bg: "bg-amber-50",  hoverBg: "hover:bg-amber-100",  text: "text-amber-600",  arrow: "text-amber-400" },
 }
 
 const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-1"
@@ -156,9 +156,12 @@ export async function DashboardRemindersPanel({
                             {STOCK_BADGE[item.type]}
                           </span>
                         </div>
-                        <span className={`text-xs font-semibold shrink-0 tabular-nums ${colors.text}`}>
-                          {item.type === "aging" ? `${item.days} дн` : `${item.stock} / ${item.min} шт`}
-                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className={`text-xs font-semibold tabular-nums ${colors.text}`}>
+                            {item.type === "aging" ? `${item.days} дн` : `${item.stock} / ${item.min} шт`}
+                          </span>
+                          <span className={`text-xs font-medium ${colors.arrow}`}>→</span>
+                        </div>
                       </Link>
                     )
                   })}
