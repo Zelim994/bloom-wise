@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { updateOrganizationSettings, uploadOrganizationLogo, type OrgSettingsInput } from "@/app/actions/settings"
 
 const CURRENCIES = [
@@ -37,6 +38,7 @@ export function OrganizationSettingsForm({
   logoUrl?: string | null
   canManageSettings: boolean
 }) {
+  const router = useRouter()
   const [form, setForm] = useState<OrgSettingsInput>(initial)
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle")
   const [errorMsg, setErrorMsg] = useState("")
@@ -77,6 +79,9 @@ export function OrganizationSettingsForm({
         if (fileInputRef.current) fileInputRef.current.value = ""
         // Cache-bust so the browser loads the updated image
         setPreviewUrl((result.url ?? "") + "?t=" + Date.now())
+        // Обновить shared dashboard layout (Sidebar), чтобы новый логотип
+        // подхватился без hard reload
+        router.refresh()
       }
     })
   }
@@ -101,6 +106,7 @@ export function OrganizationSettingsForm({
         setErrorMsg(result.error)
       } else {
         setStatus("success")
+        router.refresh()
       }
     })
   }
