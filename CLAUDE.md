@@ -1,575 +1,159 @@
-# BloomWise — CLAUDE.md
+# BloomWise — Claude Code Working Guide
 
-> Этот файл — главный документ проекта. Перед любым изменением в коде сверяйся с ним.
-> Обновляй его при изменении архитектуры, бизнес-логики или правил разработки.
-
----
-
-## 1. О проекте
-
-**Название:** BloomWise  
-**Тип:** SaaS веб-приложение для цветочных салонов  
-**Суть:** Красивый рабочий центр флориста — не скучная CRM, а инструмент с реальной складской логикой, Bouquet Builder и будущим AI-помощником.
-
-**Главная ценность:**  
-AI работает с реальным складом — видит товары, фото, остатки, цены, партии, свежесть, стили, возможные замены — и собирает букет под бюджет, стиль и наличие.
+> Рабочий документ проекта. Перед любым изменением кода сверяйся с ним.
+> Обновляй при изменении архитектуры, бизнес-логики или правил разработки.
+> Предыдущая версия этого файла описывала устаревшую схему (products/product_batches/inventory_movements) — реальная схема см. ниже.
 
 ---
 
-## 2. Технологический стек
+## Current stable checkpoint
+
+- **current stable commit:** `4f62d7b fix: allowlist organization logo urls on read`
+- **дата/контекст:** июль 2026, закрыты серии 6.0C (dashboard UX, sidebar, org settings/logo) и подготовка к дизайн-фазе
+- **working tree expectations:** между этапами working tree всегда чистый; каждый этап = один маленький diff → review → commit → push
+- **local == remote (origin/main):** обязательно проверять после каждого push
+
+---
+
+## Product goal
+
+**BloomWise** — SaaS веб-приложение для цветочных салонов. Не скучная CRM, а рабочий центр флориста:
+
+- склад с реальной партийной логикой (FIFO, свежесть, остатки по вариантам)
+- Bouquet Builder — единый модуль сборки букета (заказ / отдельно / рецепты)
+- заказы с резервом/списанием склада, оплатами, статусами
+- dashboard с KPI и attention-center
+- WhatsApp: v1 работает через wa.me-ссылки (история пишется в `whatsapp_messages`); Business API — будущее
+- AI-генерация букетов: **реализована** (не заглушка) — OpenAI gpt-image-1 + Nano Banana (Gemini) через provider-абстракцию
+
+Мультитенантность: `Organization → Users(profiles) → данные`. Данные организаций изолированы через `organization_id` + RLS.
+
+---
+
+## Tech stack
 
 | Слой | Технология |
 |---|---|
-| Фреймворк | Next.js 14+ (App Router) |
+| Фреймворк | Next.js 16 (App Router, Turbopack) |
 | Язык | TypeScript |
-| Стили | Tailwind CSS |
-| UI-компоненты | shadcn/ui |
-| База данных | PostgreSQL (через Supabase) |
-| Backend-as-a-Service | Supabase |
-| Авторизация | Supabase Auth |
-| Файловое хранилище | Supabase Storage |
-| Деплой | Vercel (планируется) |
+| React | 19 |
+| Стили | Tailwind CSS v4 (CSS-конфиг через `@theme` в `app/globals.css`, файла tailwind.config нет) |
+| UI | shadcn/ui на @base-ui/react (components/ui/*) |
+| Шрифты | **system font stack** (Google Fonts удалены — build падал из-за сетевых ограничений) |
+| BaaS | Supabase (PostgreSQL, Auth, Storage, RLS, RPC) |
+| Auth-гейт | `proxy.ts` в корне (Next 16 замена middleware) + повторная проверка в `app/(dashboard)/layout.tsx` |
+| Server Actions | `app/actions/*` (experimental serverActions включены в next.config.ts) |
+| AI images | `lib/services/imageProviders/*`: openaiProvider (gpt-image-1), nanoBananaProvider (Gemini) |
+| Тесты | **отсутствуют** (нет Playwright/jest/e2e; в package.json только dev/build/start/lint) |
+
+Env (имена, без значений): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `OPENAI_API_KEY`, `OPENAI_IMAGE_MODEL`, `OPENAI_IMAGE_QUALITY`; для Nano Banana: `GEMINI_API_KEY`, `NANO_BANANA_IMAGE_MODEL`, `NANO_BANANA_IMAGE_SIZE` (Needs verification — какие из Nano Banana ключей реально заполнены в .env.local).
 
 ---
 
-## 3. Архитектура приложения
+## Non-negotiable rules
 
-### 3.1 SaaS-модель
-
-Приложение обслуживает много разных цветочных салонов одновременно.
-
-```
-Organization (цветочный салон)
-  └── Branch (филиал / точка)
-        └── Users (сотрудники)
-        └── Products (товары)
-        └── Orders (заказы)
-        └── Inventory (склад)
-```
-
-Данные разных организаций **никогда не смешиваются**. Изоляция — через `organization_id` в каждой таблице и Row Level Security (RLS) в Supabase.
-
-### 3.2 Главный принцип остатков
-
-**Остатки нельзя менять вручную напрямую.**  
-Текущий остаток считается только через `inventory_movements`.
-
-Все движения по складу идут через одну таблицу — приход, продажа, списание, возврат, корректировка, резерв.
-
-### 3.3 Главный принцип Bouquet Builder
-
-`Новый заказ` и `Собрать букет` — это **один и тот же модуль** `BouquetBuilder`.  
-Дублировать логику сборки в разных местах запрещено.
-
-BouquetBuilder используется:
-- внутри нового заказа
-- отдельно с главного экрана
-- в рецептах
-- в будущем — в AI-подборе
+1. **Не менять DB/RLS/RPC/миграции без явного разрешения.** Миграции создаются как файлы в `supabase/migrations/`, применяются пользователем вручную через Supabase Studio SQL Editor (CLI не установлен).
+2. **Не применять SQL к live DB** без отдельного явного подтверждения на каждый запуск.
+3. **service_role не используется в коде приложения. Никогда.** (Подтверждено grep-аудитом.)
+4. **Не делать OpenAI/Nano Banana calls** без разрешения (стоят денег).
+5. **Не делать commit/push без review пользователя.** Цикл: audit → report → approval → implement → report → review → commit+push по команде.
+6. **Один этап = один маленький diff.** Не смешивать рефакторинг с фичами, миграции с UI.
+7. **Перед каждым commit:** `npm run lint` (0/0), `npx tsc --noEmit` (OK), `npm run build` (OK), `git diff` по изменённым файлам, подтверждение scope.
+8. `stock_movements` — **append-only журнал**: движения не удаляются, только компенсационные записи.
+9. Остатки нельзя менять вручную — только через RPC/движения склада.
+10. `organization_id` получать через `lib/services/organizationService.ts` (getOrgId).
+11. Не логировать секреты; не коммитить .env*.
 
 ---
 
-## 4. Структура базы данных
+## Current completed milestones
 
-### 4.1 SaaS и пользователи
-
-```sql
--- Организации (цветочные салоны)
-organizations
-  id            uuid PRIMARY KEY
-  name          text NOT NULL
-  slug          text UNIQUE
-  plan          text DEFAULT 'free'
-  settings      jsonb DEFAULT '{}'
-  created_at    timestamptz DEFAULT now()
-  updated_at    timestamptz DEFAULT now()
-
--- Филиалы / точки продаж
-branches
-  id              uuid PRIMARY KEY
-  organization_id uuid REFERENCES organizations(id)
-  name            text NOT NULL
-  address         text
-  phone           text
-  is_active       boolean DEFAULT true
-  created_at      timestamptz DEFAULT now()
-  updated_at      timestamptz DEFAULT now()
-
--- Пользователи (расширение Supabase Auth users)
-profiles
-  id              uuid PRIMARY KEY REFERENCES auth.users(id)
-  organization_id uuid REFERENCES organizations(id)
-  branch_id       uuid REFERENCES branches(id)
-  full_name       text
-  role            text NOT NULL  -- owner, admin, florist, cashier, viewer
-  phone           text
-  avatar_url      text
-  is_active       boolean DEFAULT true
-  created_at      timestamptz DEFAULT now()
-  updated_at      timestamptz DEFAULT now()
-```
-
-### 4.2 Поставщики и товары
-
-```sql
--- Поставщики
-suppliers
-  id              uuid PRIMARY KEY
-  organization_id uuid REFERENCES organizations(id)
-  name            text NOT NULL
-  phone           text
-  email           text
-  contact_person  text
-  address         text
-  payment_terms   text
-  comment         text
-  is_active       boolean DEFAULT true
-  created_at      timestamptz DEFAULT now()
-  updated_at      timestamptz DEFAULT now()
-  created_by      uuid REFERENCES profiles(id)
-
--- Карточки товаров (справочник)
-products
-  id                    uuid PRIMARY KEY
-  organization_id       uuid REFERENCES organizations(id)
-  name                  text NOT NULL
-  alt_names             text[]
-  category              text NOT NULL
-  variety               text
-  color                 text
-  color_shade           text
-  role_in_bouquet       text  -- база, акцент, наполнитель, зелень, упаковка, декор
-  styles                text[]
-  seasonality           text[]
-  compatible_with       uuid[]
-  possible_substitutes  uuid[]
-  unit                  text DEFAULT 'шт'
-  min_stock             int DEFAULT 0
-  sale_price            numeric(10,2)
-  photo_url             text
-  florist_comment       text
-  is_active             boolean DEFAULT true
-  created_at            timestamptz DEFAULT now()
-  updated_at            timestamptz DEFAULT now()
-  created_by            uuid REFERENCES profiles(id)
-
--- Партии товара
-product_batches
-  id              uuid PRIMARY KEY
-  organization_id uuid REFERENCES organizations(id)
-  branch_id       uuid REFERENCES branches(id)
-  product_id      uuid REFERENCES products(id)
-  supplier_id     uuid REFERENCES suppliers(id)
-  arrived_at      date NOT NULL
-  cost_price      numeric(10,2) NOT NULL
-  quantity_in     int NOT NULL
-  quantity_left   int NOT NULL
-  extra_costs     numeric(10,2) DEFAULT 0
-  unit_cost_total numeric(10,2)
-  expires_at      date
-  freshness_status text DEFAULT 'fresh'  -- fresh, aging, critical, expired
-  photo_url       text
-  comment         text
-  created_at      timestamptz DEFAULT now()
-  updated_at      timestamptz DEFAULT now()
-  created_by      uuid REFERENCES profiles(id)
-```
-
-### 4.3 Движения склада
-
-```sql
--- Все движения по складу (главная таблица остатков)
-inventory_movements
-  id              uuid PRIMARY KEY
-  organization_id uuid REFERENCES organizations(id)
-  branch_id       uuid REFERENCES branches(id)
-  product_id      uuid REFERENCES products(id)
-  batch_id        uuid REFERENCES product_batches(id)
-  quantity        int NOT NULL  -- положительное = приход, отрицательное = расход
-  movement_type   text NOT NULL
-    -- 'purchase', 'sale', 'writeoff', 'return', 'adjustment',
-    -- 'bouquet_reserved', 'bouquet_unreserved'
-  source_type     text
-  source_id       uuid
-  comment         text
-  created_at      timestamptz DEFAULT now()
-  created_by      uuid REFERENCES profiles(id)
-```
-
-### 4.4 Закупки и списания
-
-```sql
-purchases
-  id, organization_id, branch_id, supplier_id, purchase_date,
-  total_amount, comment, status (draft/confirmed/cancelled),
-  created_at, updated_at, created_by
-
-purchase_items
-  id, purchase_id, product_id, batch_id, quantity,
-  cost_price, extra_costs, expires_at, comment
-
-writeoffs
-  id, organization_id, branch_id, product_id, batch_id,
-  quantity, reason, loss_amount, photo_url, comment,
-  writeoff_date, created_at, updated_at, created_by
-```
-
-### 4.5 Клиенты
-
-```sql
-customers
-  id, organization_id, full_name, phone, whatsapp,
-  favorite_flowers text[], favorite_colors text[],
-  important_dates jsonb, avg_check, comment,
-  created_at, updated_at, created_by
-```
-
-### 4.6 Заказы и букеты
-
-```sql
-orders
-  id, organization_id, branch_id, order_number, customer_id,
-  florist_id, order_date, ready_at, type (pickup/delivery/event),
-  delivery_address, status (new/in_progress/ready/delivered/cancelled),
-  payment_status (unpaid/partial/paid), payment_method,
-  subtotal, delivery_cost, discount, total_amount,
-  cost_price, profit, margin_percent, paid_amount,
-  customer_comment, florist_comment, whatsapp_sent,
-  stock_written_off, created_at, updated_at, created_by
-
-bouquets
-  id, order_id, recipe_id, name, style, mode,
-  budget, cost_price, sale_price, profit, margin_percent,
-  packaging, decor, florist_comment, photo_url,
-  preview_image_url, is_display, created_at, updated_at, created_by
-
-bouquet_items
-  id, bouquet_id, product_id, batch_id,
-  quantity, unit_cost, sale_price, total_cost, total_sale
-```
-
-### 4.7 Рецепты
-
-```sql
-recipes
-  id, organization_id, name, style, photo_url,
-  cost_price, recommended_price, margin_percent,
-  assembly_notes, comment, is_active,
-  created_at, updated_at, created_by
-
-recipe_items
-  id, recipe_id, product_id, quantity, unit_cost, note
-```
-
-### 4.8 Прочие таблицы
-
-```sql
-payments        -- платежи по заказу
-whatsapp_messages -- история сообщений
-ai_requests     -- запросы к AI (структура заложена)
-activity_logs   -- журнал действий
-```
+- Dashboard: KPI-карточки, период-табы, GettingStarted-онбординг, honest empty-states
+- Unified reminders panel (`DashboardRemindersPanel`): заказы + склад в одном attention-center, кликабельные строки, «Всё чисто» скрыты
+- Dashboard stock alerts унифицированы с `/inventory` через общие helpers: `lib/inventory/status.ts` (getInventoryStatus, AGING_DAYS=7, DEFAULT_LOW_THRESHOLD=5) и `lib/inventory/rows.ts` (getInventoryRows — единый источник per-variant строк склада)
+- Route-level loading skeletons (dashboard/catalog/inventory/orders/builder) + `components/ui/skeleton.tsx`
+- Google Fonts удалены → system font stack (build больше не зависит от fonts.gstatic.com)
+- Collapsible sidebar: `DashboardShell` (client) — desktop rail-collapse (localStorage `bloomwise.sidebar.collapsed`), tablet/mobile drawer через Sheet, hamburger в Header ниже xl (1280px)
+- Organization settings: атомарный merge через RPC `merge_organization_settings` (migration_026, **применена к live**) — устранён read-merge-write race, терявший logo_url
+- Logo: upload в bucket `organization-assets` (public), `router.refresh()` после сохранения, рендер в Sidebar через `<Image unoptimized>` (обход server-side optimizer, который падал на VPN-резолве), read-side allowlist `lib/organization/logo.ts` (getSafeOrganizationLogoUrl)
+- Team: приглашения (create/accept/revoke/preview RPCs), роли через `update_team_member_role`, активация через `toggle_team_member_active`
+- AI bouquet: генерация изображений, private bucket `ai-generations`, история в `ai_requests`, страница /bloom-ai
 
 ---
 
-## 5. Карта экранов приложения
+## Current auth/org model
 
-```
-/ (Dashboard)
-  ├── /orders               — Список заказов
-  │     └── /orders/new     — Новый заказ (с Bouquet Builder)
-  │     └── /orders/[id]    — Заказ (просмотр / редактирование)
-  ├── /builder              — Bouquet Builder (отдельно)
-  ├── /calendar             — Календарь заказов
-  ├── /inventory            — Склад (список товаров, остатки)
-  │     └── /inventory/[id] — Карточка товара
-  ├── /purchases            — Приходы товара
-  │     └── /purchases/new  — Новый приход
-  ├── /writeoffs            — Списания
-  │     └── /writeoffs/new  — Новое списание
-  ├── /recipes              — Рецепты букетов
-  │     └── /recipes/[id]   — Рецепт
-  ├── /customers            — Клиенты
-  │     └── /customers/[id] — Карточка клиента
-  ├── /reports              — Отчёты
-  ├── /bloom-ai             — AI-помощник (заглушка в v1)
-  └── /settings             — Настройки
-```
+- **proxy.ts** (корень): гейтит все пути, кроме public (`/login`, `/register`, `/forgot-password`, `/reset-password`, `/invite/*`, `/auth/callback`); неавторизованных → /login; авторизованных с /login|/register → /
+- **app/(dashboard)/layout.tsx** (Server Component): повторно `getUser()` → redirect /login; `profiles.is_active === false` → redirect /deactivated; если у профиля нет organization_id → RPC `create_my_organization` (fallback после email-confirm); грузит org name/settings для shell
+- **Роли:** owner, admin, florist, cashier, viewer (`lib/team/roles.ts`, roleLabels в Sidebar). Настройки организации — только owner/admin (проверка и в actions, и внутри SECURITY DEFINER RPC)
+- **profiles**: RLS ужесточён (migration_020) — self-update только безопасных колонок (full_name, phone, avatar_url); role/is_active меняются только через RPC
+- **organizations.settings** (jsonb): phone, whatsapp, address, currency, timezone, logo_url, logo_path. Пишется ТОЛЬКО через `merge_organization_settings(p_patch)` — атомарный `settings || patch`, allow-list ключей, owner/admin-only, org из профиля вызывающего
+- **Invite flow:** /invite/[token] → preview (RPC get_team_invitation_preview) → login/register с `next=` (защита `getSafeNext` в lib/auth/next.ts: только относительные пути, блок `//` и `/\`) → accept (RPC accept_team_invitation)
+- `profiles.avatar_url` существует в схеме, но **UI загрузки личного аватара не реализован** — везде рендерятся инициалы
 
 ---
 
-## 6. Карта переноса из Excel
+## Current inventory/order model
 
-| Excel-лист | Таблица БД | Экран | Действие |
-|---|---|---|---|
-| Склад / Товары | products | /inventory | Добавить / редактировать товар |
-| Приход | purchases + product_batches | /purchases/new | Оформить приход |
-| Движение склада | inventory_movements | /inventory/[id] история | Просмотр |
-| Продажи | orders + order_items | /orders/new | Создать заказ |
-| Состав заказа | bouquets + bouquet_items | Bouquet Builder | Собрать букет |
-| Списания | writeoffs | /writeoffs/new | Оформить списание |
-| Остатки | из inventory_movements | /inventory | Автоматически |
-| Себестоимость | bouquet_items.unit_cost | Builder → правая зона | Автоматически |
-| Прибыль | orders.profit | /orders/[id] | Автоматически |
-| Отчёт | агрегация | /reports | Просмотр |
+Реальная схема (не путать со старой версией этого файла):
 
-**Excel-файл проекта:** `Книга1.xlsm` — изучить перед разработкой склада (Этап 3).
+- **flowers** — карточки цветов (name, category, unit, min_stock, sale_price, sku `FLW-xxxxxx` уникальный в организации, is_active для архивации, knowledge-поля из migration_013)
+- **flower_varieties / flower_colors** — сорта и цвета цветка
+- **inventory_items** — партии (batch): flower_id+variety_id+color_id, arrived_at (date), cost_price, sale_price, quantity_in, quantity_remaining, freshness_status (write-once при insert, со временем НЕ обновляется — не источник правды о свежести), purchase_id
+- **stock_movements** — append-only журнал движений (RLS: только SELECT/INSERT)
+- **flower_stock** (view) — SUM(quantity) по stock_movements per flower_id
+- **flower_variant_stock** (view) — остатки per (org, flower, variety, color) из inventory_items.quantity_remaining
+- **purchases / purchase_items** — поставки; создание через RPC `create_purchase_atomic`; delete защищён: партию нельзя удалить, если из неё уже использовано (validateAndDeleteInventoryBatch)
+- **writeoffs** — списания через RPC `create_writeoff_atomic` (FIFO, flower/variety/color из inventory_items — не из payload)
+- **orders** — статусы new/in_progress/ready/delivered/cancelled; payment_status unpaid/partial/paid; флаги stock_written_off/stock_returned; списание склада — RPC `write_off_order_stock` (CAS-update партий), возврат — `return_order_stock`
+- **bouquets / bouquet_items** — состав заказа (variety_id/color_id с migration_014); Bouquet Builder — единый модуль (`components/bouquet-builder/*`), используется в /builder и в заказах
+- **recipes / recipe_items** — рецепты букетов
+- **customers** — клиенты (wa.me-ссылки на страницах клиента)
+- **ai_requests** — история AI-генераций (+prompt_image_path, migration_017)
+- **whatsapp_messages** — лог отправок (пишется в orders action при отправке wa.me)
+- payments / activity_logs: описаны в исходной схеме — Needs verification, используются ли в текущем коде (в actions обращений не найдено)
 
----
-
-## 7. Роли пользователей
-
-| Роль | Склад | Заказы | Списания | Отчёты | Настройки |
-|---|---|---|---|---|---|
-| owner | полный | полный | полный | полный | полный |
-| admin | полный | полный | полный | полный | частичный |
-| florist | просмотр + букет | создание / ред. | создание | просмотр | нет |
-| cashier | просмотр | создание / оплата | нет | просмотр | нет |
-| viewer | просмотр | просмотр | просмотр | просмотр | нет |
+**Правила статусов склада** (единый источник — lib/inventory/status.ts):
+`no_stock` (stock≤0) → `low` (stock ≤ min_stock, либо ≤ DEFAULT_LOW_THRESHOLD=5 если min не задан) → `aging` (daysOnShelf ≥ AGING_DAYS=7 по старейшей партии) → `ok`. Dashboard и /inventory обязаны использовать getInventoryRows/getInventoryStatus — не дублировать логику. Aging показывается и для архивных цветов; low/out — только для активных.
 
 ---
 
-## 8. Визуальные правила интерфейса
+## Known constraints
 
-### Цветовая палитра
-```
-Sidebar bg:    #0f0f11   Sidebar text:  #a1a1aa
-Main bg:       #f8f8fa   Card bg:       #ffffff
-Border:        #e4e4e7   Primary:       #f43f5e (rose-500)
-Text main:     #09090b   Text sec:      #71717a
-Success:       #22c55e   Warning:       #f59e0b   Danger: #ef4444
+- **Live DB может содержать схему, не полностью отражённую в миграциях** (ранние таблицы создавались вручную в Studio; migration_001/004 — документирующие). Не доверять слепо файлам миграций как единственному источнику; при сомнении — read-only SELECT с разрешения пользователя.
+- **Supabase CLI не установлен**, проект не linked — миграции применяются пользователем вручную через Studio SQL Editor.
+- **Сетевые ограничения машины разработки:** трафик идёт через VPN с виртуальными IP (240.0.0.0/4). Следствия: server-side fetch к внешним хостам может падать (из-за этого удалены Google Fonts; Image Optimizer отклонял Supabase-хост → лого рендерится с `unoptimized`). Не возвращать server-side fetch внешних ресурсов без учёта этого.
+- Пользователь тестирует вручную в браузере (localhost:3000); у ассистента нет учётных данных — визуальные проверки подтверждает пользователь (скриншот/ответ).
+- Рабочий язык — русский (UI, коммуникация, комментарии в коде).
+- Избегать деструктивных изменений; DROP запрещён без явного разрешения.
+- `Книга1.xlsm` в корне — исходный Excel-файл салона (референс данных). Импорт из Excel в приложение **не реализован**.
+
+---
+
+## Quality gate
+
+Перед каждым commit, без исключений:
+
+```bash
+npm run lint        # ожидаемо: 0 errors / 0 warnings
+npx tsc --noEmit    # ожидаемо: без вывода
+npm run build       # ожидаемо: все роуты сгенерированы
 ```
 
-### Адаптивность
-- Ноутбук (1280px+): sidebar + рабочая область + правая панель
-- Планшет (768–1279px): sidebar иконками или выезжающий
-- Мобильный: минимум, основной фокус — ноутбук/планшет
+Плюс: `git status --short`, `git diff --stat`, полный diff по изменённым файлам, подтверждение что не тронуты DB/RLS/actions/env, если этап этого не требовал.
 
 ---
 
-## 9. Складская логика (критические правила)
+## Workflow format
 
-1. **Остаток = SUM(inventory_movements.quantity) WHERE product_id = X**
-2. **FIFO:** при списании сначала самые старые партии (arrived_at ASC)
-3. **Резерв:** букет в заказе → bouquet_reserved; отмена → bouquet_unreserved; выдача → sale
-4. **Предупреждения:** current_stock ≤ min_stock / expires_at ≤ now+3d / arrived_at < now-14d
+1. **Audit first** — read-only исследование, без правок кода
+2. **Report** — структурированный отчёт по шаблону этапа
+3. **Wait for approval** — остановиться, ждать явного решения пользователя
+4. **Implement** — минимальный diff строго в разрешённых файлах
+5. **Report** — implementation report
+6. **Review** — отдельный проход: diff, scope, grep-safety, quality gate
+7. **Commit/push only after approval** — с checkpoint-отчётом (hash, remote hash, local==remote, clean tree)
 
----
+Стоп-условия: несовпадение заявленной стабильной точки с HEAD, «непонятные» изменения в working tree, необходимость менять запрещённые файлы, падение tsc, риск потери данных → остановиться и показать отчёт.
 
-## 10. Bouquet Builder — правила модуля
-
-- Единый модуль, не дублировать
-- Три зоны: Склад | Букет | Финансы
-- Три режима: stock_only / stock_plus_buy / free_idea
-- В stock_only нельзя добавить товар которого нет
-
----
-
-## 11. AI-модуль (Bloom AI) — заглушка в v1
-
-- Таблица ai_requests готова к использованию
-- Место в Builder зарезервировано (кнопка неактивна)
-- Структура ответа AI описана в разделе 12 ниже
-- AI не изменяет данные без подтверждения пользователя
-
-### Структура ответа AI
-```typescript
-interface AIBouquetResponse {
-  bouquet_name: string; style: string; mode: string;
-  items: Array<{ product_id: string; batch_id: string; name: string;
-    quantity: number; unit_cost: number; total_cost: number }>;
-  missing_items: Array<{ name: string; quantity: number; estimated_cost: number }>;
-  substitutions: Array<{ original_product_id: string; substitute_product_id: string; reason: string }>;
-  cost_price: number; sale_price: number; profit: number; margin_percent: number;
-  warnings: string[]; assembly_notes: string; customer_description: string;
-}
-```
-
----
-
-## 12. WhatsApp-интеграция
-
-**v1:** `https://wa.me/{phone}?text={encoded_message}` — ссылка открывает WhatsApp  
-**v2 (будущее):** WhatsApp Business API (место в архитектуре зарезервировано)  
-Каждая отправка сохраняется в `whatsapp_messages`.
-
----
-
-## 13. Этапы разработки
-
-| # | Этап | Статус |
-|---|---|---|
-| 0 | Подготовка (CLAUDE.md, архитектура) | ✅ Готово |
-| 1 | Основа проекта (Next.js, layout, sidebar, dashboard) | ✅ Готово |
-| 2 | Supabase + SaaS-структура + RLS | ✅ Готово |
-| 3 | Склад (flowers, inventory_items, stock_movements) | ✅ Готово |
-| 4 | Приход и списания | ✅ Готово |
-| 5 | Новый заказ | ✅ Готово |
-| 6 | Bouquet Builder (встроенный + standalone /builder) | ✅ Готово |
-| 7 | Отдельная кнопка "Собрать букет" | ✅ Готово (через /builder) |
-| 8 | Рецепты (CRUD + редактирование) | ✅ Готово |
-| 9 | WhatsApp (wa.me + whatsapp_messages) | ✅ Готово |
-| 10 | Календарь и отчёты (реальные данные) | ✅ Готово |
-| 11 | Подготовка AI (Bloom AI, заглушка) | ✅ Готово |
-
----
-
-## 14. Правила разработки (обязательные)
-
-1. Не ломать уже работающую логику
-2. Не удалять функции без явного разрешения
-3. Bouquet Builder — единственный модуль сборки
-4. Сначала рабочая логика, потом украшения
-5. Все данные с organization_id (SaaS)
-6. Изменения склада только через inventory_movements
-7. FIFO при списании по партиям
-8. Перед крупными изменениями — объяснить что будет изменено
-9. Не делать огромные изменения одним блоком
-10. AI не изменяет данные без подтверждения пользователя
-
----
-
-## 15. Структура проекта (Next.js App Router)
-
-```
-app/
-  (auth)/login/  (auth)/register/
-  (dashboard)/
-    layout.tsx        ← sidebar + main area
-    page.tsx          ← Dashboard
-    orders/           new/  [id]/
-    builder/
-    calendar/
-    inventory/        [id]/
-    purchases/        new/
-    writeoffs/        new/
-    recipes/          [id]/
-    customers/        [id]/
-    reports/
-    bloom-ai/
-    settings/         profile/  team/  branches/  suppliers/
-components/
-  layout/   Sidebar.tsx  Header.tsx  MobileNav.tsx
-  dashboard/ StatsCard.tsx  RecentOrders.tsx  StockAlerts.tsx
-  bouquet-builder/  BuilderLayout.tsx  StockPanel.tsx  BouquetPanel.tsx  FinancePanel.tsx
-  inventory/ ProductCard.tsx  ProductForm.tsx  MovementHistory.tsx
-  orders/    OrderForm.tsx  OrderCard.tsx  StatusBadge.tsx
-  ui/        ← shadcn/ui компоненты
-lib/
-  supabase/  client.ts  server.ts  types.ts
-  utils/     inventory.ts  pricing.ts  whatsapp.ts  fifo.ts
-types/
-  database.ts  bouquet.ts  order.ts
-```
-
----
-
-## 16. Workflow Orchestration & Token Economy
-
-### 1. Plan Mode Default
-
-- Для любой задачи сложнее 3 шагов сначала делать план.
-- Не менять код до подтверждения пользователя.
-- План должен содержать:
-  - цель;
-  - затрагиваемые файлы;
-  - риски;
-  - минимальный безопасный первый шаг;
-  - что НЕ будет изменяться.
-
-### 2. Small Safe Steps
-
-- Один шаг = одна маленькая логическая задача.
-- Не смешивать:
-  - миграции и UI;
-  - RLS и бизнес-логику;
-  - рефакторинг и новый функционал;
-  - исправление бага и улучшение дизайна.
-- После каждого шага: TypeScript check, diff, commit, stop.
-
-### 3. Context Economy Rules
-
-- Не читать весь проект без необходимости.
-- Сначала использовать точечный поиск: `rg`, `git grep`, `find`, точечный просмотр файлов.
-- Не вставлять в ответ большие файлы целиком, если достаточно diff или краткого отчёта.
-- Читать только файлы, связанные с текущей задачей.
-- Если нужно изучить большой файл, сначала показать план, какие части будут изучены.
-- Не пересказывать очевидное длинными отчётами.
-- Отчёты должны быть короткими: что изменено, где, почему, как проверить.
-
-### 4. Subagent Strategy
-
-- Subagents использовать только для тяжёлого аудита:
-  - поиск дублей;
-  - поиск мёртвого кода;
-  - анализ RLS;
-  - аудит миграций;
-  - анализ архитектуры.
-- Один subagent = одна конкретная задача.
-- Subagent не должен менять код без отдельного разрешения.
-- Основной контекст должен оставаться чистым: subagent возвращает короткий отчёт, а не огромный дамп.
-
-### 5. Checkpoint Discipline
-
-Перед каждым commit обязательно:
-
-- `git diff --stat`
-- полный `git diff` по изменённым файлам
-- TypeScript check
-- явное подтверждение, что НЕ менялось:
-  - БД;
-  - RLS;
-  - миграции;
-  - UI;
-  - бизнес-логика, если задача была рефакторингом.
-- commit только после подтверждения пользователя.
-
-### 6. Database / Supabase Safety
-
-- Не применять SQL к live/dev DB без явного разрешения.
-- Миграции создавать отдельно от кода приложения.
-- Не использовать `DROP`, если пользователь явно не разрешил.
-- Не менять RLS без отдельного аудита и отдельного подтверждения.
-- `stock_movements` считать append-only журналом: не удалять движения, использовать компенсационные записи.
-- `organization_id` получать через общий helper `lib/services/organizationService.ts`.
-
-### 7. Git Discipline
-
-- Один commit = одна логическая задача.
-- Перед push:
-  - показать последние коммиты;
-  - показать `git status --short`;
-  - напомнить ручную проверку;
-  - push только после подтверждения.
-- Не делать push автоматически, если пользователь не разрешил.
-
-### 8. Current Project Decisions
-
-- BloomWise использует Next.js + Supabase.
-- Server Actions остаются в `app/actions/*`.
-- Чистые helpers/services — в `lib/services/*`.
-- Типы — в `types/*` или `lib/supabase/types.ts`.
-- `organizationService.ts` — единый helper для получения `organization_id`.
-- `sku` товара хранится в `flowers.sku`.
-- Автоматический SKU имеет формат `FLW-000001`.
-- SKU уникален внутри организации: `(organization_id, sku)`.
-- Пользовательский SKU нормализуется через `trim() + uppercase`.
-- `flower_stock` — view на основе `stock_movements`.
-
-### 9. Stop Conditions
-
-Claude должен остановиться и ждать подтверждения, если:
-
-- задача требует изменения БД;
-- задача требует изменения RLS;
-- задача затрагивает больше 5 файлов;
-- появляется необходимость переписать архитектуру;
-- TypeScript check падает;
-- есть риск потери данных;
-- нужно сделать commit;
-- нужно сделать push.
-
----
-
-*Последнее обновление: Этапы 1–11 завершены. Фаза 3.3 — общий organizationService. SKU-поддержка добавлена.*  
-*Excel-файл обнаружен: Книга1.xlsm — изучить на Этапе 3 (Склад)*
+Нумерация этапов: `6.0C-*` (UX/bugfix серия завершена), далее `6.0D-*` (preflight), дизайн-фаза — `6.1A-*`.
