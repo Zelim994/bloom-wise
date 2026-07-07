@@ -118,6 +118,7 @@ export function Sidebar({
             alt={orgName ?? "Логотип"}
             width={32}
             height={32}
+            unoptimized
             className="h-8 w-8 rounded-lg object-cover shrink-0"
           />
         ) : (
