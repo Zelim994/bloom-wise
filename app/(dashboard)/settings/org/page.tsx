@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { Building2, ChevronLeft } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { OrganizationSettingsForm } from "@/components/settings/OrganizationSettingsForm"
+import { getSafeOrganizationLogoUrl } from "@/lib/organization/logo"
 import type { OrgSettingsInput } from "@/app/actions/settings"
 
 export default async function OrgSettingsPage() {
@@ -41,7 +42,7 @@ export default async function OrgSettingsPage() {
     ownerPhone: profile.phone ?? "",
   }
 
-  const logoUrl = s.logo_url ?? null
+  const logoUrl = getSafeOrganizationLogoUrl(org?.settings)
   const canManageSettings = profile.role === "owner" || profile.role === "admin"
 
   return (

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { DashboardShell } from "@/components/layout/DashboardShell"
+import { getSafeOrganizationLogoUrl } from "@/lib/organization/logo"
 
 export default async function DashboardLayout({
   children,
@@ -41,13 +42,13 @@ export default async function DashboardLayout({
         .single()
     : { data: null }
 
-  const orgSettings = (org?.settings as Record<string, string | null>) ?? {}
+  const orgLogoUrl = getSafeOrganizationLogoUrl(org?.settings)
 
   return (
     <DashboardShell
       profile={profile}
       orgName={org?.name ?? null}
-      orgLogoUrl={orgSettings.logo_url ?? null}
+      orgLogoUrl={orgLogoUrl}
     >
       {children}
     </DashboardShell>
