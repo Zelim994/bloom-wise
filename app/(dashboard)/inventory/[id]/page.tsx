@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation"
+import { notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Package, ShoppingCart, ShoppingBag } from "lucide-react"
 import {
@@ -72,7 +72,7 @@ export default async function InventoryItemPage({
     changes: Array.isArray(l.changes) ? (l.changes as HistoryLog["changes"]) : null,
   }))
 
-  if (!flower) redirect("/inventory")
+  if (!flower) notFound()
 
   // ─── derived stats ──────────────────────────────────────────────────────────
   const minStock = flower.min_stock ?? 0

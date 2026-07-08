@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation"
+import { notFound } from "next/navigation"
 import { getPurchaseDetail, getSuppliers } from "@/app/actions/purchases"
 import { EditPurchaseForm } from "@/components/purchases/EditPurchaseForm"
 
@@ -13,7 +13,7 @@ export default async function EditPurchasePage({
     getSuppliers(),
   ])
 
-  if (!purchase) redirect("/purchases")
+  if (!purchase) notFound()
 
   return (
     <div className="max-w-5xl mx-auto">

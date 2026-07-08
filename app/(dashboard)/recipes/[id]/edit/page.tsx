@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation"
+import { notFound } from "next/navigation"
 import { getRecipe } from "@/app/actions/recipes"
 import { getFlowersForBuilder } from "@/app/actions/builder"
 import { RecipeForm } from "@/components/recipes/RecipeForm"
@@ -13,7 +13,7 @@ export default async function EditRecipePage({
     getFlowersForBuilder(),
   ])
 
-  if (!recipe) redirect("/recipes")
+  if (!recipe) notFound()
 
   const initialRecipe = {
     id: recipe.id,

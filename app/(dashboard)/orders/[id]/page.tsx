@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation"
+import { notFound } from "next/navigation"
 import { getOrder } from "@/app/actions/orders"
 import { getFlowersForBuilder } from "@/app/actions/builder"
 import { OrderForm } from "@/components/orders/OrderForm"
@@ -29,7 +29,7 @@ export default async function OrderDetailPage({
 }) {
   const { id } = await params
   const [order, flowers] = await Promise.all([getOrder(id), getFlowersForBuilder()])
-  if (!order) redirect("/orders")
+  if (!order) notFound()
 
   const status = statusConfig[order.status] ?? { label: order.status, className: "bg-zinc-100 text-zinc-500" }
   const payment = paymentConfig[order.payment_status ?? "unpaid"]

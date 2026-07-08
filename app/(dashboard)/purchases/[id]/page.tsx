@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation"
+import { notFound } from "next/navigation"
 import Link from "next/link"
 import {
   ArrowLeft, Truck, ExternalLink, Package, Plus,
@@ -51,7 +51,7 @@ export default async function PurchaseDetailPage({
     getPurchaseMovements(id),
   ])
 
-  if (!detail) redirect("/purchases")
+  if (!detail) notFound()
 
   // ── derived stats ──────────────────────────────────────────────────────────
   const totalGoods    = detail.items.reduce((s, i) => s + i.quantity * i.cost_price, 0)

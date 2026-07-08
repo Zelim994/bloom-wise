@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation"
+import { notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Pencil } from "lucide-react"
 import { getRecipe } from "@/app/actions/recipes"
@@ -21,7 +21,7 @@ export default async function RecipeDetailPage({
   params: { id: string }
 }) {
   const recipe = await getRecipe(params.id)
-  if (!recipe) redirect("/recipes")
+  if (!recipe) notFound()
 
   const margin =
     recipe.recommended_price && recipe.cost_price && recipe.recommended_price > 0
