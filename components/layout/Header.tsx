@@ -1,9 +1,8 @@
 "use client"
 
 import { usePathname, useRouter } from "next/navigation"
-import { Bell, Search, LogOut, Menu } from "lucide-react"
+import { LogOut, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,16 +66,6 @@ export function Header({
         <h1 className="text-[15px] font-semibold text-zinc-900 truncate">{title}</h1>
       </div>
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-zinc-700">
-          <Search className="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className="relative h-8 w-8 text-zinc-400 hover:text-zinc-700">
-          <Bell className="h-4 w-4" />
-          <Badge className="absolute -top-0.5 -right-0.5 h-4 w-4 p-0 flex items-center justify-center text-[9px] bg-rose-500 text-white border-0">
-            3
-          </Badge>
-        </Button>
-
         <DropdownMenu>
           <DropdownMenuTrigger className="ml-1 flex h-7 w-7 items-center justify-center rounded-full bg-rose-100 text-rose-600 text-xs font-semibold hover:bg-rose-200 transition-colors cursor-pointer border-0 outline-none">
             {profile?.full_name?.[0]?.toUpperCase() ?? "?"}
