@@ -2,6 +2,14 @@ import { AGING_DAYS } from "@/lib/inventory/aging"
 
 export type InventoryStatus = "ok" | "low" | "aging" | "no_stock"
 
+export type StockAlert = {
+  name: string
+  stock: number
+  min: number
+  type: "low" | "out" | "aging"
+  days?: number
+}
+
 export const DEFAULT_LOW_THRESHOLD = 5
 
 export function getInventoryStatus(

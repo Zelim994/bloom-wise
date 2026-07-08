@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { ShoppingBag, PackageSearch, CheckCircle2 } from "lucide-react"
 import { getOrderReminderItems, plural } from "@/components/dashboard/OrdersAttentionWidget"
-import type { StockAlert } from "@/components/dashboard/StockAlertsWidget"
+import type { StockAlert } from "@/lib/inventory/status"
 
 type DashboardRemindersPanelProps = {
   stockAlerts: StockAlert[]

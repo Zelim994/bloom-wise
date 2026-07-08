@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { StatsCard, type StatItem } from "@/components/dashboard/StatsCard"
 import { UpcomingOrdersWidget, type UpcomingOrder } from "@/components/dashboard/UpcomingOrdersWidget"
-import type { StockAlert } from "@/components/dashboard/StockAlertsWidget"
 import { DashboardRemindersPanel } from "@/components/dashboard/DashboardRemindersPanel"
 import { DashboardPeriodTabs } from "@/components/dashboard/DashboardPeriodTabs"
 import { GettingStarted } from "@/components/dashboard/GettingStarted"
@@ -26,7 +25,7 @@ import { createClient } from "@/lib/supabase/server"
 import { getOrgId } from "@/lib/services/organizationService"
 import { AGING_DAYS } from "@/lib/inventory/aging"
 import { getInventoryRows } from "@/lib/inventory/rows"
-import { DEFAULT_LOW_THRESHOLD } from "@/lib/inventory/status"
+import { DEFAULT_LOW_THRESHOLD, type StockAlert } from "@/lib/inventory/status"
 
 
 export default async function DashboardPage({
