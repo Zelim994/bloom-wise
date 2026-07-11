@@ -6,16 +6,16 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import type { Profile } from "@/lib/supabase/types"
 import {
-  LayoutDashboard,
+  LayoutGrid,
   Plus,
-  Scissors,
-  ClipboardList,
-  Calendar,
+  Flower,
+  ShoppingBag,
+  CalendarDays,
   Package,
   Library,
   Truck,
   Trash2,
-  BookOpen,
+  NotebookText,
   Users,
   BarChart3,
   Sparkles,
@@ -36,16 +36,16 @@ const roleLabels: Record<string, string> = {
 const navGroups = [
   {
     items: [
-      { label: "Главная", href: "/", icon: LayoutDashboard },
+      { label: "Главная", href: "/", icon: LayoutGrid },
       { label: "Новый заказ", href: "/orders/new", icon: Plus, accent: true },
-      { label: "Собрать букет", href: "/builder", icon: Scissors },
+      { label: "Собрать букет", href: "/builder", icon: Flower },
     ],
   },
   {
     label: "ПРОДАЖИ",
     items: [
-      { label: "Заказы", href: "/orders", icon: ClipboardList },
-      { label: "Календарь", href: "/calendar", icon: Calendar },
+      { label: "Заказы", href: "/orders", icon: ShoppingBag },
+      { label: "Календарь", href: "/calendar", icon: CalendarDays },
       { label: "Клиенты", href: "/customers", icon: Users },
     ],
   },
@@ -56,7 +56,7 @@ const navGroups = [
       { label: "Склад", href: "/inventory", icon: Package },
       { label: "Поставки", href: "/purchases", icon: Truck },
       { label: "Списания", href: "/writeoffs", icon: Trash2 },
-      { label: "Рецепты букетов", href: "/recipes", icon: BookOpen },
+      { label: "Рецепты букетов", href: "/recipes", icon: NotebookText },
     ],
   },
   {
