@@ -26,6 +26,7 @@ import { getOrgId } from "@/lib/services/organizationService"
 import { AGING_DAYS } from "@/lib/inventory/aging"
 import { getInventoryRows } from "@/lib/inventory/rows"
 import { DEFAULT_LOW_THRESHOLD, type StockAlert } from "@/lib/inventory/status"
+import { ALL_ROLE_LABELS } from "@/lib/team/roles"
 
 
 export default async function DashboardPage({
@@ -40,6 +41,20 @@ export default async function DashboardPage({
 
   const supabase = await createClient()
   const orgId = await getOrgId(supabase)
+
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: profile } = user
+    ? await supabase.from("profiles").select("full_name, role").eq("id", user.id).maybeSingle()
+    : { data: null }
+
+  const fullName = profile?.full_name?.trim()
+  const firstName = fullName?.split(/\s+/)[0]
+
+  const displayName = firstName || user?.email || "Пользователь"
+  const roleLabel =
+    profile?.role && profile.role in ALL_ROLE_LABELS
+      ? ALL_ROLE_LABELS[profile.role]
+      : "Пользователь"
 
   let upcomingOrders: UpcomingOrder[] = []
   let stockAlerts: StockAlert[] = []
@@ -270,8 +285,8 @@ export default async function DashboardPage({
         {/* Приветствие + быстрые действия */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-zinc-900">Добро пожаловать 🌸</h2>
-            <p className="text-sm text-zinc-500 mt-0.5">Сегодня на связи</p>
+            <h2 className="text-2xl font-semibold text-zinc-900">Добро пожаловать, {displayName} 🌸</h2>
+            <p className="text-sm text-zinc-500 mt-0.5">{roleLabel}</p>
           </div>
           <div className="flex gap-3">
             <Button asChild className="bg-rose-500 hover:bg-rose-600 text-white gap-2">
