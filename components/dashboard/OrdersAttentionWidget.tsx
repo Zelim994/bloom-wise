@@ -1,4 +1,5 @@
-import { Package, Banknote, Gift, RotateCcw, type LucideIcon } from "lucide-react"
+import { Gift, RotateCcw, type LucideIcon } from "lucide-react"
+import { AppIcons } from "@/lib/icons"
 import { createClient } from "@/lib/supabase/server"
 import { getOrgId } from "@/lib/services/organizationService"
 
@@ -69,7 +70,7 @@ export async function getOrderReminderItems(): Promise<{
       title: "Нужно списать склад",
       count: needStockWriteOff,
       href: "/orders?stock=not_written_off",
-      icon: Package,
+      icon: AppIcons.writeoff,
       urgency: "warn",
     },
     {
@@ -77,7 +78,7 @@ export async function getOrderReminderItems(): Promise<{
       title: "Получить оплату",
       count: needPayment,
       href: "/orders?payment=open",
-      icon: Banknote,
+      icon: AppIcons.payment,
       urgency: "warn",
     },
     {
