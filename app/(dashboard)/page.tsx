@@ -1,12 +1,9 @@
 import Link from "next/link"
 import {
   TrendingUp,
-  TrendingDown,
   ShoppingBag,
   Scissors,
   Package,
-  AlertTriangle,
-  Clock,
   Minus,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -23,7 +20,6 @@ import {
 } from "@/lib/dashboard/periods"
 import { createClient } from "@/lib/supabase/server"
 import { getOrgId } from "@/lib/services/organizationService"
-import { AGING_DAYS } from "@/lib/inventory/aging"
 import { getInventoryRows } from "@/lib/inventory/rows"
 import { DEFAULT_LOW_THRESHOLD, type StockAlert } from "@/lib/inventory/status"
 import { ALL_ROLE_LABELS } from "@/lib/team/roles"
@@ -69,8 +65,6 @@ export default async function DashboardPage({
   if (orgId) {
     const today = new Date()
     const todayStr = today.toISOString().split("T")[0]
-    const tomorrowStr = new Date(today.getTime() + 86_400_000).toISOString().split("T")[0]
-    const dayAfterStr  = new Date(today.getTime() + 2 * 86_400_000).toISOString().split("T")[0]
     const sevenDayStr  = new Date(today.getTime() + 7 * 86_400_000).toISOString().split("T")[0]
     const dateRange = getPeriodDateRange(period, today, rawFrom, rawTo)
 
@@ -92,7 +86,7 @@ export default async function DashboardPage({
 
     const [
       upcomingRes, periodOrdersRes, inventoryRowsRes,
-      writeoffsRes, tomorrowRes,
+      writeoffsRes,
       customerCountRes, orderCountRes,
     ] = await Promise.all([
       // Ближайшие заказы (7 дней) для виджета
@@ -111,10 +105,6 @@ export default async function DashboardPage({
       getInventoryRows(supabase),
       // Списания по выбранному периоду
       writeoffsQuery,
-      supabase.from("orders").select("id, type")
-        .eq("organization_id", orgId)
-        .gte("order_date", tomorrowStr).lt("order_date", dayAfterStr)
-        .not("status", "in", "(cancelled,delivered)"),
       // Онбординг: есть ли хотя бы 1 клиент / заказ (только count, без данных)
       supabase.from("customers").select("id", { count: "exact", head: true })
         .eq("organization_id", orgId),
@@ -196,12 +186,8 @@ export default async function DashboardPage({
     const kpiCount    = kpiOrders.length
     const writeoffTotal = (writeoffsRes.data ?? []).reduce((s, w) => s + (w.loss_amount ?? 0), 0)
 
-    const tomorrowOrders    = tomorrowRes.data ?? []
-    const tomorrowDeliveries = tomorrowOrders.filter((o) => (o as { type: string }).type === "delivery").length
     const totalStock    = [...stockByFlower.values()].reduce((s, v) => s + v, 0)
     const stockWithItems = [...stockByFlower.values()].filter((v) => v > 0).length
-    const lowStockCount  = outAlerts.length + lowAlerts.length
-    const agingCount     = agingAlerts.length
 
     const fmt = (n: number) =>
       n > 0 ? `₽ ${n.toLocaleString("ru", { maximumFractionDigits: 0 })}` : "₽ 0"
@@ -224,13 +210,6 @@ export default async function DashboardPage({
         icon: TrendingUp, color: "text-emerald-500", bg: "bg-emerald-50",
       },
       {
-        label: "Заказы",
-        value: kpiCount > 0 ? String(kpiCount) : "0",
-        trend: kpiCount > 0 ? pl : noOrders,
-        up: kpiCount > 0,
-        icon: ShoppingBag, color: "text-blue-500", bg: "bg-blue-50",
-      },
-      {
         label: "Списания",
         value: writeoffTotal > 0 ? fmt(writeoffTotal) : "—",
         trend: writeoffTotal > 0 ? pl : `Нет списаний ${pl}`,
@@ -238,32 +217,11 @@ export default async function DashboardPage({
         icon: Minus, color: "text-rose-500", bg: "bg-rose-50",
       },
       {
-        label: "Заказы на завтра",
-        value: String(tomorrowOrders.length),
-        trend: tomorrowDeliveries > 0 ? `${tomorrowDeliveries} доставок` : "Нет доставок",
-        up: tomorrowOrders.length > 0,
-        icon: Clock, color: "text-violet-500", bg: "bg-violet-50",
-      },
-      {
         label: "Остаток склада",
         value: `${totalStock} шт`,
         trend: stockWithItems > 0 ? `${stockWithItems} позиций` : "Склад пуст",
         up: totalStock > 0,
         icon: Package, color: "text-amber-500", bg: "bg-amber-50",
-      },
-      {
-        label: "Низкий остаток",
-        value: lowStockCount > 0 ? `${lowStockCount} товаров` : "Всё в норме",
-        trend: lowStockCount > 0 ? "Требуют закупки" : "Запасов достаточно",
-        up: lowStockCount === 0,
-        icon: AlertTriangle, color: "text-orange-500", bg: "bg-orange-50",
-      },
-      {
-        label: "Залежались",
-        value: agingCount > 0 ? `${agingCount} позиций` : "Всё свежее",
-        trend: agingCount > 0 ? `Старше ${AGING_DAYS} дней` : "Всё в порядке",
-        up: agingCount === 0,
-        icon: TrendingDown, color: "text-red-500", bg: "bg-red-50",
       },
     ]
 
