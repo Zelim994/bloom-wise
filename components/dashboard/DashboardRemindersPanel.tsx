@@ -15,13 +15,16 @@ const STOCK_BADGE: Record<StockAlert["type"], string> = {
   low: "Мало",
   aging: "Залежался",
 }
-const STOCK_COLORS: Record<StockAlert["type"], { bg: string; hoverBg: string; text: string; arrow: string }> = {
-  out:   { bg: "bg-red-50",    hoverBg: "hover:bg-red-100",    text: "text-red-600",    arrow: "text-red-400" },
-  low:   { bg: "bg-orange-50", hoverBg: "hover:bg-orange-100", text: "text-orange-600", arrow: "text-orange-400" },
-  aging: { bg: "bg-amber-50",  hoverBg: "hover:bg-amber-100",  text: "text-amber-600",  arrow: "text-amber-400" },
+const STOCK_COLORS: Record<StockAlert["type"], { text: string; arrow: string }> = {
+  out:   { text: "text-[var(--brand-accent-text)]", arrow: "text-[var(--brand-accent)]" },
+  low:   { text: "text-[var(--warn-text)]",         arrow: "text-[var(--warn)]" },
+  aging: { text: "text-[var(--brand-accent-text)]", arrow: "text-[var(--brand-accent)]" },
 }
 
-const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-1"
+const REMINDER_CARD =
+  "rounded-[var(--radius-panel-card)] border border-[var(--border-panel)] bg-[var(--bg-card)] shadow-sm hover:bg-[var(--bg-subtle)] transition-colors"
+
+const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-accent)] focus-visible:ring-offset-1"
 
 export async function DashboardRemindersPanel({
   stockAlerts,
@@ -44,16 +47,16 @@ export async function DashboardRemindersPanel({
     stockAlerts.length === 0
 
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-4 space-y-5">
-      <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+    <div className="space-y-5">
+      <h3 className="text-xs font-semibold text-[var(--text-heading)] uppercase tracking-wider">
         Напоминания
       </h3>
 
       {panelIsCalm ? (
         <div className="flex flex-col items-center justify-center py-6 px-2 text-center">
-          <CheckCircle2 className="h-8 w-8 text-emerald-400 mb-2" />
-          <p className="text-sm font-medium text-zinc-700">Всё спокойно</p>
-          <p className="text-xs text-zinc-400 mt-0.5">
+          <CheckCircle2 className="h-8 w-8 text-[var(--sage)] mb-2" />
+          <p className="text-sm font-medium text-[var(--text-primary)]">Всё спокойно</p>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">
             Нет задач, которые требуют внимания.
           </p>
         </div>
@@ -61,19 +64,19 @@ export async function DashboardRemindersPanel({
         <>
           {showOrdersSection && (
             <section className="space-y-2">
-              <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">
+              <span className="text-[11px] font-semibold text-[var(--panel-section)] uppercase tracking-wide">
                 Заказы
               </span>
 
               {!hasOrders ? (
                 <EmptyState
-                  icon={<ShoppingBag className="h-8 w-8 text-zinc-300 mb-2" />}
+                  icon={<ShoppingBag className="h-8 w-8 text-[var(--text-muted)] mb-2" />}
                   title="Заказов пока нет"
                   description="Создайте первый заказ, чтобы появились напоминания."
                   action={
                     <Link
                       href="/orders/new"
-                      className="mt-3 inline-flex items-center justify-center rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-3 py-2 transition-colors"
+                      className="mt-3 inline-flex items-center justify-center rounded-lg bg-[var(--brand-accent)] hover:bg-[var(--brand-accent-hover)] text-white text-sm font-medium px-3 py-2 transition-colors"
                     >
                       Создать заказ
                     </Link>
@@ -82,28 +85,24 @@ export async function DashboardRemindersPanel({
               ) : (
                 <div className="space-y-2">
                   {visibleOrderItems.map((item) => {
-                    const active =
-                      item.urgency === "warn"
-                        ? "border-amber-200 bg-amber-50 hover:bg-amber-100"
-                        : "border-sky-200 bg-sky-50 hover:bg-sky-100"
                     const iconColor =
-                      item.urgency === "warn" ? "text-amber-500" : "text-sky-500"
+                      item.urgency === "warn" ? "text-[var(--warn)]" : "text-[var(--sage)]"
                     const countColor =
-                      item.urgency === "warn" ? "text-amber-700" : "text-sky-700"
+                      item.urgency === "warn" ? "text-[var(--warn-text)]" : "text-[var(--sage-text)]"
                     const linkColor =
-                      item.urgency === "warn" ? "text-amber-400" : "text-sky-400"
+                      item.urgency === "warn" ? "text-[var(--warn)]" : "text-[var(--sage)]"
 
                     return (
                       <Link
                         key={item.key}
                         href={item.href}
-                        className={`block rounded-lg border p-3 transition-colors ${active} ${FOCUS_RING}`}
+                        className={`block p-3 ${REMINDER_CARD} ${FOCUS_RING}`}
                       >
                         <div className="flex items-start justify-between gap-1">
                           <div className="flex items-start gap-2.5 min-w-0">
                             <item.icon className={`h-4 w-4 shrink-0 mt-0.5 ${iconColor}`} />
                             <div className="min-w-0">
-                              <p className="text-xs font-medium text-zinc-800 leading-snug">{item.title}</p>
+                              <p className="text-xs font-medium text-[var(--text-primary)] leading-snug">{item.title}</p>
                               <p className={`text-xs font-semibold mt-0.5 ${countColor}`}>
                                 {item.count} {plural(item.count)}
                               </p>
@@ -123,19 +122,19 @@ export async function DashboardRemindersPanel({
 
           {showStockSection && (
             <section className="space-y-2">
-              <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">
+              <span className="text-[11px] font-semibold text-[var(--panel-section)] uppercase tracking-wide">
                 Склад
               </span>
 
               {isInventoryNotStarted ? (
                 <EmptyState
-                  icon={<PackageSearch className="h-8 w-8 text-zinc-300 mb-2" />}
+                  icon={<PackageSearch className="h-8 w-8 text-[var(--text-muted)] mb-2" />}
                   title="Склад ещё не настроен"
                   description="Добавьте цветы и оформите первую закупку."
                   action={
                     <Link
                       href="/purchases/new"
-                      className="mt-3 inline-flex items-center justify-center rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-3 py-2 transition-colors"
+                      className="mt-3 inline-flex items-center justify-center rounded-lg bg-[var(--brand-accent)] hover:bg-[var(--brand-accent-hover)] text-white text-sm font-medium px-3 py-2 transition-colors"
                     >
                       Оформить закупку
                     </Link>
@@ -149,10 +148,10 @@ export async function DashboardRemindersPanel({
                       <Link
                         key={`${item.type}-${item.name}`}
                         href="/inventory"
-                        className={`flex items-center justify-between rounded-lg px-3 py-2 transition-colors ${colors.bg} ${colors.hoverBg} ${FOCUS_RING}`}
+                        className={`flex items-center justify-between px-3 py-2 ${REMINDER_CARD} ${FOCUS_RING}`}
                       >
                         <div className="min-w-0 flex-1 pr-2">
-                          <span className="text-xs text-zinc-700 truncate block">{item.name}</span>
+                          <span className="text-xs text-[var(--text-primary)] truncate block">{item.name}</span>
                           <span className={`text-[10px] font-semibold uppercase tracking-wide ${colors.text}`}>
                             {STOCK_BADGE[item.type]}
                           </span>
