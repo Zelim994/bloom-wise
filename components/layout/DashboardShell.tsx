@@ -60,9 +60,23 @@ export function DashboardShell({
         />
       </div>
 
-      {/* Tablet/mobile drawer — ниже xl, открывается через hamburger в Header */}
+      {/* Tablet/narrow-desktop rail — виден md..xl, всегда свёрнут; toggle открывает Sheet-drawer */}
+      <div className="hidden md:flex xl:hidden">
+        <Sidebar
+          profile={profile}
+          orgName={orgName}
+          orgLogoUrl={orgLogoUrl}
+          collapsed
+          onToggleCollapse={() => setIsMobileNavOpen(true)}
+        />
+      </div>
+
+      {/* Mobile drawer — ниже md, открывается через hamburger в Header */}
       <Sheet open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
-        <SheetContent side="left" className="w-72 max-w-[85vw] p-0 xl:hidden">
+        <SheetContent
+          side="left"
+          className="!w-[240px] !max-w-[240px] sm:!max-w-[240px] border-r-0 bg-[var(--bg-sidebar)] p-0 text-[var(--text-on-dark)] xl:hidden"
+        >
           <SheetHeader className="sr-only">
             <SheetTitle>Меню навигации</SheetTitle>
           </SheetHeader>

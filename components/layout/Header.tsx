@@ -56,7 +56,7 @@ export function Header({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 shrink-0 text-zinc-500 hover:text-zinc-700 xl:hidden"
+            className="h-8 w-8 shrink-0 text-zinc-500 hover:text-zinc-700 md:hidden"
             onClick={onOpenMobileNav}
             aria-label="Открыть меню"
           >
