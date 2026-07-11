@@ -2,7 +2,7 @@ import Link from "next/link"
 import {
   TrendingUp,
   ShoppingBag,
-  Scissors,
+  Flower,
   Package,
   Minus,
 } from "lucide-react"
@@ -247,16 +247,16 @@ export default async function DashboardPage({
             <p className="text-sm text-zinc-500 mt-0.5">{roleLabel}</p>
           </div>
           <div className="flex gap-3">
+            <Button asChild variant="outline" className="gap-2 border-zinc-200 text-zinc-700 hover:bg-zinc-50">
+              <Link href="/builder">
+                <Flower className="h-4 w-4" />
+                Собрать букет
+              </Link>
+            </Button>
             <Button asChild className="bg-rose-500 hover:bg-rose-600 text-white gap-2">
               <Link href="/orders/new">
                 <ShoppingBag className="h-4 w-4" />
                 Новый заказ
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="gap-2 border-zinc-200">
-              <Link href="/builder">
-                <Scissors className="h-4 w-4" />
-                Собрать букет
               </Link>
             </Button>
           </div>
