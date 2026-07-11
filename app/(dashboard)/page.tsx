@@ -236,7 +236,7 @@ export default async function DashboardPage({
   const isInventoryNotStarted = !hasFlower && !hasStock
 
   return (
-    <div className="flex flex-col xl:flex-row gap-6 items-start">
+    <div className="flex flex-col xl:flex-row gap-6 items-start bg-[var(--bg-page)]">
 
       {/* Основная зона */}
       <div className="flex-1 min-w-0 space-y-6">
@@ -289,7 +289,7 @@ export default async function DashboardPage({
       </div>
 
       {/* Правая панель — Напоминания (заказы + склад в одном attention-center) */}
-      <div className="w-full xl:w-64 shrink-0 xl:sticky xl:top-6">
+      <div className="w-full xl:w-64 shrink-0 xl:sticky xl:top-6 rounded-2xl bg-[var(--bg-panel)] p-3 xl:border-l xl:border-[var(--divider)]">
         <DashboardRemindersPanel
           stockAlerts={stockAlerts}
           isInventoryNotStarted={isInventoryNotStarted}

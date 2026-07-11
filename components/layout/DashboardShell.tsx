@@ -48,7 +48,7 @@ export function DashboardShell({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f8f8fa]">
+    <div className="flex h-screen overflow-hidden bg-[var(--bg-page)]">
       {/* Desktop sidebar — виден только на xl и выше */}
       <div className="hidden xl:flex">
         <Sidebar
