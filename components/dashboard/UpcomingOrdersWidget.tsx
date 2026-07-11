@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { ClipboardList, Plus, ArrowRight } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { EmptyState } from "@/components/ui/empty-state"
 
 export type UpcomingOrder = {
@@ -157,9 +158,9 @@ export function UpcomingOrdersWidget({ orders }: { orders: UpcomingOrder[] }) {
                       <span className="font-mono text-xs font-semibold text-zinc-700">
                         {order.order_number}
                       </span>
-                      <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded-full ${st.cls}`}>
+                      <Badge className={`h-auto px-1.5 py-0.5 text-[11px] border-0 ${st.cls}`}>
                         {st.label}
-                      </span>
+                      </Badge>
                     </div>
                     <p className="text-xs text-zinc-500 mt-0.5 truncate">
                       {order.customer_name ?? "Без имени"}
