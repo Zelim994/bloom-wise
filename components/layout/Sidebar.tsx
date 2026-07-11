@@ -101,14 +101,14 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "flex h-full flex-col overflow-x-hidden bg-[#0f0f11] border-r border-[#1f1f22] shrink-0 transition-[width] duration-150",
+        "flex h-full flex-col overflow-x-hidden bg-[var(--bg-sidebar)] border-r border-[var(--sidebar-divider)] shrink-0 transition-[width] duration-150",
         isRail ? "w-16" : "w-60"
       )}
     >
       {/* Логотип */}
       <div
         className={cn(
-          "flex items-center border-b border-[#1f1f22] py-5",
+          "flex items-center border-b border-[var(--sidebar-divider)] py-5",
           isRail ? "flex-col gap-2 px-2" : "gap-2.5 px-5"
         )}
       >
@@ -122,16 +122,16 @@ export function Sidebar({
             className="h-8 w-8 rounded-lg object-cover shrink-0"
           />
         ) : (
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-500">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--brand-accent)]">
             <span className="text-base">🌸</span>
           </div>
         )}
         {!isRail && (
           <div className="min-w-0 flex-1">
-            <span className="text-[15px] font-semibold tracking-tight text-white truncate block">
+            <span className="text-[15px] font-semibold tracking-tight text-[var(--text-on-dark)] truncate block">
               {orgName || "BloomWise"}
             </span>
-            <p className="text-[10px] text-zinc-500 leading-none mt-0.5">Цветочный салон</p>
+            <p className="text-[10px] text-[var(--text-on-dark-muted)] leading-none mt-0.5">Цветочный салон</p>
           </div>
         )}
         {!mobile && onToggleCollapse && (
@@ -140,7 +140,7 @@ export function Sidebar({
             onClick={onToggleCollapse}
             aria-label={isRail ? "Развернуть меню" : "Свернуть меню"}
             title={isRail ? "Развернуть меню" : "Свернуть меню"}
-            className="shrink-0 rounded-lg p-1.5 text-zinc-500 hover:bg-[#1a1a1e] hover:text-zinc-200 transition-colors"
+            className="shrink-0 rounded-lg p-1.5 text-[var(--text-on-dark-muted)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text-on-dark)] transition-colors"
           >
             {isRail ? (
               <PanelLeftOpen className="h-4 w-4" />
@@ -156,7 +156,7 @@ export function Sidebar({
         {navGroups.map((group, gi) => (
           <div key={gi} className={gi > 0 ? "mt-4" : ""}>
             {group.label && !isRail && (
-              <p className="px-3 py-1.5 text-[10px] font-semibold tracking-widest text-zinc-600 uppercase">
+              <p className="px-3 py-1.5 text-[10px] font-semibold tracking-widest text-[var(--sidebar-section)] uppercase">
                 {group.label}
               </p>
             )}
@@ -174,19 +174,19 @@ export function Sidebar({
                     "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
                     isRail && "justify-center px-0",
                     active
-                      ? "bg-[#1e1e22] text-white"
-                      : "text-zinc-400 hover:bg-[#1a1a1e] hover:text-zinc-200"
+                      ? "bg-[var(--sidebar-active)] text-[var(--text-on-dark)]"
+                      : "text-[var(--text-on-dark-muted)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text-on-dark)]"
                   )}
                 >
                   <Icon
                     className={cn(
                       "h-4 w-4 shrink-0 transition-colors",
-                      active ? "text-rose-400" : "text-zinc-500 group-hover:text-zinc-300"
+                      active ? "text-[var(--brand-accent)]" : "text-[var(--text-on-dark-muted)] group-hover:text-[var(--text-on-dark)]"
                     )}
                   />
                   {!isRail && <span className="flex-1">{item.label}</span>}
                   {!isRail && active && (
-                    <ChevronRight className="h-3 w-3 text-rose-400 opacity-60" />
+                    <ChevronRight className="h-3 w-3 text-[var(--brand-accent)] opacity-60" />
                   )}
                 </Link>
               )
@@ -196,7 +196,7 @@ export function Sidebar({
       </nav>
 
       {/* Низ: настройки + пользователь */}
-      <div className="border-t border-[#1f1f22] p-2 space-y-0.5">
+      <div className="border-t border-[var(--sidebar-divider)] p-2 space-y-0.5">
         <Link
           href="/settings"
           onClick={onNavigate}
@@ -206,14 +206,14 @@ export function Sidebar({
             "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all",
             isRail && "justify-center px-0",
             isActive("/settings")
-              ? "bg-[#1e1e22] text-white"
-              : "text-zinc-400 hover:bg-[#1a1a1e] hover:text-zinc-200"
+              ? "bg-[var(--sidebar-active)] text-[var(--text-on-dark)]"
+              : "text-[var(--text-on-dark-muted)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text-on-dark)]"
           )}
         >
           <Settings
             className={cn(
               "h-4 w-4 shrink-0",
-              isActive("/settings") ? "text-rose-400" : "text-zinc-500 group-hover:text-zinc-300"
+              isActive("/settings") ? "text-[var(--brand-accent)]" : "text-[var(--text-on-dark-muted)] group-hover:text-[var(--text-on-dark)]"
             )}
           />
           {!isRail && <span>Настройки</span>}
@@ -226,7 +226,7 @@ export function Sidebar({
         >
           <div
             className={cn(
-              "flex shrink-0 items-center justify-center rounded-full bg-rose-500/20 text-rose-400 font-semibold",
+              "flex shrink-0 items-center justify-center rounded-full bg-[var(--brand-accent-bg)] text-[var(--brand-accent-text)] font-semibold",
               isRail ? "h-8 w-8 text-sm" : "h-7 w-7 text-xs"
             )}
           >
@@ -234,10 +234,10 @@ export function Sidebar({
           </div>
           {!isRail && (
             <div className="min-w-0">
-              <p className="text-xs font-medium text-zinc-300 truncate">
+              <p className="text-xs font-medium text-[var(--text-on-dark)] truncate">
                 {profile?.full_name ?? "Пользователь"}
               </p>
-              <p className="text-[10px] text-zinc-600 truncate">
+              <p className="text-[10px] text-[var(--sidebar-section)] truncate">
                 {profile?.role ? roleLabels[profile.role] : ""}
               </p>
             </div>
