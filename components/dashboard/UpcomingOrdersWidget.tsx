@@ -33,16 +33,16 @@ const EMPTY: Record<Tab, string> = {
 }
 
 const STATUS_CFG: Record<string, { label: string; cls: string }> = {
-  new:         { label: "Новый",    cls: "bg-blue-100 text-blue-700"    },
-  in_progress: { label: "В работе", cls: "bg-amber-100 text-amber-700"  },
-  ready:       { label: "Готов",    cls: "bg-emerald-100 text-emerald-700" },
-  delivered:   { label: "Выдан",    cls: "bg-zinc-100 text-zinc-500"    },
+  new:         { label: "Новый",    cls: "bg-[var(--bg-subtle)] text-[var(--text-secondary)]" },
+  in_progress: { label: "В работе", cls: "bg-[var(--warn-bg)] text-[var(--warn-text)]"        },
+  ready:       { label: "Готов",    cls: "bg-[var(--sage-bg)] text-[var(--sage-text)]"         },
+  delivered:   { label: "Выдан",    cls: "bg-[var(--sage-bg)] text-[var(--sage-text)]"         },
 }
 
 const PAYMENT_LABEL: Record<string, { label: string; cls: string }> = {
-  unpaid:  { label: "Не оплачен", cls: "text-red-500"     },
-  partial: { label: "Частично",   cls: "text-amber-600"   },
-  paid:    { label: "Оплачен",    cls: "text-emerald-600" },
+  unpaid:  { label: "Не оплачен", cls: "text-[var(--brand-accent-text)]" },
+  partial: { label: "Частично",   cls: "text-[var(--warn-text)]"         },
+  paid:    { label: "Оплачен",    cls: "text-[var(--sage-text)]"         },
 }
 
 function pad(d: Date) { return d.toISOString().split("T")[0] }
@@ -74,9 +74,9 @@ function getDateLines(
 }
 
 function stockLabel(o: UpcomingOrder): { label: string; cls: string } {
-  if (o.stock_returned)   return { label: "Возвращён", cls: "text-sky-600"     }
-  if (o.stock_written_off) return { label: "Списан",    cls: "text-emerald-600" }
-  return                          { label: "Не списан", cls: "text-zinc-400"    }
+  if (o.stock_returned)   return { label: "Возвращён", cls: "text-[var(--text-secondary)]" }
+  if (o.stock_written_off) return { label: "Списан",    cls: "text-[var(--sage-text)]"      }
+  return                          { label: "Не списан", cls: "text-[var(--text-muted)]"     }
 }
 
 export function UpcomingOrdersWidget({ orders }: { orders: UpcomingOrder[] }) {
@@ -94,13 +94,13 @@ export function UpcomingOrdersWidget({ orders }: { orders: UpcomingOrder[] }) {
   }).slice(0, 5)
 
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white">
+    <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--shadow-card)]">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 pb-0">
-        <h3 className="text-sm font-semibold text-zinc-900">Ближайшие заказы</h3>
+        <h3 className="text-sm font-semibold text-[var(--text-heading)]">Ближайшие заказы</h3>
         <Link
           href="/orders"
-          className="flex items-center gap-1 text-xs text-zinc-400 hover:text-rose-500 transition-colors"
+          className="flex items-center gap-1 text-xs text-[var(--brand-accent)] hover:text-[var(--brand-accent-hover)] transition-colors"
         >
           Все заказы <ArrowRight className="h-3 w-3" />
         </Link>
@@ -114,8 +114,8 @@ export function UpcomingOrdersWidget({ orders }: { orders: UpcomingOrder[] }) {
             onClick={() => setTab(t.key)}
             className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
               tab === t.key
-                ? "bg-zinc-900 text-white"
-                : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100"
+                ? "bg-[var(--sidebar-active)] text-[var(--text-on-dark)]"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)]"
             }`}
           >
             {t.label}
@@ -128,12 +128,16 @@ export function UpcomingOrdersWidget({ orders }: { orders: UpcomingOrder[] }) {
         {filtered.length === 0 ? (
           <EmptyState
             className="py-10"
-            icon={<ClipboardList className="h-8 w-8 text-zinc-200 mb-2" />}
+            icon={
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-subtle)] mb-2">
+                <ClipboardList className="h-6 w-6 text-[var(--text-muted)]" />
+              </div>
+            }
             title={EMPTY[tab]}
             action={
               <Link
                 href="/orders/new"
-                className="mt-3 flex items-center gap-1 text-xs text-rose-500 hover:text-rose-600 font-medium transition-colors"
+                className="mt-3 flex items-center gap-1 text-xs text-[var(--brand-accent)] hover:text-[var(--brand-accent-hover)] font-medium transition-colors"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Создать заказ
@@ -143,46 +147,46 @@ export function UpcomingOrdersWidget({ orders }: { orders: UpcomingOrder[] }) {
         ) : (
           <div className="space-y-1.5">
             {filtered.map((order) => {
-              const st  = STATUS_CFG[order.status]  ?? { label: order.status, cls: "bg-zinc-100 text-zinc-500" }
-              const pay = PAYMENT_LABEL[order.payment_status] ?? { label: order.payment_status, cls: "text-zinc-400" }
+              const st  = STATUS_CFG[order.status]  ?? { label: order.status, cls: "bg-[var(--bg-subtle)] text-[var(--text-secondary)]" }
+              const pay = PAYMENT_LABEL[order.payment_status] ?? { label: order.payment_status, cls: "text-[var(--text-muted)]" }
               const stk = stockLabel(order)
 
               return (
                 <Link
                   key={order.id}
                   href={`/orders/${order.id}`}
-                  className="flex items-start justify-between gap-3 rounded-lg px-3 py-2.5 hover:bg-zinc-50 transition-colors group"
+                  className="flex items-start justify-between gap-3 rounded-lg px-3 py-2.5 hover:bg-[var(--bg-subtle)] transition-colors group"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs font-semibold text-zinc-700">
+                      <span className="font-mono text-xs font-semibold text-[var(--text-primary)]">
                         {order.order_number}
                       </span>
                       <Badge className={`h-auto px-1.5 py-0.5 text-[11px] border-0 ${st.cls}`}>
                         {st.label}
                       </Badge>
                     </div>
-                    <p className="text-xs text-zinc-500 mt-0.5 truncate">
+                    <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate">
                       {order.customer_name ?? "Без имени"}
                     </p>
                     {(() => {
                       const dl = getDateLines(order, todayStr, tomorrowStr)
                       return (
                         <>
-                          <p className="text-xs text-zinc-400 mt-0.5">{dl.line1}</p>
+                          <p className="text-xs text-[var(--text-muted)] mt-0.5">{dl.line1}</p>
                           {dl.line2 && (
-                            <p className="text-xs text-amber-500 mt-0">{dl.line2}</p>
+                            <p className="text-xs text-[var(--warn-text)] mt-0">{dl.line2}</p>
                           )}
                         </>
                       )
                     })()}
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className={`text-[11px] ${pay.cls}`}>{pay.label}</span>
-                      <span className="text-zinc-200 text-[11px]">·</span>
+                      <span className="text-[var(--text-muted)] text-[11px]">·</span>
                       <span className={`text-[11px] ${stk.cls}`}>{stk.label}</span>
                     </div>
                   </div>
-                  <span className="text-xs text-zinc-300 group-hover:text-rose-400 transition-colors shrink-0 mt-0.5">
+                  <span className="text-xs text-[var(--text-muted)] group-hover:text-[var(--brand-accent)] transition-colors shrink-0 mt-0.5">
                     →
                   </span>
                 </Link>
