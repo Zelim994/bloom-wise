@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ClipboardList, Plus, ArrowRight } from "lucide-react"
+import { Plus, ArrowRight } from "lucide-react"
+import { AppIcons } from "@/lib/icons"
 import { Badge } from "@/components/ui/badge"
 import { EmptyState } from "@/components/ui/empty-state"
 
@@ -130,7 +131,7 @@ export function UpcomingOrdersWidget({ orders }: { orders: UpcomingOrder[] }) {
             className="py-10"
             icon={
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-subtle)] mb-2">
-                <ClipboardList className="h-6 w-6 text-[var(--text-muted)]" />
+                <AppIcons.order className="h-6 w-6 text-[var(--text-muted)]" />
               </div>
             }
             title={EMPTY[tab]}

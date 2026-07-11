@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { ShoppingBag, PackageSearch, CheckCircle2 } from "lucide-react"
+import { PackageSearch, CheckCircle2 } from "lucide-react"
+import { AppIcons } from "@/lib/icons"
 import { getOrderReminderItems, plural } from "@/components/dashboard/OrdersAttentionWidget"
 import { EmptyState } from "@/components/ui/empty-state"
 import type { StockAlert } from "@/lib/inventory/status"
@@ -70,7 +71,7 @@ export async function DashboardRemindersPanel({
 
               {!hasOrders ? (
                 <EmptyState
-                  icon={<ShoppingBag className="h-8 w-8 text-[var(--text-muted)] mb-2" />}
+                  icon={<AppIcons.order className="h-8 w-8 text-[var(--text-muted)] mb-2" />}
                   title="Заказов пока нет"
                   description="Создайте первый заказ, чтобы появились напоминания."
                   action={
