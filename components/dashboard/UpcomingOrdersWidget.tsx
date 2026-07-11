@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { ClipboardList, Plus, ArrowRight } from "lucide-react"
+import { EmptyState } from "@/components/ui/empty-state"
 
 export type UpcomingOrder = {
   id: string
@@ -124,17 +125,20 @@ export function UpcomingOrdersWidget({ orders }: { orders: UpcomingOrder[] }) {
       {/* List */}
       <div className="px-3 pb-4">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <ClipboardList className="h-8 w-8 text-zinc-200 mb-2" />
-            <p className="text-sm text-zinc-400">{EMPTY[tab]}</p>
-            <Link
-              href="/orders/new"
-              className="mt-3 flex items-center gap-1 text-xs text-rose-500 hover:text-rose-600 font-medium transition-colors"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Создать заказ
-            </Link>
-          </div>
+          <EmptyState
+            className="py-10"
+            icon={<ClipboardList className="h-8 w-8 text-zinc-200 mb-2" />}
+            title={EMPTY[tab]}
+            action={
+              <Link
+                href="/orders/new"
+                className="mt-3 flex items-center gap-1 text-xs text-rose-500 hover:text-rose-600 font-medium transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Создать заказ
+              </Link>
+            }
+          />
         ) : (
           <div className="space-y-1.5">
             {filtered.map((order) => {

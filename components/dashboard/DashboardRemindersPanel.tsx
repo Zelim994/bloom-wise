@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { ShoppingBag, PackageSearch, CheckCircle2 } from "lucide-react"
 import { getOrderReminderItems, plural } from "@/components/dashboard/OrdersAttentionWidget"
+import { EmptyState } from "@/components/ui/empty-state"
 import type { StockAlert } from "@/lib/inventory/status"
 
 type DashboardRemindersPanelProps = {
@@ -65,19 +66,19 @@ export async function DashboardRemindersPanel({
               </span>
 
               {!hasOrders ? (
-                <div className="flex flex-col items-center justify-center py-6 px-2 text-center">
-                  <ShoppingBag className="h-8 w-8 text-zinc-300 mb-2" />
-                  <p className="text-sm font-medium text-zinc-700">Заказов пока нет</p>
-                  <p className="text-xs text-zinc-400 mt-0.5">
-                    Создайте первый заказ, чтобы появились напоминания.
-                  </p>
-                  <Link
-                    href="/orders/new"
-                    className="mt-3 inline-flex items-center justify-center rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-3 py-2 transition-colors"
-                  >
-                    Создать заказ
-                  </Link>
-                </div>
+                <EmptyState
+                  icon={<ShoppingBag className="h-8 w-8 text-zinc-300 mb-2" />}
+                  title="Заказов пока нет"
+                  description="Создайте первый заказ, чтобы появились напоминания."
+                  action={
+                    <Link
+                      href="/orders/new"
+                      className="mt-3 inline-flex items-center justify-center rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-3 py-2 transition-colors"
+                    >
+                      Создать заказ
+                    </Link>
+                  }
+                />
               ) : (
                 <div className="space-y-2">
                   {visibleOrderItems.map((item) => {
@@ -127,19 +128,19 @@ export async function DashboardRemindersPanel({
               </span>
 
               {isInventoryNotStarted ? (
-                <div className="flex flex-col items-center justify-center py-6 px-2 text-center">
-                  <PackageSearch className="h-8 w-8 text-zinc-300 mb-2" />
-                  <p className="text-sm font-medium text-zinc-700">Склад ещё не настроен</p>
-                  <p className="text-xs text-zinc-400 mt-0.5">
-                    Добавьте цветы и оформите первую закупку.
-                  </p>
-                  <Link
-                    href="/purchases/new"
-                    className="mt-3 inline-flex items-center justify-center rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-3 py-2 transition-colors"
-                  >
-                    Оформить закупку
-                  </Link>
-                </div>
+                <EmptyState
+                  icon={<PackageSearch className="h-8 w-8 text-zinc-300 mb-2" />}
+                  title="Склад ещё не настроен"
+                  description="Добавьте цветы и оформите первую закупку."
+                  action={
+                    <Link
+                      href="/purchases/new"
+                      className="mt-3 inline-flex items-center justify-center rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-3 py-2 transition-colors"
+                    >
+                      Оформить закупку
+                    </Link>
+                  }
+                />
               ) : (
                 <div className="space-y-1">
                   {visibleStockAlerts.map((item) => {
