@@ -67,16 +67,16 @@ export function GettingStarted({
   const doneCount = steps.filter((s) => s.done).length
 
   return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-6">
+    <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--shadow-card)] p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-lg font-semibold text-zinc-900">С чего начать</h3>
-          <p className="mt-1 text-sm text-zinc-500">
+          <h3 className="text-lg font-semibold text-[var(--text-heading)]">С чего начать</h3>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
             Настройте салон за несколько шагов — после этого можно создавать
             заказы и собирать букеты.
           </p>
         </div>
-        <span className="shrink-0 text-sm tabular-nums text-zinc-400">
+        <span className="shrink-0 text-sm tabular-nums text-[var(--text-muted)]">
           {doneCount}/{steps.length}
         </span>
       </div>
@@ -93,19 +93,19 @@ export function GettingStarted({
           return (
             <li
               key={step.href}
-              className={`flex items-center gap-4 rounded-xl border p-4 ${
+              className={`flex items-center gap-4 rounded-[var(--radius-panel-card)] border p-4 ${
                 status === "next"
-                  ? "border-rose-200 bg-rose-50/50"
-                  : "border-zinc-100 bg-white"
+                  ? "border-[var(--brand-accent)] bg-[var(--brand-accent-bg)]"
+                  : "border-[var(--border)] bg-[var(--bg-card)]"
               }`}
             >
               <div
                 className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
                   status === "done"
-                    ? "bg-green-100 text-green-600"
+                    ? "bg-[var(--sage-bg)] text-[var(--sage-text)]"
                     : status === "next"
-                      ? "bg-rose-500 text-white"
-                      : "bg-zinc-100 text-zinc-400"
+                      ? "bg-[var(--brand-accent)] text-white"
+                      : "bg-[var(--bg-subtle)] text-[var(--text-muted)]"
                 }`}
               >
                 {status === "done" ? (
@@ -119,14 +119,14 @@ export function GettingStarted({
                 <div className="flex flex-wrap items-center gap-2">
                   <p
                     className={`font-medium ${
-                      status === "later" ? "text-zinc-500" : "text-zinc-900"
+                      status === "later" ? "text-[var(--text-secondary)]" : "text-[var(--text-primary)]"
                     }`}
                   >
                     {step.title}
                   </p>
                   <StatusBadge status={status} />
                 </div>
-                <p className="mt-0.5 text-sm text-zinc-500">{step.description}</p>
+                <p className="mt-0.5 text-sm text-[var(--text-secondary)]">{step.description}</p>
               </div>
 
               {!step.done && (
@@ -134,8 +134,8 @@ export function GettingStarted({
                   href={step.href}
                   className={`shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                     status === "next"
-                      ? "bg-rose-500 text-white hover:bg-rose-600"
-                      : "border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+                      ? "bg-[var(--brand-accent)] text-white hover:bg-[var(--brand-accent-hover)]"
+                      : "border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-subtle)]"
                   }`}
                 >
                   {step.cta}
@@ -151,14 +151,14 @@ export function GettingStarted({
 
 function StatusBadge({ status }: { status: StepStatus }) {
   if (status === "done") {
-    return <span className="text-xs font-medium text-green-600">Готово</span>
+    return <span className="text-xs font-medium text-[var(--sage-text)]">Готово</span>
   }
   if (status === "next") {
     return (
-      <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-600">
+      <span className="rounded-full bg-[var(--brand-accent-bg)] px-2 py-0.5 text-xs font-medium text-[var(--brand-accent-text)]">
         Следующий шаг
       </span>
     )
   }
-  return <span className="text-xs font-medium text-zinc-400">Потом</span>
+  return <span className="text-xs font-medium text-[var(--text-muted)]">Потом</span>
 }

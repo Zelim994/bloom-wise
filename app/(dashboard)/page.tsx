@@ -243,17 +243,17 @@ export default async function DashboardPage({
         {/* Приветствие + быстрые действия */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-zinc-900">Добро пожаловать, {displayName} 🌸</h2>
-            <p className="text-sm text-zinc-500 mt-0.5">{roleLabel}</p>
+            <h2 className="text-2xl font-semibold text-[var(--text-heading)]">Добро пожаловать, {displayName} 🌸</h2>
+            <p className="text-sm text-[var(--text-secondary)] mt-0.5">{roleLabel}</p>
           </div>
           <div className="flex gap-3">
-            <Button asChild variant="outline" className="gap-2 border-zinc-200 text-zinc-700 hover:bg-zinc-50">
+            <Button asChild variant="outline" className="gap-2 border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-subtle)]">
               <Link href="/builder">
                 <Flower className="h-4 w-4" />
                 Собрать букет
               </Link>
             </Button>
-            <Button asChild className="bg-rose-500 hover:bg-rose-600 text-white gap-2">
+            <Button asChild className="bg-[var(--brand-accent)] hover:bg-[var(--brand-accent-hover)] text-white gap-2">
               <Link href="/orders/new">
                 <ShoppingBag className="h-4 w-4" />
                 Новый заказ
