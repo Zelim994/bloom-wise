@@ -36,9 +36,7 @@ export function DashboardPeriodTabs({
   const isCustomActive = activePeriod === "custom"
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--bg-subtle)] p-1">
-      <span className="text-xs text-[var(--text-secondary)] mr-0.5">Период:</span>
-
+    <div className="inline-flex w-fit flex-wrap items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--bg-subtle)] p-1">
       {QUICK_TABS.map((tab) => (
         <button
           key={tab.key}
