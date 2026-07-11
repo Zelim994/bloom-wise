@@ -9,15 +9,9 @@ export type { Period }
 
 const QUICK_TABS: { key: Period; label: string }[] = [
   { key: "today", label: "Сегодня" },
-  { key: "7d",    label: "7 дней"  },
+  { key: "7d",    label: "Неделя"  },
   { key: "month", label: "Месяц"   },
 ]
-
-function fmtDate(iso: string): string {
-  const [, m, d] = iso.split("-")
-  const months = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"]
-  return `${Number(d)} ${months[Number(m) - 1]}`
-}
 
 export function DashboardPeriodTabs({
   activePeriod,
@@ -41,10 +35,6 @@ export function DashboardPeriodTabs({
 
   const isCustomActive = activePeriod === "custom"
 
-  const btnLabel = isCustomActive && activeFrom && activeTo
-    ? `${fmtDate(activeFrom)} — ${fmtDate(activeTo)}`
-    : "Выбрать дату"
-
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-xs text-zinc-400 mr-0.5">Период:</span>
@@ -67,14 +57,15 @@ export function DashboardPeriodTabs({
       <div className="relative">
         <button
           onClick={() => setOpen((v) => !v)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+          aria-label="Выбрать период"
+          title="Выбрать период"
+          className={`flex items-center justify-center h-8 w-8 rounded-lg transition-colors ${
             isCustomActive
               ? "bg-zinc-900 text-white"
               : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100"
           }`}
         >
-          <CalendarDays className="h-3.5 w-3.5" />
-          {btnLabel}
+          <CalendarDays className="h-4 w-4" />
         </button>
 
         {open && (
