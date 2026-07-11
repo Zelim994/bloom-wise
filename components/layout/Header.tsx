@@ -50,24 +50,24 @@ export function Header({
   }
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-zinc-200 bg-white px-4 xl:px-6 shrink-0">
+    <header className="flex h-14 items-center justify-between border-b border-[var(--border)] bg-[var(--bg-card)] px-4 xl:px-6 shrink-0">
       <div className="flex items-center gap-2 min-w-0">
         {onOpenMobileNav && (
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 shrink-0 text-zinc-500 hover:text-zinc-700 md:hidden"
+            className="h-8 w-8 shrink-0 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] md:hidden"
             onClick={onOpenMobileNav}
             aria-label="Открыть меню"
           >
             <Menu className="h-4 w-4" />
           </Button>
         )}
-        <h1 className="text-[15px] font-semibold text-zinc-900 truncate">{title}</h1>
+        <h1 className="text-[15px] font-semibold text-[var(--text-heading)] truncate">{title}</h1>
       </div>
       <div className="flex items-center gap-2">
         <DropdownMenu>
-          <DropdownMenuTrigger className="ml-1 flex h-7 w-7 items-center justify-center rounded-full bg-rose-100 text-rose-600 text-xs font-semibold hover:bg-rose-200 transition-colors cursor-pointer border-0 outline-none">
+          <DropdownMenuTrigger className="ml-1 flex h-7 w-7 items-center justify-center rounded-full bg-[var(--brand-accent-bg)] text-[var(--brand-accent-text)] text-xs font-semibold hover:bg-[var(--brand-accent-bg)] transition-colors cursor-pointer border-0 outline-none">
             {profile?.full_name?.[0]?.toUpperCase() ?? "?"}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-40">
