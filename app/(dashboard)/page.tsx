@@ -200,28 +200,28 @@ export default async function DashboardPage({
         value: fmt(kpiRevenue),
         trend: kpiCount > 0 ? `${kpiCount} заказов` : noOrders,
         up: kpiRevenue > 0,
-        icon: TrendingUp, color: "text-emerald-500", bg: "bg-emerald-50",
+        icon: TrendingUp, color: "text-[var(--sage)]", bg: "bg-[var(--sage-bg)]",
       },
       {
         label: "Прибыль",
         value: fmt(kpiProfit),
         trend: kpiProfit > 0 ? pl : `Нет данных ${pl}`,
         up: kpiProfit > 0,
-        icon: TrendingUp, color: "text-emerald-500", bg: "bg-emerald-50",
+        icon: TrendingUp, color: "text-[var(--sage)]", bg: "bg-[var(--sage-bg)]",
       },
       {
         label: "Списания",
         value: writeoffTotal > 0 ? fmt(writeoffTotal) : "—",
         trend: writeoffTotal > 0 ? pl : `Нет списаний ${pl}`,
         up: writeoffTotal === 0,
-        icon: Minus, color: "text-rose-500", bg: "bg-rose-50",
+        icon: Minus, color: "text-[var(--brand-accent-text)]", bg: "bg-[var(--brand-accent-bg)]",
       },
       {
         label: "Остаток склада",
         value: `${totalStock} шт`,
         trend: stockWithItems > 0 ? `${stockWithItems} позиций` : "Склад пуст",
         up: totalStock > 0,
-        icon: Package, color: "text-amber-500", bg: "bg-amber-50",
+        icon: Package, color: "text-[var(--sage)]", bg: "bg-[var(--sage-bg)]",
       },
     ]
 
