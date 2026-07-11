@@ -36,8 +36,8 @@ export function DashboardPeriodTabs({
   const isCustomActive = activePeriod === "custom"
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs text-zinc-400 mr-0.5">Период:</span>
+    <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--bg-subtle)] p-1">
+      <span className="text-xs text-[var(--text-secondary)] mr-0.5">Период:</span>
 
       {QUICK_TABS.map((tab) => (
         <button
@@ -45,8 +45,8 @@ export function DashboardPeriodTabs({
           onClick={() => router.push(`/?period=${tab.key}`)}
           className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
             activePeriod === tab.key
-              ? "bg-zinc-900 text-white"
-              : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100"
+              ? "bg-[var(--sidebar-active)] text-[var(--text-on-dark)] shadow-sm"
+              : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)]"
           }`}
         >
           {tab.label}
@@ -61,8 +61,8 @@ export function DashboardPeriodTabs({
           title="Выбрать период"
           className={`flex items-center justify-center h-8 w-8 rounded-lg transition-colors ${
             isCustomActive
-              ? "bg-zinc-900 text-white"
-              : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100"
+              ? "bg-[var(--sidebar-active)] text-[var(--text-on-dark)]"
+              : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)]"
           }`}
         >
           <CalendarDays className="h-4 w-4" />
@@ -76,33 +76,33 @@ export function DashboardPeriodTabs({
               onClick={() => setOpen(false)}
             />
             {/* Popover */}
-            <div className="absolute top-full left-0 mt-2 z-20 bg-white border border-zinc-200 rounded-xl shadow-lg p-4 min-w-[260px]">
-              <p className="text-xs font-semibold text-zinc-500 mb-3">Выберите период</p>
+            <div className="absolute top-full left-0 mt-2 z-20 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl shadow-[var(--shadow-card)] p-4 min-w-[260px]">
+              <p className="text-xs font-semibold text-[var(--text-secondary)] mb-3">Выберите период</p>
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-zinc-400 w-5">От</span>
+                  <span className="text-xs text-[var(--text-secondary)] w-5">От</span>
                   <input
                     type="date"
                     value={from}
                     onChange={(e) => setFrom(e.target.value)}
-                    className="flex-1 text-sm border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-700 bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent"
+                    className="flex-1 text-sm border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--text-primary)] bg-[var(--bg-card)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-accent)] focus:border-transparent"
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-zinc-400 w-5">До</span>
+                  <span className="text-xs text-[var(--text-secondary)] w-5">До</span>
                   <input
                     type="date"
                     value={to}
                     min={from || undefined}
                     onChange={(e) => setTo(e.target.value)}
-                    className="flex-1 text-sm border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-700 bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent"
+                    className="flex-1 text-sm border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--text-primary)] bg-[var(--bg-card)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-accent)] focus:border-transparent"
                   />
                 </div>
               </div>
               <button
                 onClick={applyCustom}
                 disabled={!from || !to || from > to}
-                className="mt-4 w-full py-2 rounded-lg text-sm font-medium bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="mt-4 w-full py-2 rounded-lg text-sm font-medium bg-[var(--brand-accent)] text-white hover:bg-[var(--brand-accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 Применить
               </button>
