@@ -5,25 +5,8 @@ import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import type { Profile } from "@/lib/supabase/types"
-import {
-  LayoutGrid,
-  Plus,
-  Flower,
-  ShoppingBag,
-  CalendarDays,
-  Package,
-  Library,
-  Truck,
-  Trash2,
-  NotebookText,
-  Users,
-  BarChart3,
-  Sparkles,
-  Settings,
-  ChevronRight,
-  PanelLeftClose,
-  PanelLeftOpen,
-} from "lucide-react"
+import { ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react"
+import { AppIcons } from "@/lib/icons"
 
 const roleLabels: Record<string, string> = {
   owner: "Владелец",
@@ -36,39 +19,39 @@ const roleLabels: Record<string, string> = {
 const navGroups = [
   {
     items: [
-      { label: "Главная", href: "/", icon: LayoutGrid },
-      { label: "Новый заказ", href: "/orders/new", icon: Plus, accent: true },
-      { label: "Собрать букет", href: "/builder", icon: Flower },
+      { label: "Главная", href: "/", icon: AppIcons.home },
+      { label: "Новый заказ", href: "/orders/new", icon: AppIcons.newOrder, accent: true },
+      { label: "Собрать букет", href: "/builder", icon: AppIcons.bouquet },
     ],
   },
   {
     label: "ПРОДАЖИ",
     items: [
-      { label: "Заказы", href: "/orders", icon: ShoppingBag },
-      { label: "Календарь", href: "/calendar", icon: CalendarDays },
-      { label: "Клиенты", href: "/customers", icon: Users },
+      { label: "Заказы", href: "/orders", icon: AppIcons.order },
+      { label: "Календарь", href: "/calendar", icon: AppIcons.calendar },
+      { label: "Клиенты", href: "/customers", icon: AppIcons.customer },
     ],
   },
   {
     label: "ТОВАРЫ",
     items: [
-      { label: "Каталог", href: "/catalog", icon: Library },
-      { label: "Склад", href: "/inventory", icon: Package },
-      { label: "Поставки", href: "/purchases", icon: Truck },
-      { label: "Списания", href: "/writeoffs", icon: Trash2 },
-      { label: "Рецепты букетов", href: "/recipes", icon: NotebookText },
+      { label: "Каталог", href: "/catalog", icon: AppIcons.catalog },
+      { label: "Склад", href: "/inventory", icon: AppIcons.inventory },
+      { label: "Поставки", href: "/purchases", icon: AppIcons.purchase },
+      { label: "Списания", href: "/writeoffs", icon: AppIcons.writeoff },
+      { label: "Рецепты букетов", href: "/recipes", icon: AppIcons.recipe },
     ],
   },
   {
     label: "АНАЛИТИКА",
     items: [
-      { label: "Отчёты", href: "/reports", icon: BarChart3 },
+      { label: "Отчёты", href: "/reports", icon: AppIcons.report },
     ],
   },
   {
     label: "AI",
     items: [
-      { label: "Bloom AI", href: "/bloom-ai", icon: Sparkles },
+      { label: "Bloom AI", href: "/bloom-ai", icon: AppIcons.ai },
     ],
   },
 ]
@@ -210,7 +193,7 @@ export function Sidebar({
               : "text-[var(--text-on-dark-muted)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text-on-dark)]"
           )}
         >
-          <Settings
+          <AppIcons.settings
             className={cn(
               "h-4 w-4 shrink-0",
               isActive("/settings") ? "text-[var(--brand-accent)]" : "text-[var(--text-on-dark-muted)] group-hover:text-[var(--text-on-dark)]"
