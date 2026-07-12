@@ -1,11 +1,6 @@
 import Link from "next/link"
-import {
-  TrendingUp,
-  ShoppingBag,
-  Flower,
-  Package,
-  Minus,
-} from "lucide-react"
+import { Minus } from "lucide-react"
+import { AppIcons } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { StatsCard, type StatItem } from "@/components/dashboard/StatsCard"
 import { UpcomingOrdersWidget, type UpcomingOrder } from "@/components/dashboard/UpcomingOrdersWidget"
@@ -200,14 +195,14 @@ export default async function DashboardPage({
         value: fmt(kpiRevenue),
         trend: kpiCount > 0 ? `${kpiCount} заказов` : noOrders,
         up: kpiRevenue > 0,
-        icon: TrendingUp, color: "text-[var(--sage)]", bg: "bg-[var(--sage-bg)]",
+        icon: AppIcons.growth, color: "text-[var(--sage)]", bg: "bg-[var(--sage-bg)]",
       },
       {
         label: "Прибыль",
         value: fmt(kpiProfit),
         trend: kpiProfit > 0 ? pl : `Нет данных ${pl}`,
         up: kpiProfit > 0,
-        icon: TrendingUp, color: "text-[var(--sage)]", bg: "bg-[var(--sage-bg)]",
+        icon: AppIcons.growth, color: "text-[var(--sage)]", bg: "bg-[var(--sage-bg)]",
       },
       {
         label: "Списания",
@@ -221,7 +216,7 @@ export default async function DashboardPage({
         value: `${totalStock} шт`,
         trend: stockWithItems > 0 ? `${stockWithItems} позиций` : "Склад пуст",
         up: totalStock > 0,
-        icon: Package, color: "text-[var(--sage)]", bg: "bg-[var(--sage-bg)]",
+        icon: AppIcons.inventory, color: "text-[var(--sage)]", bg: "bg-[var(--sage-bg)]",
       },
     ]
 
@@ -249,13 +244,13 @@ export default async function DashboardPage({
           <div className="flex gap-3">
             <Button asChild variant="outline" className="gap-2 border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-subtle)]">
               <Link href="/builder">
-                <Flower className="h-4 w-4" />
+                <AppIcons.bouquet className="h-4 w-4" />
                 Собрать букет
               </Link>
             </Button>
             <Button asChild className="bg-[var(--brand-accent)] hover:bg-[var(--brand-accent-hover)] text-white gap-2">
               <Link href="/orders/new">
-                <ShoppingBag className="h-4 w-4" />
+                <AppIcons.newOrder className="h-4 w-4" />
                 Новый заказ
               </Link>
             </Button>

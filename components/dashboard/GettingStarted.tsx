@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { Check, Flower2, Truck, Users, ShoppingBag, type LucideIcon } from "lucide-react"
+import { Check, Flower2, type LucideIcon } from "lucide-react"
+import { AppIcons } from "@/lib/icons"
 
 type StepStatus = "done" | "next" | "later"
 
@@ -39,7 +40,7 @@ export function GettingStarted({
       description: "Оформите первую закупку, чтобы появились остатки на складе.",
       href: "/purchases/new",
       cta: "Оформить закупку",
-      icon: Truck,
+      icon: AppIcons.purchase,
       done: hasStock,
     },
     {
@@ -47,7 +48,7 @@ export function GettingStarted({
       description: "Добавьте клиента, чтобы быстро оформить заказ.",
       href: "/customers/new",
       cta: "Добавить клиента",
-      icon: Users,
+      icon: AppIcons.customer,
       done: hasCustomer,
     },
     {
@@ -55,7 +56,7 @@ export function GettingStarted({
       description: "Создайте первый заказ и проверьте, как списывается склад.",
       href: "/orders/new",
       cta: "Создать заказ",
-      icon: ShoppingBag,
+      icon: AppIcons.newOrder,
       done: hasOrder,
     },
   ]
