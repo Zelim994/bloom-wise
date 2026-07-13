@@ -28,13 +28,13 @@ export function OrderStatusTabs({ activeStatus, counts }: Props) {
             href={tab.href}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               isActive
-                ? "bg-zinc-900 text-white"
-                : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100"
+                ? "bg-[var(--sidebar-active)] text-[var(--text-on-dark)]"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)]"
             }`}
           >
             {tab.label}
             <span className={`text-xs rounded-full px-1.5 py-0.5 ${
-              isActive ? "bg-white/20 text-white" : "bg-zinc-100 text-zinc-500"
+              isActive ? "bg-[var(--brand-accent)] text-white" : "bg-[var(--bg-subtle)] text-[var(--text-muted)]"
             }`}>
               {count}
             </span>
