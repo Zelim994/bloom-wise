@@ -341,6 +341,10 @@ export async function updateOrderStatus(
     return { error: `Недопустимый переход статуса: ${order.status} → ${targetStatus}` }
   }
 
+  if (targetStatus === "delivered" && !order.stock_written_off) {
+    return { error: "Нельзя выдать заказ: сначала спишите склад." }
+  }
+
   const { error } = await supabase
     .from("orders")
     .update({ status: targetStatus })
