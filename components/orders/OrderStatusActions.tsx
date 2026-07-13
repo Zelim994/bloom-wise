@@ -69,13 +69,13 @@ export function OrderStatusActions({ orderId, status, totalAmount, paidAmount, p
 
   return (
     <div className="flex flex-col gap-2">
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     <div className="flex flex-wrap gap-2">
       {transition.next && (
         <button
           onClick={advance}
           disabled={isPending}
-          className="flex items-center gap-1.5 bg-rose-500 hover:bg-rose-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          className="flex items-center gap-1.5 bg-[var(--brand-accent)] hover:bg-[var(--brand-accent-hover)] disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           {isPending ? "..." : transition.nextLabel}
         </button>
@@ -84,7 +84,7 @@ export function OrderStatusActions({ orderId, status, totalAmount, paidAmount, p
         <button
           onClick={markPaid}
           disabled={isPending}
-          className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          className="flex items-center gap-1.5 bg-[var(--sage)] hover:opacity-90 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           Принять оплату
         </button>
@@ -93,7 +93,7 @@ export function OrderStatusActions({ orderId, status, totalAmount, paidAmount, p
         <button
           onClick={cancel}
           disabled={isPending}
-          className="flex items-center gap-1.5 border border-zinc-200 hover:border-red-200 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 text-zinc-500 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          className="flex items-center gap-1.5 border border-destructive/30 hover:bg-destructive/10 disabled:opacity-50 text-destructive text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           Отменить
         </button>
