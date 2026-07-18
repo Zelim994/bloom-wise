@@ -4,6 +4,7 @@ import { useTransition, useState } from "react"
 import { useRouter } from "next/navigation"
 import { writeOffOrderStock } from "@/app/actions/orders"
 import { PackageCheck, PackageX } from "lucide-react"
+import { useOrderDirty } from "@/components/orders/OrderDetailShell"
 
 type Props = {
   orderId: string
@@ -16,8 +17,10 @@ export function OrderStockWriteOff({ orderId, stockWrittenOff, stockReturned, st
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const { isDirty } = useOrderDirty()
 
   function handleWriteOff() {
+    if (isDirty) return
     setError(null)
     startTransition(async () => {
       const result = await writeOffOrderStock(orderId)
@@ -59,11 +62,12 @@ export function OrderStockWriteOff({ orderId, stockWrittenOff, stockReturned, st
           <PackageX className="h-4 w-4 text-[var(--warn)] shrink-0" />
           <span className="text-sm text-[var(--warn-text)]">Склад не списан</span>
         </div>
-        <button onClick={handleWriteOff} disabled={isPending}
+        <button onClick={handleWriteOff} disabled={isPending || isDirty}
           className="flex items-center gap-1.5 bg-[var(--brand-accent)] hover:bg-[var(--brand-accent-hover)] disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
           {isPending ? "Списываем..." : "Списать склад"}
         </button>
       </div>
+      {isDirty && <p className="text-sm text-[var(--warn-text)]">Сначала сохраните изменения заказа.</p>}
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   )

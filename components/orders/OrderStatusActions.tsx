@@ -3,6 +3,7 @@
 import { useTransition, useState } from "react"
 import { useRouter } from "next/navigation"
 import { updateOrderStatus, updateOrderPayment, cancelOrder } from "@/app/actions/orders"
+import { useOrderDirty } from "@/components/orders/OrderDetailShell"
 
 type Status = "new" | "in_progress" | "ready" | "delivered" | "cancelled"
 
@@ -26,10 +27,12 @@ export function OrderStatusActions({ orderId, status, totalAmount, paidAmount, p
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const { isDirty } = useOrderDirty()
 
   const transition = STATUS_TRANSITIONS[status]
 
   function advance() {
+    if (isDirty) return
     if (!transition.next) return
     startTransition(async () => {
       await updateOrderStatus(orderId, transition.next!)
@@ -38,6 +41,7 @@ export function OrderStatusActions({ orderId, status, totalAmount, paidAmount, p
   }
 
   function cancel() {
+    if (isDirty) return
     const message =
       paidAmount > 0
         ? `По заказу уже есть оплата: ${paidAmount} ₸.\nОтменить заказ?\n\nВажно: возврат денег нужно оформить отдельно.`
@@ -55,6 +59,7 @@ export function OrderStatusActions({ orderId, status, totalAmount, paidAmount, p
   }
 
   function markPaid() {
+    if (isDirty) return
     startTransition(async () => {
       await updateOrderPayment(orderId, {
         payment_method: paymentMethod ?? "cash",
@@ -70,11 +75,12 @@ export function OrderStatusActions({ orderId, status, totalAmount, paidAmount, p
   return (
     <div className="flex flex-col gap-2">
       {error && <p className="text-sm text-destructive">{error}</p>}
+      {isDirty && <p className="text-sm text-[var(--warn-text)]">Сначала сохраните изменения заказа.</p>}
     <div className="flex flex-wrap gap-2">
       {transition.next && (
         <button
           onClick={advance}
-          disabled={isPending}
+          disabled={isPending || isDirty}
           className="flex items-center gap-1.5 bg-[var(--brand-accent)] hover:bg-[var(--brand-accent-hover)] disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           {isPending ? "..." : transition.nextLabel}
@@ -83,7 +89,7 @@ export function OrderStatusActions({ orderId, status, totalAmount, paidAmount, p
       {canMarkPaid && status !== "cancelled" && (
         <button
           onClick={markPaid}
-          disabled={isPending}
+          disabled={isPending || isDirty}
           className="flex items-center gap-1.5 bg-[var(--sage)] hover:opacity-90 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           Принять оплату
@@ -92,7 +98,7 @@ export function OrderStatusActions({ orderId, status, totalAmount, paidAmount, p
       {transition.canCancel && (
         <button
           onClick={cancel}
-          disabled={isPending}
+          disabled={isPending || isDirty}
           className="flex items-center gap-1.5 border border-destructive/30 hover:bg-destructive/10 disabled:opacity-50 text-destructive text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           Отменить

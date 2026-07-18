@@ -4,6 +4,7 @@ import { getFlowersForBuilder } from "@/app/actions/builder"
 import { OrderForm } from "@/components/orders/OrderForm"
 import { OrderStatusActions } from "@/components/orders/OrderStatusActions"
 import { OrderStockWriteOff } from "@/components/orders/OrderStockWriteOff"
+import { OrderDetailShell } from "@/components/orders/OrderDetailShell"
 import { WhatsAppButton } from "@/components/orders/WhatsAppButton"
 import Link from "next/link"
 import { ArrowLeft, Phone } from "lucide-react"
@@ -79,25 +80,27 @@ export default async function OrderDetailPage({
         </div>
       </div>
 
-      {/* Кнопки статуса */}
-      <OrderStatusActions
-        orderId={order.id}
-        status={order.status as "new" | "in_progress" | "ready" | "delivered" | "cancelled"}
-        totalAmount={total}
-        paidAmount={paid}
-        paymentMethod={order.payment_method}
-      />
+      <OrderDetailShell>
+        {/* Кнопки статуса */}
+        <OrderStatusActions
+          orderId={order.id}
+          status={order.status as "new" | "in_progress" | "ready" | "delivered" | "cancelled"}
+          totalAmount={total}
+          paidAmount={paid}
+          paymentMethod={order.payment_method}
+        />
 
-      {/* Списание склада */}
-      <OrderStockWriteOff
-        orderId={order.id}
-        stockWrittenOff={order.stock_written_off}
-        stockReturned={order.stock_returned}
-        status={order.status}
-      />
+        {/* Списание склада */}
+        <OrderStockWriteOff
+          orderId={order.id}
+          stockWrittenOff={order.stock_written_off}
+          stockReturned={order.stock_returned}
+          status={order.status}
+        />
 
-      {/* Форма редактирования */}
-      <OrderForm flowers={flowers} initialData={order} />
+        {/* Форма редактирования */}
+        <OrderForm flowers={flowers} initialData={order} />
+      </OrderDetailShell>
     </div>
   )
 }

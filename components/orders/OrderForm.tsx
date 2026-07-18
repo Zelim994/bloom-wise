@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useRef } from "react"
+import { useState, useTransition, useRef, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, User, Phone, MapPin, CreditCard, MessageSquare, Scissors } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,99 @@ import { Label } from "@/components/ui/label"
 import { createOrder, updateOrder, searchCustomers, type BouquetPayload, type OrderWithCustomer, type CustomerSearchResult } from "@/app/actions/orders"
 import { BuilderLayout } from "@/components/bouquet-builder/BuilderLayout"
 import type { FlowerForBuilder, BouquetData } from "@/components/bouquet-builder/BuilderLayout"
+import { useOptionalOrderDirty } from "@/components/orders/OrderDetailShell"
+
+type NormalizedBouquetItem = {
+  flower_id: string
+  variety_id: string | null
+  color_id: string | null
+  quantity: number
+  unit_cost: number
+}
+
+type OrderFormSnapshot = {
+  customerPhone: string
+  customerName: string
+  orderType: string
+  orderDate: string
+  readyAt: string
+  deliveryAddress: string
+  subtotal: number
+  deliveryCost: number
+  discount: number
+  paymentMethod: string
+  paidAmount: number
+  customerComment: string
+  floristComment: string
+  bouquetSalePrice: number
+  bouquetItems: NormalizedBouquetItem[]
+}
+
+function normalizeBouquetItems(
+  items: Array<{
+    flower_id: string
+    variety_id?: string | null
+    color_id?: string | null
+    quantity: number
+    unit_cost: number
+  }>
+): NormalizedBouquetItem[] {
+  return items
+    .map((item) => ({
+      flower_id: item.flower_id,
+      variety_id: item.variety_id ?? null,
+      color_id: item.color_id ?? null,
+      quantity: Number(item.quantity) || 0,
+      unit_cost: Number(item.unit_cost) || 0,
+    }))
+    .sort((a, b) => {
+      const keyA = `${a.flower_id}:${a.variety_id}:${a.color_id}:${a.unit_cost}:${a.quantity}`
+      const keyB = `${b.flower_id}:${b.variety_id}:${b.color_id}:${b.unit_cost}:${b.quantity}`
+      return keyA < keyB ? -1 : keyA > keyB ? 1 : 0
+    })
+}
+
+function buildFormSnapshot(input: {
+  customerPhone: string
+  customerName: string
+  orderType: string
+  orderDate: string
+  readyAt: string
+  deliveryAddress: string
+  subtotal: string
+  deliveryCost: string
+  discount: string
+  paymentMethod: string
+  paidAmount: string
+  customerComment: string
+  floristComment: string
+  bouquetData: BouquetData | null
+  initialBouquet?: {
+    sale_price: number | null
+    items: Array<{ flower_id: string; variety_id?: string | null; color_id?: string | null; quantity: number; unit_cost: number }>
+  } | null
+}): OrderFormSnapshot {
+  const bouquetSalePrice = input.bouquetData?.sale_price ?? input.initialBouquet?.sale_price ?? 0
+  const bouquetItemsSource = input.bouquetData?.items ?? input.initialBouquet?.items ?? []
+
+  return {
+    customerPhone: String(input.customerPhone ?? "").trim(),
+    customerName: String(input.customerName ?? "").trim(),
+    orderType: input.orderType,
+    orderDate: String(input.orderDate ?? "").trim(),
+    readyAt: String(input.readyAt ?? "").trim(),
+    deliveryAddress: String(input.deliveryAddress ?? "").trim(),
+    subtotal: Number(input.subtotal) || 0,
+    deliveryCost: Number(input.deliveryCost) || 0,
+    discount: Number(input.discount) || 0,
+    paymentMethod: input.paymentMethod,
+    paidAmount: Number(input.paidAmount) || 0,
+    customerComment: String(input.customerComment ?? "").trim(),
+    floristComment: String(input.floristComment ?? "").trim(),
+    bouquetSalePrice: Number(bouquetSalePrice) || 0,
+    bouquetItems: normalizeBouquetItems(bouquetItemsSource),
+  }
+}
 
 type OrderType = "pickup" | "delivery" | "event"
 type PaymentMethod = "cash" | "card" | "transfer"
@@ -80,6 +173,68 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
 
   const [customerComment, setCustomerComment] = useState(initialData?.customer_comment ?? initialCustomer?.comment ?? "")
   const [floristComment, setFloristComment] = useState(initialData?.florist_comment ?? "")
+
+  // Dirty-state tracking — only active when rendered inside OrderDetailShell (order edit page).
+  // On the order-creation page there is no shell, orderDirty is null, and this is a no-op.
+  const orderDirty = useOptionalOrderDirty()
+
+  const initialSnapshotRef = useRef<OrderFormSnapshot | null>(null)
+  if (initialSnapshotRef.current === null) {
+    initialSnapshotRef.current = buildFormSnapshot({
+      customerPhone: initialData?.customers?.phone ?? initialCustomer?.phone ?? "",
+      customerName: initialData?.customers?.full_name ?? initialCustomer?.full_name ?? "",
+      orderType: (initialData?.type as OrderType) ?? "pickup",
+      orderDate: initialData?.order_date ?? initialOrderDate ?? today(),
+      readyAt: initialData?.ready_at ? initialData.ready_at.slice(0, 16) : defaultReadyAt(initialOrderDate),
+      deliveryAddress: initialData?.delivery_address ?? "",
+      subtotal: initialData?.subtotal != null ? String(initialData.subtotal) : "",
+      deliveryCost: initialData?.delivery_cost ? String(initialData.delivery_cost) : "",
+      discount: initialData?.discount ? String(initialData.discount) : "",
+      paymentMethod: (initialData?.payment_method as PaymentMethod) ?? "cash",
+      paidAmount: initialData?.paid_amount ? String(initialData.paid_amount) : "",
+      customerComment: initialData?.customer_comment ?? initialCustomer?.comment ?? "",
+      floristComment: initialData?.florist_comment ?? "",
+      bouquetData: null,
+      initialBouquet: initialData?.bouquet ?? null,
+    })
+  }
+
+  const currentSnapshot = useMemo<OrderFormSnapshot>(
+    () =>
+      buildFormSnapshot({
+        customerPhone,
+        customerName,
+        orderType,
+        orderDate,
+        readyAt,
+        deliveryAddress,
+        subtotal,
+        deliveryCost,
+        discount,
+        paymentMethod,
+        paidAmount,
+        customerComment,
+        floristComment,
+        bouquetData,
+        initialBouquet: initialData?.bouquet ?? null,
+      }),
+    [
+      customerPhone, customerName, orderType, orderDate, readyAt, deliveryAddress,
+      subtotal, deliveryCost, discount, paymentMethod, paidAmount,
+      customerComment, floristComment, bouquetData, initialData,
+    ]
+  )
+
+  useEffect(() => {
+    if (!orderDirty) return
+    const isDirty = JSON.stringify(currentSnapshot) !== JSON.stringify(initialSnapshotRef.current)
+    orderDirty.setDirty(isDirty)
+  }, [currentSnapshot, orderDirty])
+
+  useEffect(() => {
+    if (!orderDirty) return
+    return () => orderDirty.setDirty(false)
+  }, [orderDirty])
 
   const sub = Number(subtotal) || 0
   const del = Number(deliveryCost) || 0
@@ -167,6 +322,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
       if (isEdit && initialData) {
         const result = await updateOrder(initialData.id, payload)
         if (result.error) { setError(result.error); return }
+        orderDirty?.setDirty(false)
         router.push("/orders")
       } else {
         const result = await createOrder(payload)
