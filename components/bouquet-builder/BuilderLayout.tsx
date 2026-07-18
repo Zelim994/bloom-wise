@@ -36,6 +36,20 @@ function findFlower(
   )
 }
 
+// Recomputes what the suggested price would have been for an existing bouquet's
+// initial items, using current catalog sale_price — same source computeSuggested uses.
+function computeInitialSuggestedPrice(
+  flowers: FlowerForBuilder[],
+  initialItems?: InitialBuilderItem[]
+): number {
+  if (!initialItems?.length) return 0
+
+  return initialItems.reduce((sum, item) => {
+    const matched = findFlower(flowers, item.flower_id, item.variety_id, item.color_id)
+    return sum + item.quantity * (matched?.sale_price ?? 0)
+  }, 0)
+}
+
 export function BuilderLayout({ flowers, onChange, initialItems, initialSalePrice, showAIPanel = false }: Props) {
   const [items, setItems] = useState<BouquetItem[]>(() => {
     if (!initialItems?.length) return []
@@ -61,8 +75,20 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
   const [salePrice, setSalePrice] = useState(() =>
     initialSalePrice ? String(initialSalePrice) : ""
   )
-  // true when user has explicitly typed a price — prevents auto-suggest from overwriting
-  const [userEditedPrice, setUserEditedPrice] = useState(() => !!initialSalePrice)
+  // true when user has explicitly typed a price — prevents auto-suggest from overwriting.
+  // For existing bouquets, infer this conservatively: only start in auto mode when the
+  // saved price matches what's still recomputable from the current catalog; otherwise
+  // (no match, or the catalog can no longer reconstruct a suggested price at all) stay
+  // manual so a saved price is never silently overwritten on the next composition edit.
+  const [userEditedPrice, setUserEditedPrice] = useState(() => {
+    const savedPrice = Number(initialSalePrice ?? 0)
+    if (savedPrice <= 0) return false
+
+    const initialSuggestedPrice = computeInitialSuggestedPrice(flowers, initialItems)
+    if (initialSuggestedPrice <= 0) return true
+
+    return Math.round(savedPrice) !== Math.round(initialSuggestedPrice)
+  })
   const [activeTab, setActiveTab] = useState<Tab>("stock")
 
   const costPrice = useMemo(
