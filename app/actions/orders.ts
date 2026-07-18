@@ -362,6 +362,7 @@ export async function updateOrder(
     customer_name: string
     customer_phone: string
     type: string
+    order_date: string
     ready_at: string
     delivery_address?: string
     subtotal: number
@@ -428,6 +429,7 @@ export async function updateOrder(
     .update({
       customer_id: customerId,
       type: formData.type,
+      order_date: formData.order_date,
       ready_at: formData.ready_at || null,
       delivery_address: formData.delivery_address || null,
       payment_status: paymentStatus,
