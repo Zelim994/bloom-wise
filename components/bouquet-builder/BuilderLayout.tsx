@@ -123,45 +123,43 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
   )
 
   function handleAdd(flower: FlowerForBuilder) {
-    setItems((prev) => {
-      // Match by flower_id + variety_id + color_id to keep Mondial·80 and Mondial·100 separate
-      const existing = prev.find(
-        (i) =>
-          i.flower_id === flower.flower_id &&
-          (i.variety_id ?? null) === (flower.variety_id ?? null) &&
-          (i.color_id ?? null) === (flower.color_id ?? null)
-      )
-      const next = existing
-        ? prev.map((i) =>
-            i._id === existing._id ? { ...i, quantity: i.quantity + 1 } : i
-          )
-        : [
-            ...prev,
-            {
-              _id: Math.random().toString(36).slice(2),
-              flower_id: flower.flower_id,
-              variety_id: flower.variety_id,
-              color_id: flower.color_id,
-              variety_name: flower.variety_name,
-              variety_size: flower.variety_size,
-              color_name: flower.color_name,
-              name: flower.name,
-              unit: flower.unit,
-              quantity: 1,
-              unit_cost: flower.unit_cost,
-              sale_price: flower.sale_price,
-              current_stock: flower.current_stock,
-            },
-          ]
-      if (!userEditedPrice) {
-        const sp = computeSuggested(next)
-        setSalePrice(sp)
-        notify(next, sp)
-      } else {
-        notify(next, salePrice)
-      }
-      return next
-    })
+    // Match by flower_id + variety_id + color_id to keep Mondial·80 and Mondial·100 separate
+    const existing = items.find(
+      (i) =>
+        i.flower_id === flower.flower_id &&
+        (i.variety_id ?? null) === (flower.variety_id ?? null) &&
+        (i.color_id ?? null) === (flower.color_id ?? null)
+    )
+    const next = existing
+      ? items.map((i) =>
+          i._id === existing._id ? { ...i, quantity: i.quantity + 1 } : i
+        )
+      : [
+          ...items,
+          {
+            _id: Math.random().toString(36).slice(2),
+            flower_id: flower.flower_id,
+            variety_id: flower.variety_id,
+            color_id: flower.color_id,
+            variety_name: flower.variety_name,
+            variety_size: flower.variety_size,
+            color_name: flower.color_name,
+            name: flower.name,
+            unit: flower.unit,
+            quantity: 1,
+            unit_cost: flower.unit_cost,
+            sale_price: flower.sale_price,
+            current_stock: flower.current_stock,
+          },
+        ]
+    setItems(next)
+    if (!userEditedPrice) {
+      const sp = computeSuggested(next)
+      setSalePrice(sp)
+      notify(next, sp)
+    } else {
+      notify(next, salePrice)
+    }
   }
 
   function handleQuantityChange(id: string, qty: number) {
@@ -169,31 +167,27 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
       handleRemove(id)
       return
     }
-    setItems((prev) => {
-      const next = prev.map((i) => (i._id === id ? { ...i, quantity: qty } : i))
-      if (!userEditedPrice) {
-        const sp = computeSuggested(next)
-        setSalePrice(sp)
-        notify(next, sp)
-      } else {
-        notify(next, salePrice)
-      }
-      return next
-    })
+    const next = items.map((i) => (i._id === id ? { ...i, quantity: qty } : i))
+    setItems(next)
+    if (!userEditedPrice) {
+      const sp = computeSuggested(next)
+      setSalePrice(sp)
+      notify(next, sp)
+    } else {
+      notify(next, salePrice)
+    }
   }
 
   function handleRemove(id: string) {
-    setItems((prev) => {
-      const next = prev.filter((i) => i._id !== id)
-      if (!userEditedPrice) {
-        const sp = computeSuggested(next)
-        setSalePrice(sp)
-        notify(next, sp)
-      } else {
-        notify(next, salePrice)
-      }
-      return next
-    })
+    const next = items.filter((i) => i._id !== id)
+    setItems(next)
+    if (!userEditedPrice) {
+      const sp = computeSuggested(next)
+      setSalePrice(sp)
+      notify(next, sp)
+    } else {
+      notify(next, salePrice)
+    }
   }
 
   function handleSalePriceChange(v: string) {
@@ -218,48 +212,46 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
   }
 
   function handleApplyAISuggestions(suggestions: AISuggestion[]) {
-    setItems((prev) => {
-      const next = [...prev]
-      for (const { flower, quantity } of suggestions) {
-        const existingIdx = next.findIndex(
-          (i) =>
-            i.flower_id === flower.flower_id &&
-            (i.variety_id ?? null) === (flower.variety_id ?? null) &&
-            (i.color_id ?? null) === (flower.color_id ?? null)
-        )
-        if (existingIdx !== -1) {
-          const existing = next[existingIdx]
-          next[existingIdx] = {
-            ...existing,
-            quantity: Math.min(existing.quantity + quantity, flower.current_stock),
-          }
-        } else {
-          next.push({
-            _id: Math.random().toString(36).slice(2),
-            flower_id: flower.flower_id,
-            variety_id: flower.variety_id,
-            color_id: flower.color_id,
-            variety_name: flower.variety_name,
-            variety_size: flower.variety_size,
-            color_name: flower.color_name,
-            name: flower.name,
-            unit: flower.unit,
-            quantity: Math.min(quantity, flower.current_stock),
-            unit_cost: flower.unit_cost,
-            sale_price: flower.sale_price,
-            current_stock: flower.current_stock,
-          })
+    const next = [...items]
+    for (const { flower, quantity } of suggestions) {
+      const existingIdx = next.findIndex(
+        (i) =>
+          i.flower_id === flower.flower_id &&
+          (i.variety_id ?? null) === (flower.variety_id ?? null) &&
+          (i.color_id ?? null) === (flower.color_id ?? null)
+      )
+      if (existingIdx !== -1) {
+        const existing = next[existingIdx]
+        next[existingIdx] = {
+          ...existing,
+          quantity: Math.min(existing.quantity + quantity, flower.current_stock),
         }
-      }
-      if (!userEditedPrice) {
-        const sp = computeSuggested(next)
-        setSalePrice(sp)
-        notify(next, sp)
       } else {
-        notify(next, salePrice)
+        next.push({
+          _id: Math.random().toString(36).slice(2),
+          flower_id: flower.flower_id,
+          variety_id: flower.variety_id,
+          color_id: flower.color_id,
+          variety_name: flower.variety_name,
+          variety_size: flower.variety_size,
+          color_name: flower.color_name,
+          name: flower.name,
+          unit: flower.unit,
+          quantity: Math.min(quantity, flower.current_stock),
+          unit_cost: flower.unit_cost,
+          sale_price: flower.sale_price,
+          current_stock: flower.current_stock,
+        })
       }
-      return next
-    })
+    }
+    setItems(next)
+    if (!userEditedPrice) {
+      const sp = computeSuggested(next)
+      setSalePrice(sp)
+      notify(next, sp)
+    } else {
+      notify(next, salePrice)
+    }
   }
 
   const tabs: { key: Tab; label: string; badge?: number }[] = [
