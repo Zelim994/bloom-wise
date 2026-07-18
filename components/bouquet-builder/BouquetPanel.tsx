@@ -46,57 +46,64 @@ export function BouquetPanel({ items, onQuantityChange, onRemove }: Props) {
                 ? item.quantity * item.sale_price
                 : null
               const variant = variantLine(item)
+              const shortOnStock = item.quantity > item.current_stock
               return (
                 <div
                   key={item._id}
-                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-50/50 transition-colors"
+                  className="flex flex-col gap-1 px-4 py-2.5 hover:bg-zinc-50/50 transition-colors"
                 >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-zinc-800 truncate">{item.name}</p>
-                    {variant && (
-                      <p className="text-xs text-zinc-500 truncate">{variant}</p>
-                    )}
-                    {lineSale == null && (
-                      <p className="text-xs text-zinc-400 mt-0.5">
-                        себ. ₽{item.unit_cost}/{item.unit}
-                      </p>
-                    )}
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-zinc-800 truncate">{item.name}</p>
+                      {variant && (
+                        <p className="text-xs text-zinc-500 truncate">{variant}</p>
+                      )}
+                      {lineSale == null && (
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                          себ. ₽{item.unit_cost}/{item.unit}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Input
+                        type="number"
+                        min={1}
+                        value={item.quantity}
+                        onChange={(e) => onQuantityChange(item._id, Number(e.target.value) || 1)}
+                        className="w-14 h-8 text-center text-sm border-zinc-200 tabular-nums px-1"
+                      />
+                      <span className="text-xs text-zinc-400 w-5 shrink-0">{item.unit}</span>
+                      {lineSale != null ? (
+                        <div className="flex flex-col items-end shrink-0 w-16">
+                          <span className="text-sm font-semibold text-emerald-700 tabular-nums">
+                            ₽{lineSale.toLocaleString("ru")}
+                          </span>
+                          <span className="text-[10px] text-zinc-400 leading-none mt-0.5">
+                            себ. ₽{lineCost.toLocaleString("ru")}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-end shrink-0 w-14">
+                          <span className="text-sm font-semibold text-zinc-700 tabular-nums">
+                            ₽{lineCost.toLocaleString("ru")}
+                          </span>
+                          <span className="text-[10px] text-zinc-400 leading-none">себ.</span>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onRemove(item._id)}
+                        className="text-zinc-300 hover:text-red-500 transition-colors ml-1"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Input
-                      type="number"
-                      min={1}
-                      max={item.current_stock}
-                      value={item.quantity}
-                      onChange={(e) => onQuantityChange(item._id, Number(e.target.value) || 1)}
-                      className="w-14 h-8 text-center text-sm border-zinc-200 tabular-nums px-1"
-                    />
-                    <span className="text-xs text-zinc-400 w-5 shrink-0">{item.unit}</span>
-                    {lineSale != null ? (
-                      <div className="flex flex-col items-end shrink-0 w-16">
-                        <span className="text-sm font-semibold text-emerald-700 tabular-nums">
-                          ₽{lineSale.toLocaleString("ru")}
-                        </span>
-                        <span className="text-[10px] text-zinc-400 leading-none mt-0.5">
-                          себ. ₽{lineCost.toLocaleString("ru")}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-end shrink-0 w-14">
-                        <span className="text-sm font-semibold text-zinc-700 tabular-nums">
-                          ₽{lineCost.toLocaleString("ru")}
-                        </span>
-                        <span className="text-[10px] text-zinc-400 leading-none">себ.</span>
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => onRemove(item._id)}
-                      className="text-zinc-300 hover:text-red-500 transition-colors ml-1"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                  {shortOnStock && (
+                    <p aria-live="polite" className="text-xs text-amber-600">
+                      Недостаточно на складе: доступно {item.current_stock} {item.unit}, указано {item.quantity} {item.unit}.
+                    </p>
+                  )}
                 </div>
               )
             })}
