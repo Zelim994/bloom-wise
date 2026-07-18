@@ -8,6 +8,7 @@ interface Props {
   items: BouquetItem[]
   onQuantityChange: (id: string, qty: number) => void
   onRemove: (id: string) => void
+  readOnly?: boolean
 }
 
 function variantLine(item: BouquetItem): string {
@@ -17,7 +18,7 @@ function variantLine(item: BouquetItem): string {
   return parts.join(" · ")
 }
 
-export function BouquetPanel({ items, onQuantityChange, onRemove }: Props) {
+export function BouquetPanel({ items, onQuantityChange, onRemove, readOnly = false }: Props) {
   const label =
     items.length === 0
       ? "Состав букета"
@@ -70,6 +71,7 @@ export function BouquetPanel({ items, onQuantityChange, onRemove }: Props) {
                         min={1}
                         value={item.quantity}
                         onChange={(e) => onQuantityChange(item._id, Number(e.target.value) || 1)}
+                        disabled={readOnly}
                         className="w-14 h-8 text-center text-sm border-zinc-200 tabular-nums px-1"
                       />
                       <span className="text-xs text-zinc-400 w-5 shrink-0">{item.unit}</span>
@@ -93,7 +95,8 @@ export function BouquetPanel({ items, onQuantityChange, onRemove }: Props) {
                       <button
                         type="button"
                         onClick={() => onRemove(item._id)}
-                        className="text-zinc-300 hover:text-red-500 transition-colors ml-1"
+                        disabled={readOnly}
+                        className="text-zinc-300 hover:text-red-500 transition-colors ml-1 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-zinc-300"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

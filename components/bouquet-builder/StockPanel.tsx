@@ -11,6 +11,7 @@ interface Props {
   flowers: FlowerForBuilder[]
   items: BouquetItem[]
   onAdd: (flower: FlowerForBuilder) => void
+  readOnly?: boolean
 }
 
 // Build subtitle line from variety_size and color_name, avoiding duplication with flower name
@@ -30,7 +31,7 @@ function variantSubtitle(
   return parts.join(" · ")
 }
 
-export function StockPanel({ flowers, items, onAdd }: Props) {
+export function StockPanel({ flowers, items, onAdd, readOnly = false }: Props) {
   const [search, setSearch] = useState("")
   const [category, setCategory] = useState("Все")
 
@@ -121,7 +122,8 @@ export function StockPanel({ flowers, items, onAdd }: Props) {
                 <button
                   type="button"
                   onClick={() => onAdd(f)}
-                  className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium transition-all shrink-0 ${
+                  disabled={readOnly}
+                  className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium transition-all shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
                     inBouquet > 0
                       ? "bg-rose-100 text-rose-700 hover:bg-rose-200"
                       : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"

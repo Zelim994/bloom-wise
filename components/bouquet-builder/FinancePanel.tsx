@@ -16,9 +16,10 @@ interface Props {
   isManualPrice?: boolean
   onChange: (v: string) => void
   onResetToSuggested?: () => void
+  readOnly?: boolean
 }
 
-export function FinancePanel({ costPrice, salePrice, profit, margin, itemCount, totalQuantity, suggestedSalePrice, hasMissingPrices, isManualPrice, onChange, onResetToSuggested }: Props) {
+export function FinancePanel({ costPrice, salePrice, profit, margin, itemCount, totalQuantity, suggestedSalePrice, hasMissingPrices, isManualPrice, onChange, onResetToSuggested, readOnly = false }: Props) {
   const salePriceNum = Number(salePrice) || 0
   const hasData = costPrice > 0 || salePriceNum > 0
 
@@ -71,6 +72,7 @@ export function FinancePanel({ costPrice, salePrice, profit, margin, itemCount, 
             step={50}
             value={salePrice}
             onChange={(e) => onChange(e.target.value)}
+            disabled={readOnly}
             placeholder="0"
             className="border-zinc-200 h-10 text-base font-semibold tabular-nums bg-white"
           />
@@ -83,7 +85,8 @@ export function FinancePanel({ costPrice, salePrice, profit, margin, itemCount, 
                 <button
                   type="button"
                   onClick={onResetToSuggested}
-                  className="text-xs text-rose-500 hover:text-rose-600 font-medium ml-2 shrink-0"
+                  disabled={readOnly}
+                  className="text-xs text-rose-500 hover:text-rose-600 font-medium ml-2 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Применить
                 </button>

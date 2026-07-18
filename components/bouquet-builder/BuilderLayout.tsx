@@ -17,6 +17,7 @@ interface Props {
   initialItems?: InitialBuilderItem[]
   initialSalePrice?: number
   showAIPanel?: boolean
+  readOnly?: boolean
 }
 
 type Tab = "stock" | "bouquet" | "finance"
@@ -50,7 +51,7 @@ function computeInitialSuggestedPrice(
   }, 0)
 }
 
-export function BuilderLayout({ flowers, onChange, initialItems, initialSalePrice, showAIPanel = false }: Props) {
+export function BuilderLayout({ flowers, onChange, initialItems, initialSalePrice, showAIPanel = false, readOnly = false }: Props) {
   const [items, setItems] = useState<BouquetItem[]>(() => {
     if (!initialItems?.length) return []
     return initialItems.map((item) => {
@@ -149,6 +150,7 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
   )
 
   function handleAdd(flower: FlowerForBuilder) {
+    if (readOnly) return
     // Match by flower_id + variety_id + color_id to keep Mondial·80 and Mondial·100 separate
     const existing = items.find(
       (i) =>
@@ -189,6 +191,7 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
   }
 
   function handleQuantityChange(id: string, qty: number) {
+    if (readOnly) return
     if (qty <= 0) {
       handleRemove(id)
       return
@@ -205,6 +208,7 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
   }
 
   function handleRemove(id: string) {
+    if (readOnly) return
     const next = items.filter((i) => i._id !== id)
     setItems(next)
     if (!userEditedPrice) {
@@ -217,6 +221,7 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
   }
 
   function handleSalePriceChange(v: string) {
+    if (readOnly) return
     if (v === "") {
       // User cleared the field — re-enable auto-suggest
       setUserEditedPrice(false)
@@ -231,6 +236,7 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
   }
 
   function handleResetToSuggested() {
+    if (readOnly) return
     setUserEditedPrice(false)
     const sp = computeSuggested(items)
     setSalePrice(sp)
@@ -238,6 +244,7 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
   }
 
   function handleApplyAISuggestions(suggestions: AISuggestion[]) {
+    if (readOnly) return
     const next = [...items]
     for (const { flower, quantity } of suggestions) {
       const existingIdx = next.findIndex(
@@ -320,7 +327,7 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
             activeTab === "stock" ? "block w-full" : "hidden"
           }`}
         >
-          <StockPanel flowers={flowers} items={items} onAdd={handleAdd} />
+          <StockPanel flowers={flowers} items={items} onAdd={handleAdd} readOnly={readOnly} />
         </div>
 
         {/* Bouquet */}
@@ -333,6 +340,7 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
             items={items}
             onQuantityChange={handleQuantityChange}
             onRemove={handleRemove}
+            readOnly={readOnly}
           />
         </div>
 
@@ -354,6 +362,7 @@ export function BuilderLayout({ flowers, onChange, initialItems, initialSalePric
             isManualPrice={userEditedPrice}
             onChange={handleSalePriceChange}
             onResetToSuggested={handleResetToSuggested}
+            readOnly={readOnly}
           />
         </div>
       </div>

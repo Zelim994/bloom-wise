@@ -148,7 +148,9 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState("")
   const isEdit = !!initialData
-  const isCancelled = isEdit && initialData?.status === "cancelled"
+  const isCancelled = initialData?.status === "cancelled"
+  const isStockLocked = Boolean(initialData?.stock_written_off)
+  const isReadOnly = isCancelled || isStockLocked
 
   const [customerPhone, setCustomerPhone] = useState(initialData?.customers?.phone ?? initialCustomer?.phone ?? "")
   const [customerName, setCustomerName] = useState(initialData?.customers?.full_name ?? initialCustomer?.full_name ?? "")
@@ -281,6 +283,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (isReadOnly) return
     setError("")
 
     if (!customerName.trim() && !customerPhone.trim()) {
@@ -344,14 +347,16 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
         Назад к заказам
       </button>
 
-      {isCancelled && (
+      {isReadOnly && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          Заказ отменён. Редактирование недоступно.
+          {isCancelled
+            ? "Заказ отменён и доступен только для просмотра."
+            : "Склад уже списан. Заказ доступен только для просмотра."}
         </div>
       )}
 
       {/* Клиент + Детали */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <fieldset disabled={isReadOnly} className="grid grid-cols-1 lg:grid-cols-2 gap-5 mx-0 min-w-0">
         {/* Клиент */}
         <div className="rounded-xl border border-zinc-200 bg-white p-5 space-y-4">
           <div className="flex items-center gap-2 pb-1 border-b border-zinc-100">
@@ -440,7 +445,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
                   key={opt.value}
                   type="button"
                   onClick={() => setOrderType(opt.value)}
-                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-lg border text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     orderType === opt.value
                       ? "border-rose-300 bg-rose-50 text-rose-700"
                       : "border-zinc-200 text-zinc-500 hover:border-zinc-300 hover:bg-zinc-50"
@@ -504,7 +509,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
             />
           </div>
         </div>
-      </div>
+      </fieldset>
 
       {/* BouquetBuilder */}
       <div className="space-y-2">
@@ -531,11 +536,12 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
             }
           })}
           initialSalePrice={initialData?.bouquet?.sale_price ?? undefined}
+          readOnly={isReadOnly}
         />
       </div>
 
       {/* Финансы */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-5 space-y-4">
+      <fieldset disabled={isReadOnly} className="rounded-xl border border-zinc-200 bg-white p-5 space-y-4 mx-0 min-w-0">
         <div className="flex items-center gap-2 pb-1 border-b border-zinc-100">
           <CreditCard className="h-4 w-4 text-zinc-400" />
           <h2 className="text-sm font-semibold text-zinc-700">Финансы</h2>
@@ -605,7 +611,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
                   key={opt.value}
                   type="button"
                   onClick={() => setPaymentMethod(opt.value)}
-                  className={`flex-1 h-10 rounded-lg border text-sm font-medium transition-all ${
+                  className={`flex-1 h-10 rounded-lg border text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     paymentMethod === opt.value
                       ? "border-rose-300 bg-rose-50 text-rose-700"
                       : "border-zinc-200 text-zinc-500 hover:border-zinc-300 hover:bg-zinc-50"
@@ -647,7 +653,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
             </div>
           </div>
         </div>
-      </div>
+      </fieldset>
 
       {error && (
         <p className="text-sm text-red-600 bg-red-50 px-4 py-3 rounded-xl border border-red-100">
@@ -656,13 +662,15 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
       )}
 
       <div className="flex items-center gap-3 pt-1">
-        <Button
-          type="submit"
-          disabled={isPending || isCancelled}
-          className="bg-rose-500 hover:bg-rose-600 text-white h-10 px-6 disabled:opacity-50"
-        >
-          {isPending ? (isEdit ? "Сохраняем..." : "Создаём заказ...") : (isEdit ? "Сохранить изменения" : "Создать заказ")}
-        </Button>
+        {!isReadOnly && (
+          <Button
+            type="submit"
+            disabled={isPending}
+            className="bg-rose-500 hover:bg-rose-600 text-white h-10 px-6 disabled:opacity-50"
+          >
+            {isPending ? (isEdit ? "Сохраняем..." : "Создаём заказ...") : (isEdit ? "Сохранить изменения" : "Создать заказ")}
+          </Button>
+        )}
         <button
           type="button"
           onClick={() => router.back()}
