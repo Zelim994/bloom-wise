@@ -147,6 +147,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState("")
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const isEdit = !!initialData
   const isCancelled = initialData?.status === "cancelled"
   const isStockLocked = Boolean(initialData?.stock_written_off)
@@ -231,6 +232,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
     if (!orderDirty) return
     const isDirty = JSON.stringify(currentSnapshot) !== JSON.stringify(initialSnapshotRef.current)
     orderDirty.setDirty(isDirty)
+    if (isDirty) setSuccessMessage(null)
   }, [currentSnapshot, orderDirty])
 
   useEffect(() => {
@@ -285,6 +287,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
     e.preventDefault()
     if (isReadOnly) return
     setError("")
+    setSuccessMessage(null)
 
     if (!customerName.trim() && !customerPhone.trim()) {
       setError("Укажите клиента — имя или телефон")
@@ -325,8 +328,10 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
       if (isEdit && initialData) {
         const result = await updateOrder(initialData.id, payload)
         if (result.error) { setError(result.error); return }
+        initialSnapshotRef.current = currentSnapshot
         orderDirty?.setDirty(false)
-        router.push("/orders")
+        setSuccessMessage("Изменения сохранены.")
+        router.refresh()
       } else {
         const result = await createOrder(payload)
         if (result.error) { setError(result.error); return }
@@ -658,6 +663,12 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
       {error && (
         <p className="text-sm text-red-600 bg-red-50 px-4 py-3 rounded-xl border border-red-100">
           {error}
+        </p>
+      )}
+
+      {successMessage && (
+        <p aria-live="polite" className="text-sm text-[var(--sage-text)] bg-[var(--sage-bg)] px-4 py-3 rounded-xl border border-[var(--sage)]">
+          {successMessage}
         </p>
       )}
 
