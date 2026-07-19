@@ -180,6 +180,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
   // Dirty-state tracking — only active when rendered inside OrderDetailShell (order edit page).
   // On the order-creation page there is no shell, orderDirty is null, and this is a no-op.
   const orderDirty = useOptionalOrderDirty()
+  const showStickySave = isEdit && !isReadOnly && Boolean(orderDirty?.isDirty)
 
   const initialSnapshotRef = useRef<OrderFormSnapshot | null>(null)
   if (initialSnapshotRef.current === null) {
@@ -357,6 +358,18 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
           {isCancelled
             ? "Заказ отменён и доступен только для просмотра."
             : "Склад уже списан. Заказ доступен только для просмотра."}
+        </div>
+      )}
+
+      {showStickySave && (
+        <div className="sticky top-0 z-20 flex justify-end rounded-xl border border-zinc-200 bg-white px-4 py-2.5 shadow-sm">
+          <Button
+            type="submit"
+            disabled={isPending}
+            className="bg-rose-500 hover:bg-rose-600 text-white h-10 px-6 disabled:opacity-50 w-full sm:w-auto"
+          >
+            {isPending ? "Сохраняем..." : "Сохранить изменения"}
+          </Button>
         </div>
       )}
 
