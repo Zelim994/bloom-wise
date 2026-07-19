@@ -67,7 +67,6 @@ export function OrderStockWriteOff({ orderId, stockWrittenOff, stockReturned, st
           {isPending ? "Списываем..." : "Списать склад"}
         </button>
       </div>
-      {isDirty && <p className="text-sm text-[var(--warn-text)]">Сначала сохраните изменения заказа.</p>}
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   )

@@ -75,7 +75,6 @@ export function OrderStatusActions({ orderId, status, totalAmount, paidAmount, p
   return (
     <div className="flex flex-col gap-2">
       {error && <p className="text-sm text-destructive">{error}</p>}
-      {isDirty && <p className="text-sm text-[var(--warn-text)]">Сначала сохраните изменения заказа.</p>}
     <div className="flex flex-wrap gap-2">
       {transition.next && (
         <button

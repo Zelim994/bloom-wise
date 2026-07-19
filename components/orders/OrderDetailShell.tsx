@@ -28,6 +28,16 @@ export function OrderDetailShell({ children }: { children: React.ReactNode }) {
 
   return (
     <OrderDirtyContext.Provider value={{ isDirty, setDirty }}>
+      {isDirty && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex flex-col gap-0.5 rounded-lg border border-[var(--warn)] bg-[var(--warn-bg)] px-3.5 py-2.5"
+        >
+          <p className="text-sm font-semibold text-[var(--warn-text)]">Есть несохранённые изменения</p>
+          <p className="text-sm text-[var(--warn-text)]">Сохраните заказ, чтобы продолжить работу со статусом и складом.</p>
+        </div>
+      )}
       {children}
     </OrderDirtyContext.Provider>
   )
