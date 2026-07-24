@@ -4,6 +4,7 @@ import { getFlowersForBuilder } from "@/app/actions/builder"
 import { OrderForm } from "@/components/orders/OrderForm"
 import { OrderStatusActions } from "@/components/orders/OrderStatusActions"
 import { OrderStockWriteOff } from "@/components/orders/OrderStockWriteOff"
+import { OrderStockBadge } from "@/components/orders/OrderStockBadge"
 import { OrderDetailShell } from "@/components/orders/OrderDetailShell"
 import { WhatsAppButton } from "@/components/orders/WhatsAppButton"
 import Link from "next/link"
@@ -57,6 +58,10 @@ export default async function OrderDetailPage({
           <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${payment.className}`}>
             {payment.label}
           </span>
+          <OrderStockBadge
+            stockWrittenOff={order.stock_written_off}
+            stockReturned={order.stock_returned}
+          />
           {order.customers?.phone && (
             <div className="ml-auto flex items-center gap-2">
               <a
@@ -81,22 +86,30 @@ export default async function OrderDetailPage({
       </div>
 
       <OrderDetailShell>
-        {/* Кнопки статуса */}
-        <OrderStatusActions
-          orderId={order.id}
-          status={order.status as "new" | "in_progress" | "ready" | "delivered" | "cancelled"}
-          totalAmount={total}
-          paidAmount={paid}
-          paymentMethod={order.payment_method}
-        />
-
-        {/* Списание склада */}
-        <OrderStockWriteOff
-          orderId={order.id}
-          stockWrittenOff={order.stock_written_off}
-          stockReturned={order.stock_returned}
-          status={order.status}
-        />
+        {/* Действия по заказу и складу */}
+        <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--shadow-card)]">
+          <div className="divide-y divide-[var(--divider)]">
+            {order.status !== "cancelled" && (
+              <div className="p-4 sm:p-5">
+                <OrderStatusActions
+                  orderId={order.id}
+                  status={order.status as "new" | "in_progress" | "ready" | "delivered" | "cancelled"}
+                  totalAmount={total}
+                  paidAmount={paid}
+                  paymentMethod={order.payment_method}
+                />
+              </div>
+            )}
+            <div className="p-4 sm:p-5">
+              <OrderStockWriteOff
+                orderId={order.id}
+                stockWrittenOff={order.stock_written_off}
+                stockReturned={order.stock_returned}
+                status={order.status}
+              />
+            </div>
+          </div>
+        </div>
 
         {/* Форма редактирования */}
         <OrderForm flowers={flowers} initialData={order} />
