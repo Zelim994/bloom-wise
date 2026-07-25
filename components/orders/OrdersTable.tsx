@@ -2,10 +2,19 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Search, Plus } from "lucide-react"
+import { Search, Plus, SlidersHorizontal } from "lucide-react"
 import { AppIcons } from "@/lib/icons"
 import type { OrderWithCustomer } from "@/app/actions/orders"
 import { OrderStockBadge } from "@/components/orders/OrderStockBadge"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu"
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   new: { label: "Новый", className: "bg-[var(--bg-subtle)] text-[var(--text-secondary)]" },
@@ -39,14 +48,14 @@ type PaymentFilter = "all" | "unpaid" | "partial" | "paid" | "open"
 type SortKey = "newest" | "oldest" | "unpaid_first" | "stock_first"
 
 const STOCK_FILTERS: { key: StockFilter; label: string }[] = [
-  { key: "all",             label: "Все" },
+  { key: "all",             label: "Любой" },
   { key: "not_written_off", label: "Не списан" },
   { key: "written_off",     label: "Списан" },
   { key: "returned",        label: "Возвращён" },
 ]
 
 const PAYMENT_FILTERS: { key: PaymentFilter; label: string }[] = [
-  { key: "all",     label: "Все оплаты" },
+  { key: "all",     label: "Любая" },
   { key: "open",    label: "Не закрыто" },
   { key: "unpaid",  label: "Не оплачено" },
   { key: "partial", label: "Частично" },
@@ -114,6 +123,9 @@ export function OrdersTable({ orders, activeStatus, initialStockFilter, initialP
   })
   const sorted = sortOrders(filtered, sortKey)
 
+  const activeAdvancedFilterCount =
+    Number(stockFilter !== "all") + Number(paymentFilter !== "all")
+
   return (
     <div className="space-y-3">
       {/* Search + filters */}
@@ -139,38 +151,45 @@ export function OrdersTable({ orders, activeStatus, initialStockFilter, initialP
           <option value="unpaid_first">Сначала неоплаченные</option>
           <option value="stock_first">Сначала не списан склад</option>
         </select>
-        <div className="flex gap-1">
-          {STOCK_FILTERS.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setStockFilter(f.key)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-                stockFilter === f.key
-                  ? "bg-[var(--sidebar-active)] text-[var(--text-on-dark)]"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] border border-[var(--border)]"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Payment filter */}
-      <div className="flex gap-1 flex-wrap">
-        {PAYMENT_FILTERS.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setPaymentFilter(f.key)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-              paymentFilter === f.key
-                ? "bg-[var(--sidebar-active)] text-[var(--text-on-dark)]"
-                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] border border-[var(--border)]"
-            }`}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            type="button"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--bg-card)] text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-accent)] focus:border-transparent transition-colors whitespace-nowrap"
           >
-            {f.label}
-          </button>
-        ))}
+            <SlidersHorizontal className="h-4 w-4" />
+            Фильтры
+            {activeAdvancedFilterCount > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--brand-accent)] text-white text-[11px] font-semibold leading-none">
+                {activeAdvancedFilterCount}
+              </span>
+            )}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuRadioGroup
+              value={stockFilter}
+              onValueChange={(value) => setStockFilter(value as StockFilter)}
+            >
+              <DropdownMenuLabel>Статус склада</DropdownMenuLabel>
+              {STOCK_FILTERS.map((f) => (
+                <DropdownMenuRadioItem key={f.key} value={f.key}>
+                  {f.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuRadioGroup
+              value={paymentFilter}
+              onValueChange={(value) => setPaymentFilter(value as PaymentFilter)}
+            >
+              <DropdownMenuLabel>Оплата</DropdownMenuLabel>
+              {PAYMENT_FILTERS.map((f) => (
+                <DropdownMenuRadioItem key={f.key} value={f.key}>
+                  {f.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       </div>
 
