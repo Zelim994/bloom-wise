@@ -1,6 +1,6 @@
 "use client"
 
-import { usePathname, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { LogOut, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,24 +13,6 @@ import {
 import { createClient } from "@/lib/supabase/client"
 import type { Profile } from "@/lib/supabase/types"
 
-const pageTitles: Record<string, string> = {
-  "/": "Главная",
-  "/orders": "Заказы",
-  "/orders/new": "Новый заказ",
-  "/builder": "Собрать букет",
-  "/calendar": "Календарь",
-  "/inventory": "Склад",
-  "/purchases": "Приход товара",
-  "/purchases/new": "Новый приход",
-  "/writeoffs": "Списания",
-  "/writeoffs/new": "Новое списание",
-  "/recipes": "Рецепты букетов",
-  "/customers": "Клиенты",
-  "/reports": "Отчёты",
-  "/bloom-ai": "Bloom AI",
-  "/settings": "Настройки",
-}
-
 export function Header({
   profile,
   onOpenMobileNav,
@@ -38,9 +20,7 @@ export function Header({
   profile: Profile | null
   onOpenMobileNav?: () => void
 }) {
-  const pathname = usePathname()
   const router = useRouter()
-  const title = pageTitles[pathname] ?? "BloomWise"
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -63,7 +43,6 @@ export function Header({
             <Menu className="h-4 w-4" />
           </Button>
         )}
-        <h1 className="text-[15px] font-semibold text-[var(--text-heading)] truncate">{title}</h1>
       </div>
       <div className="flex items-center gap-2">
         <DropdownMenu>
