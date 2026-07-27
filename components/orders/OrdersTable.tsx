@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Search, Plus, SlidersHorizontal } from "lucide-react"
+import { Search, Plus, SlidersHorizontal, X } from "lucide-react"
 import { AppIcons } from "@/lib/icons"
 import type { OrderWithCustomer } from "@/app/actions/orders"
 import { OrderStockBadge } from "@/components/orders/OrderStockBadge"
@@ -61,6 +61,19 @@ const PAYMENT_FILTERS: { key: PaymentFilter; label: string }[] = [
   { key: "partial", label: "Частично" },
   { key: "paid",    label: "Оплачено" },
 ]
+
+const STOCK_CHIP_LABELS: Partial<Record<StockFilter, string>> = {
+  not_written_off: "Склад: не списан",
+  written_off: "Склад: списан",
+  returned: "Склад: возвращён",
+}
+
+const PAYMENT_CHIP_LABELS: Partial<Record<PaymentFilter, string>> = {
+  open: "Оплата: не закрыта",
+  unpaid: "Оплата: не оплачена",
+  partial: "Оплата: частично",
+  paid: "Оплата: оплачена",
+}
 
 const PAYMENT_ORDER: Record<string, number> = { unpaid: 0, partial: 1, paid: 2 }
 const STOCK_ORDER = (o: OrderWithCustomer) =>
@@ -125,6 +138,7 @@ export function OrdersTable({ orders, activeStatus, initialStockFilter, initialP
 
   const activeAdvancedFilterCount =
     Number(stockFilter !== "all") + Number(paymentFilter !== "all")
+  const hasActiveAdvancedFilters = activeAdvancedFilterCount > 0
 
   return (
     <div className="space-y-3">
@@ -191,6 +205,47 @@ export function OrdersTable({ orders, activeStatus, initialStockFilter, initialP
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {hasActiveAdvancedFilters && (
+        <div className="flex flex-wrap items-center gap-2">
+          {stockFilter !== "all" && (
+            <span className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] text-xs font-medium text-[var(--text-secondary)]">
+              {STOCK_CHIP_LABELS[stockFilter]}
+              <button
+                type="button"
+                onClick={() => setStockFilter("all")}
+                aria-label={`Убрать фильтр «${STOCK_CHIP_LABELS[stockFilter]}»`}
+                className="flex items-center justify-center h-4 w-4 rounded-full hover:bg-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-accent)]"
+              >
+                <X className="h-3 w-3" aria-hidden="true" />
+              </button>
+            </span>
+          )}
+          {paymentFilter !== "all" && (
+            <span className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] text-xs font-medium text-[var(--text-secondary)]">
+              {PAYMENT_CHIP_LABELS[paymentFilter]}
+              <button
+                type="button"
+                onClick={() => setPaymentFilter("all")}
+                aria-label={`Убрать фильтр «${PAYMENT_CHIP_LABELS[paymentFilter]}»`}
+                className="flex items-center justify-center h-4 w-4 rounded-full hover:bg-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-accent)]"
+              >
+                <X className="h-3 w-3" aria-hidden="true" />
+              </button>
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setStockFilter("all")
+              setPaymentFilter("all")
+            }}
+            className="text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-heading)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-accent)] rounded px-1 py-0.5"
+          >
+            Очистить фильтры
+          </button>
+        </div>
+      )}
       </div>
 
       {/* Table */}
