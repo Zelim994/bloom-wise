@@ -140,6 +140,13 @@ export function OrdersTable({ orders, activeStatus, initialStockFilter, initialP
     Number(stockFilter !== "all") + Number(paymentFilter !== "all")
   const hasActiveAdvancedFilters = activeAdvancedFilterCount > 0
 
+  const hasSearchQuery = q.length > 0
+  const hasActiveClientFilters = hasSearchQuery || stockFilter !== "all" || paymentFilter !== "all"
+  const hasSourceOrders = orders.length > 0
+  const isTrueEmpty = activeStatus === "all" && !hasSourceOrders
+  const isStatusEmpty = activeStatus !== "all" && !hasSourceOrders
+  const isFilteredEmpty = hasSourceOrders && filtered.length === 0 && hasActiveClientFilters
+
   return (
     <div className="space-y-3">
       {/* Search + filters */}
@@ -252,21 +259,51 @@ export function OrdersTable({ orders, activeStatus, initialStockFilter, initialP
       <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--shadow-card)] overflow-hidden">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <AppIcons.order className="h-10 w-10 text-[var(--text-muted)] mb-3" />
-            <p className="text-sm font-medium text-[var(--text-secondary)]">
-              {q ? "Ничего не найдено" : "Нет заказов"}
-            </p>
-            {!q && activeStatus === "all" && (
+            <AppIcons.order className="h-10 w-10 text-[var(--text-muted)] mb-3" aria-hidden="true" />
+            {isTrueEmpty && (
               <>
-                <p className="text-xs text-[var(--text-muted)] mt-1">Создайте первый заказ</p>
+                <p className="text-sm font-medium text-[var(--text-secondary)]">Заказов пока нет</p>
+                <p className="text-xs text-[var(--text-muted)] mt-1">Создайте первый заказ, чтобы начать работу.</p>
                 <Link
                   href="/orders/new"
-                  className="mt-4 flex items-center gap-1.5 bg-[var(--brand-accent)] hover:bg-[var(--brand-accent-hover)] text-white text-sm font-medium px-3.5 py-2 rounded-lg transition-colors"
+                  className="mt-4 flex items-center gap-1.5 bg-[var(--brand-accent)] hover:bg-[var(--brand-accent-hover)] text-white text-sm font-medium px-3.5 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--brand-accent)]"
                 >
                   <Plus className="h-4 w-4" />
                   Новый заказ
                 </Link>
               </>
+            )}
+            {isStatusEmpty && (
+              <>
+                <p className="text-sm font-medium text-[var(--text-secondary)]">В этом статусе заказов нет</p>
+                <p className="text-xs text-[var(--text-muted)] mt-1">Выберите другой статус или вернитесь ко всем заказам.</p>
+                <Link
+                  href="/orders"
+                  className="mt-4 inline-flex items-center gap-1.5 border border-[var(--border)] bg-[var(--bg-card)] hover:bg-[var(--bg-subtle)] text-[var(--text-secondary)] text-sm font-medium px-3.5 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--brand-accent)]"
+                >
+                  Показать все заказы
+                </Link>
+              </>
+            )}
+            {isFilteredEmpty && (
+              <>
+                <p className="text-sm font-medium text-[var(--text-secondary)]">По выбранным условиям заказов не найдено</p>
+                <p className="text-xs text-[var(--text-muted)] mt-1">Измените запрос или сбросьте поиск и фильтры.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("")
+                    setStockFilter("all")
+                    setPaymentFilter("all")
+                  }}
+                  className="mt-4 inline-flex items-center gap-1.5 border border-[var(--border)] bg-[var(--bg-card)] hover:bg-[var(--bg-subtle)] text-[var(--text-secondary)] text-sm font-medium px-3.5 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--brand-accent)]"
+                >
+                  Сбросить поиск и фильтры
+                </button>
+              </>
+            )}
+            {!isTrueEmpty && !isStatusEmpty && !isFilteredEmpty && (
+              <p className="text-sm font-medium text-[var(--text-secondary)]">Заказы не найдены</p>
             )}
           </div>
         ) : (
