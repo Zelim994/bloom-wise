@@ -238,7 +238,7 @@ export default async function DashboardPage({
         {/* Приветствие + быстрые действия */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-[var(--text-heading)]">Добро пожаловать, {displayName} 🌸</h2>
+            <h1 className="text-2xl font-semibold text-[var(--text-heading)]">Добро пожаловать, {displayName} 🌸</h1>
             <p className="text-sm text-[var(--text-secondary)] mt-0.5">{roleLabel}</p>
           </div>
           <div className="flex gap-3">

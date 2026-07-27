@@ -11,7 +11,10 @@ const sections = [
 export default function SettingsPage() {
   return (
     <div className="max-w-xl space-y-4">
-      <p className="text-sm text-zinc-500">Управление организацией, командой и интеграциями.</p>
+      <div>
+        <h1 className="text-xl font-semibold text-[var(--text-heading)]">Настройки</h1>
+        <p className="text-sm text-[var(--text-secondary)] mt-0.5">Управление организацией, командой и интеграциями.</p>
+      </div>
       <div className="space-y-2">
         {sections.map((s) => {
           const Icon = s.icon

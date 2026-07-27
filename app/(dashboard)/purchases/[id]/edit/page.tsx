@@ -16,7 +16,8 @@ export default async function EditPurchasePage({
   if (!purchase) notFound()
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-5xl mx-auto space-y-5">
+      <h1 className="text-xl font-semibold text-[var(--text-heading)]">Редактирование поставки</h1>
       <EditPurchaseForm purchase={purchase} suppliers={suppliers} />
     </div>
   )
