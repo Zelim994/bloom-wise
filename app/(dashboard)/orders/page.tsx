@@ -32,14 +32,14 @@ export default async function OrdersPage({
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-zinc-900">Заказы</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">
+          <h1 className="text-xl font-semibold text-[var(--text-heading)]">Заказы</h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-0.5">
             {activeCount > 0 ? `${activeCount} активных` : "Нет активных заказов"}
           </p>
         </div>
         <Link
           href="/orders/new"
-          className="flex items-center gap-1.5 bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-3.5 py-2 rounded-lg transition-colors"
+          className="flex items-center gap-1.5 bg-[var(--brand-accent)] hover:bg-[var(--brand-accent-hover)] text-white text-sm font-medium px-3.5 py-2 rounded-lg transition-colors"
         >
           <Plus className="h-4 w-4" />
           Новый заказ
