@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { LogOut, Menu } from "lucide-react"
+import { ChevronDown, LogOut, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { createClient } from "@/lib/supabase/client"
+import { ALL_ROLE_LABELS } from "@/lib/team/roles"
 import type { Profile } from "@/lib/supabase/types"
 
 export function Header({
@@ -21,6 +22,13 @@ export function Header({
   onOpenMobileNav?: () => void
 }) {
   const router = useRouter()
+
+  const displayName = profile?.full_name?.trim() || "Пользователь"
+  const initial = displayName.charAt(0).toUpperCase() || "?"
+  const roleLabel =
+    profile?.role && profile.role in ALL_ROLE_LABELS
+      ? ALL_ROLE_LABELS[profile.role]
+      : "Сотрудник"
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -46,8 +54,22 @@ export function Header({
       </div>
       <div className="flex items-center gap-2">
         <DropdownMenu>
-          <DropdownMenuTrigger className="ml-1 flex h-7 w-7 items-center justify-center rounded-full bg-[var(--brand-accent-bg)] text-[var(--brand-accent-text)] text-xs font-semibold hover:bg-[var(--brand-accent-bg)] transition-colors cursor-pointer border-0 outline-none">
-            {profile?.full_name?.[0]?.toUpperCase() ?? "?"}
+          <DropdownMenuTrigger
+            aria-label={`Открыть меню профиля: ${displayName}`}
+            className="flex items-center gap-2 rounded-full p-1.5 md:pr-3 border border-transparent md:border-[var(--border)] hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-accent)]"
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--brand-accent-bg)] text-[var(--brand-accent-text)] text-xs font-semibold">
+              {initial}
+            </span>
+            <span className="hidden md:flex flex-col items-start min-w-0 max-w-[140px]">
+              <span className="text-sm font-medium text-[var(--text-heading)] truncate w-full text-left leading-tight">
+                {displayName}
+              </span>
+              <span className="text-xs text-[var(--text-secondary)] truncate w-full text-left leading-tight">
+                {roleLabel}
+              </span>
+            </span>
+            <ChevronDown className="hidden md:block h-4 w-4 text-[var(--text-secondary)] shrink-0" aria-hidden="true" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-40">
             <DropdownMenuItem onClick={() => router.push("/settings")} className="text-sm">
