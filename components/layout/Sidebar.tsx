@@ -7,14 +7,7 @@ import { cn } from "@/lib/utils"
 import type { Profile } from "@/lib/supabase/types"
 import { ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react"
 import { AppIcons } from "@/lib/icons"
-
-const roleLabels: Record<string, string> = {
-  owner: "Владелец",
-  admin: "Администратор",
-  florist: "Флорист",
-  cashier: "Кассир",
-  viewer: "Наблюдатель",
-}
+import { ALL_ROLE_LABELS } from "@/lib/team/roles"
 
 const navGroups = [
   {
@@ -201,31 +194,21 @@ export function Sidebar({
           />
           {!isRail && <span>Настройки</span>}
         </Link>
-        <div
-          className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-2.5 mt-1",
-            isRail && "justify-center gap-0 px-0"
-          )}
-        >
-          <div
-            className={cn(
-              "flex shrink-0 items-center justify-center rounded-full bg-[var(--brand-accent-bg)] text-[var(--brand-accent-text)] font-semibold",
-              isRail ? "h-8 w-8 text-sm" : "h-7 w-7 text-xs"
-            )}
-          >
-            {profile?.full_name?.[0]?.toUpperCase() ?? "?"}
-          </div>
-          {!isRail && (
+        {mobile && (
+          <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 mt-1">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--brand-accent-bg)] text-[var(--brand-accent-text)] text-xs font-semibold">
+              {profile?.full_name?.[0]?.toUpperCase() ?? "?"}
+            </div>
             <div className="min-w-0">
               <p className="text-xs font-medium text-[var(--text-on-dark)] truncate">
                 {profile?.full_name ?? "Пользователь"}
               </p>
               <p className="text-[10px] text-[var(--sidebar-section)] truncate">
-                {profile?.role ? roleLabels[profile.role] : ""}
+                {profile?.role && profile.role in ALL_ROLE_LABELS ? ALL_ROLE_LABELS[profile.role] : ""}
               </p>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </aside>
   )
