@@ -27,15 +27,15 @@ export default async function CustomersPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-xl font-semibold text-zinc-900">Клиенты</h1>
+        <h1 className="text-xl font-semibold text-[var(--text-heading)]">Клиенты</h1>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-500">
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1.5 text-sm text-[var(--text-secondary)]">
             <Users className="h-4 w-4" />
             {customers.length} {pluralClients(customers.length)}
           </div>
           <Link
             href="/customers/new"
-            className="flex items-center gap-1.5 bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-3.5 py-1.5 rounded-lg transition-colors"
+            className="flex items-center gap-1.5 bg-[var(--brand-accent)] hover:bg-[var(--brand-accent-hover)] text-white text-sm font-medium px-3.5 py-1.5 rounded-lg transition-colors"
           >
             <Plus className="h-4 w-4" />
             Добавить клиента

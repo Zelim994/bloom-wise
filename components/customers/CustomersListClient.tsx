@@ -33,11 +33,11 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 const STATUS_CLS: Record<string, string> = {
-  new: "bg-blue-100 text-blue-600",
-  in_progress: "bg-amber-100 text-amber-700",
-  ready: "bg-emerald-100 text-emerald-700",
-  delivered: "bg-zinc-100 text-zinc-500",
-  cancelled: "bg-red-100 text-red-500",
+  new: "bg-[var(--bg-subtle)] text-[var(--text-secondary)]",
+  in_progress: "bg-[var(--warn-bg)] text-[var(--warn-text)]",
+  ready: "bg-[var(--sage-bg)] text-[var(--sage-text)]",
+  delivered: "bg-[var(--sage-bg)] text-[var(--sage-text)]",
+  cancelled: "bg-[var(--brand-accent-bg)] text-[var(--brand-accent-text)]",
 }
 
 function pluralOrders(n: number) {
@@ -72,30 +72,30 @@ export function CustomersListClient({ customers }: { customers: CustomerWithOrde
       {/* Search */}
       <div className="flex gap-2 flex-col sm:flex-row">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-muted)] pointer-events-none" />
           <Input
             placeholder="Поиск по имени"
             value={nameQ}
             onChange={(e) => setNameQ(e.target.value)}
-            className="pl-9 border-zinc-200 h-9 text-sm"
+            className="pl-9 h-9 text-sm border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-heading)] placeholder:text-[var(--text-muted)] focus-visible:border-[var(--brand-accent)] focus-visible:ring-[var(--brand-accent)]/30"
           />
         </div>
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-muted)] pointer-events-none" />
           <Input
             placeholder="Поиск по телефону"
             value={phoneQ}
             onChange={(e) => setPhoneQ(e.target.value)}
-            className="pl-9 border-zinc-200 h-9 text-sm"
+            className="pl-9 h-9 text-sm border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-heading)] placeholder:text-[var(--text-muted)] focus-visible:border-[var(--brand-accent)] focus-visible:ring-[var(--brand-accent)]/30"
           />
         </div>
       </div>
 
       {/* Empty */}
       {filtered.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-zinc-200 bg-white text-center">
-          <Users className="h-8 w-8 text-zinc-200 mb-2" />
-          <p className="text-sm text-zinc-400">
+        <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] text-center">
+          <Users className="h-8 w-8 text-[var(--text-muted)] mb-2" />
+          <p className="text-sm text-[var(--text-secondary)]">
             {customers.length === 0
               ? "Клиентов пока нет. Они появятся при оформлении заказов."
               : "Клиенты не найдены"}
@@ -117,20 +117,20 @@ export function CustomersListClient({ customers }: { customers: CustomerWithOrde
             return (
               <div
                 key={c.id}
-                className="rounded-xl border border-zinc-200 bg-white px-4 py-3 hover:border-zinc-300 transition-colors"
+                className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 hover:bg-[var(--bg-subtle)] transition-colors"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 space-y-1">
-                    <div className="font-semibold text-zinc-900 text-sm">{c.full_name}</div>
+                    <div className="font-semibold text-[var(--text-heading)] text-sm">{c.full_name}</div>
 
                     {c.phone && (
                       <div className="flex items-center gap-2">
-                        <span className="text-sm text-zinc-500">{c.phone}</span>
+                        <span className="text-sm text-[var(--text-secondary)]">{c.phone}</span>
                         <a
                           href={waHref(c.phone)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-emerald-500 hover:text-emerald-600 transition-colors"
+                          className="text-[var(--sage-text)] transition-colors"
                           title="Написать в WhatsApp"
                         >
                           <MessageCircle className="h-3.5 w-3.5" />
@@ -138,21 +138,21 @@ export function CustomersListClient({ customers }: { customers: CustomerWithOrde
                       </div>
                     )}
 
-                    <div className="flex items-center gap-2 text-xs text-zinc-400 flex-wrap pt-0.5">
+                    <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] flex-wrap pt-0.5">
                       <span>
                         {count} {pluralOrders(count)}
                       </span>
                       {count > 0 && (
-                        <span className="font-semibold text-zinc-700">
+                        <span className="font-semibold text-[var(--text-primary)]">
                           ₽{total.toLocaleString("ru", { maximumFractionDigits: 0 })}
                         </span>
                       )}
                       {lastOrder && (
                         <>
-                          <span className="text-zinc-200">·</span>
+                          <span className="text-[var(--text-muted)]">·</span>
                           <span>Последний: {fmtDate(lastOrder.order_date)}</span>
                           <span
-                            className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${STATUS_CLS[lastOrder.status] ?? "bg-zinc-100 text-zinc-400"}`}
+                            className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${STATUS_CLS[lastOrder.status] ?? "bg-[var(--bg-subtle)] text-[var(--text-secondary)]"}`}
                           >
                             {STATUS_LABEL[lastOrder.status] ?? lastOrder.status}
                           </span>
@@ -164,14 +164,14 @@ export function CustomersListClient({ customers }: { customers: CustomerWithOrde
                   <div className="flex flex-col items-end gap-1.5 shrink-0">
                     <Link
                       href={`/orders/new?customer_id=${c.id}`}
-                      className="flex items-center gap-1 text-xs font-medium text-rose-500 hover:text-rose-600 transition-colors whitespace-nowrap"
+                      className="flex items-center gap-1 text-xs font-medium text-[var(--brand-accent)] hover:text-[var(--brand-accent-hover)] transition-colors whitespace-nowrap"
                     >
                       <Plus className="h-3 w-3" />
                       Новый заказ
                     </Link>
                     <Link
                       href={`/customers/${c.id}`}
-                      className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors whitespace-nowrap"
+                      className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors whitespace-nowrap"
                     >
                       Открыть →
                     </Link>
