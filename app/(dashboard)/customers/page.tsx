@@ -31,7 +31,7 @@ export default async function CustomersPage() {
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1.5 text-sm text-[var(--text-secondary)]">
             <Users className="h-4 w-4" />
-            {customers.length} {pluralClients(customers.length)}
+            Всего: {customers.length} {pluralClients(customers.length)}
           </div>
           <Link
             href="/customers/new"

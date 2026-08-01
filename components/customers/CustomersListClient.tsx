@@ -67,6 +67,13 @@ export function CustomersListClient({ customers }: { customers: CustomerWithOrde
     return matchName && matchPhone
   })
 
+  const hasActiveSearch = nameQ.trim().length > 0 || phoneQ.trim().length > 0
+
+  const resetSearch = () => {
+    setNameQ("")
+    setPhoneQ("")
+  }
+
   return (
     <div className="space-y-4">
       {/* Search */}
@@ -90,6 +97,18 @@ export function CustomersListClient({ customers }: { customers: CustomerWithOrde
           />
         </div>
       </div>
+
+      {hasActiveSearch && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={resetSearch}
+            className="text-sm text-[var(--text-secondary)] border border-[var(--border)] bg-[var(--bg-card)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)] rounded-md px-3 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-accent)]"
+          >
+            Сбросить поиск
+          </button>
+        </div>
+      )}
 
       {/* Empty */}
       {filtered.length === 0 && (
