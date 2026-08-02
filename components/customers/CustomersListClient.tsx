@@ -183,14 +183,14 @@ export function CustomersListClient({ customers }: { customers: CustomerWithOrde
                   <div className="flex flex-col items-end gap-1.5 shrink-0">
                     <Link
                       href={`/orders/new?customer_id=${c.id}`}
-                      className="flex items-center gap-1 text-xs font-medium text-[var(--brand-accent)] hover:text-[var(--brand-accent-hover)] transition-colors whitespace-nowrap"
+                      className="inline-flex items-center gap-1 min-h-9 px-2 rounded-md text-xs font-medium text-[var(--brand-accent)] hover:text-[var(--brand-accent-hover)] transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-accent)] focus-visible:ring-offset-2"
                     >
                       <Plus className="h-3 w-3" />
                       Новый заказ
                     </Link>
                     <Link
                       href={`/customers/${c.id}`}
-                      className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors whitespace-nowrap"
+                      className="inline-flex items-center min-h-9 px-2 rounded-md text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-accent)] focus-visible:ring-offset-2"
                     >
                       Открыть →
                     </Link>
