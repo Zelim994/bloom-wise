@@ -8,8 +8,14 @@
 
 ## Current stable checkpoint
 
-- **current stable commit:** `4f62d7b fix: allowlist organization logo urls on read`
-- **дата/контекст:** июль 2026, закрыты серии 6.0C (dashboard UX, sidebar, org settings/logo) и подготовка к дизайн-фазе
+- **current stable commit:** `047ec452409ffc759ff6c6f9a657a72d0b9755c1 fix: harden WhatsApp message tenant isolation`
+- **дата/контекст:** ноябрь 2026. Предыдущая запись в этом файле указывала на `4f62d7b` и отстала примерно на 80 коммитов — с тех пор закрыто:
+  - полный botanical-редизайн Dashboard/Sidebar/Header/Orders/Customers;
+  - `CUSTOMER-DETAIL-C` — customer detail переведён на botanical tokens, поправлены tap targets;
+  - **`BOUQUETS-RLS-SECURITY-A/B1/B2/B3`** — закрыта CRITICAL cross-tenant RLS-уязвимость в `bouquets`/`bouquet_items` (`migration_028`, применена к live);
+  - **`WHATSAPP-RLS-SECURITY-A/B1/B2/B3`** — закрыта структурно идентичная HIGH-уязвимость в `whatsapp_messages` (`migration_029`, применена к live).
+
+  Детали security-исправлений — в разделе «Tenant isolation & security state» ниже. Правило на будущее: если стабильная точка в этом файле разошлась с фактическим `HEAD` больше чем на несколько коммитов — это стоп-условие (см. Workflow format), файл нужно обновлять при каждом значимом чекпоинте, а не только по запросу.
 - **working tree expectations:** между этапами working tree всегда чистый; каждый этап = один маленький diff → review → commit → push
 - **local == remote (origin/main):** обязательно проверять после каждого push
 
@@ -24,7 +30,7 @@
 - заказы с резервом/списанием склада, оплатами, статусами
 - dashboard с KPI и attention-center
 - WhatsApp: v1 работает через wa.me-ссылки (история пишется в `whatsapp_messages`); Business API — будущее
-- AI-генерация букетов: **реализована** (не заглушка) — OpenAI gpt-image-1 + Nano Banana (Gemini) через provider-абстракцию
+- AI-генерация букетов: **реализована** (не заглушка) для провайдера OpenAI (gpt-image-1) — per-org daily rate limit, cost-tracking, SSRF-guard (принимает только `data:` URL). Nano Banana (Gemini) существует как второй provider за той же абстракцией, но **успешный вызов не подтверждён**: `nanoBananaProvider.ts` использует нестандартную для `@google/genai` форму вызова (`ai.interactions.create`), провайдер не является дефолтным (`AI_IMAGE_PROVIDER=openai`) и, судя по коду, ни разу не выполнялся. Не предлагать Nano Banana пользователю как production-ready без отдельной проверки (см. `NANO-BANANA` в follow-ups)
 
 Мультитенантность: `Organization → Users(profiles) → данные`. Данные организаций изолированы через `organization_id` + RLS.
 
@@ -78,6 +84,10 @@ Env (имена, без значений): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUB
 - Logo: upload в bucket `organization-assets` (public), `router.refresh()` после сохранения, рендер в Sidebar через `<Image unoptimized>` (обход server-side optimizer, который падал на VPN-резолве), read-side allowlist `lib/organization/logo.ts` (getSafeOrganizationLogoUrl)
 - Team: приглашения (create/accept/revoke/preview RPCs), роли через `update_team_member_role`, активация через `toggle_team_member_active`
 - AI bouquet: генерация изображений, private bucket `ai-generations`, история в `ai_requests`, страница /bloom-ai
+- Orders: единый module — статус/склад/оплата фильтры объединены, sticky save для dirty state, read-only режим для locked (delivered/cancelled) заказов, delivery заблокирован до write-off склада, полный botanical redesign списка и детали заказа
+- Dashboard/Sidebar/Header: полный botanical redesign (design tokens, KPI, hero, reminders, sidebar icons); дублирующиеся заголовки и employee-профиль на десктопе убраны, текущий сотрудник показывается в Header (mobile drawer сохраняет отдельный employee-блок)
+- Customers: список подключён к реальным данным, поиск + сброс поиска, явный total count, botanical redesign списка и detail-страницы, увеличенные tap targets на карточках заказов
+- `/calendar` — месячный грид заказов с фильтрами, org-scoped, полностью рабочий route (ранее отсутствовал в этом документе)
 
 ---
 
@@ -118,15 +128,52 @@ Env (имена, без значений): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUB
 
 ---
 
+## Tenant isolation & security state
+
+Не считать проект полностью security-audited — ниже только то, что реально проверено и закрыто.
+
+**Закрыто:**
+- `bouquets` / `bouquet_items` — была CRITICAL: RLS-policy допускала standalone-строки (`order_id IS NULL`) без organization-проверки; любой authenticated пользователь мог detach-нуть чужой реальный bouquet (`UPDATE order_id = NULL`) и получить cross-tenant read/write/delete. Закрыто `migration_028_harden_bouquets_tenant_rls.sql` — explicit `WITH CHECK`, policy `TO authenticated`, tenant boundary только через `order_id → orders.organization_id`. Применена к live, production data проверена (0 standalone/orphan строк до и после).
+- `whatsapp_messages` — структурно идентичная HIGH-уязвимость (тот же `order_id IS NULL` bypass, implicit `PUBLIC` policy при существующих `anon` table grants). Закрыто `migration_029_harden_whatsapp_messages_rls.sql`, тем же паттерном. Применена к live.
+
+**Проверено для обеих миграций:** policy-структура в production (`pg_policies`), data integrity до/после (без потери строк), статическая совместимость с application-кодом (единственный insert-путь в каждом случае всегда передаёт реальный `order_id`).
+
+**Не проверено (verification limitation):** two-organization authenticated E2E (реальные аккаунты из двух разных organizations, живая проверка cross-tenant deny) не выполнялся ни для одной из миграций — только policy-level и static-code verification.
+
+**Известная business-correctness проблема, смежная с tenant isolation, но не security-баг:** `order_number` генерируется глобальным сканом `orders` по всей платформе (`app/actions/orders.ts`, комментарий в коде: «Generate order number: find global max of BW-XXXXXX, increment»), **без фильтра по `organization_id`**. Не даёт cross-tenant доступа к данным, но: (1) по своим номерам организация может примерно оценить объём заказов на всей платформе; (2) конкурентная вставка заказов в разных organizations может столкнуться на retry по `23505`. См. `ORDER-NUMBER-TENANCY` в follow-ups.
+
+---
+
 ## Known constraints
 
 - **Live DB может содержать схему, не полностью отражённую в миграциях** (ранние таблицы создавались вручную в Studio; migration_001/004 — документирующие). Не доверять слепо файлам миграций как единственному источнику; при сомнении — read-only SELECT с разрешения пользователя.
+- **Подтверждённый пример schema drift:** `bouquet_items.product_id` объявлен `NOT NULL` в `migration_001_init.sql`, но приложение (`app/actions/orders.ts`) всегда вставляет `product_id: null`, и generated types (`lib/supabase/types.ts`) показывают колонку nullable. Также `bouquet_items.flower_id` используется приложением и индексируется `migration_014`, но ни одна migration не создаёт эту колонку — добавлена вручную в Studio. Живая схема правилась вручную сильнее, чем фиксируют миграции; не восстановить live schema только по файлам миграций.
 - **Supabase CLI не установлен**, проект не linked — миграции применяются пользователем вручную через Studio SQL Editor.
 - **Сетевые ограничения машины разработки:** трафик идёт через VPN с виртуальными IP (240.0.0.0/4). Следствия: server-side fetch к внешним хостам может падать (из-за этого удалены Google Fonts; Image Optimizer отклонял Supabase-хост → лого рендерится с `unoptimized`). Не возвращать server-side fetch внешних ресурсов без учёта этого.
 - Пользователь тестирует вручную в браузере (localhost:3000); у ассистента нет учётных данных — визуальные проверки подтверждает пользователь (скриншот/ответ).
 - Рабочий язык — русский (UI, коммуникация, комментарии в коде).
 - Избегать деструктивных изменений; DROP запрещён без явного разрешения.
 - `Книга1.xlsm` в корне — исходный Excel-файл салона (референс данных). Импорт из Excel в приложение **не реализован**.
+
+---
+
+## Known product gaps
+
+- **Recipes ↔ Bouquet Builder:** `recipes`/`recipe_items` CRUD работает (`app/actions/recipes.ts`), но **не подключены** к Bouquet Builder или к заказам — `bouquets.recipe_id` никогда не устанавливается кодом. Рецепты создаются и хранятся, но нигде не используются downstream. Не описывать эту интеграцию как существующую.
+- **WhatsApp — фактический уровень:** только `wa.me`-ссылки + write-only send-log в `whatsapp_messages` (RLS исправлен, см. выше). Нет incoming webhook, нет `app/api/*` route handlers вообще (ни одного во всём проекте), нет inbox/conversation UI, нет message status callbacks, нет реальной интеграции с WhatsApp Business API. `sendWhatsAppMessage` не проверяет результат insert — см. `WHATSAPP-RELIABILITY-A`.
+- **Nano Banana (Gemini) provider:** см. AI-строку в Product goal — существует как код, успешный вызов не подтверждён.
+- **Order numbering не per-org** — см. «Tenant isolation & security state».
+
+## Open follow-ups
+
+Компактный список известных next-задач (не полный backlog):
+
+- `ORDER-NUMBER-TENANCY` — скопировать генерацию `order_number` по `organization_id`.
+- `RECIPES-BUILDER-INTEGRATION` — подключить recipes к Bouquet Builder (сейчас изолированы).
+- `WHATSAPP-RELIABILITY-A` — проверять результат insert в `sendWhatsAppMessage`, не проглатывать ошибку молча.
+- `DATABASE-GRANTS-A` — least-privilege аудит table grants (`anon`/`authenticated`), особенно `TRUNCATE`/`REFERENCES`/`TRIGGER`. Только аудит, менять ничего без отдельного review.
+- `NANO-BANANA` verification — подтвердить или исправить вызов Gemini SDK в `nanoBananaProvider.ts`, прежде чем предлагать его как рабочий пользователю.
+- Automated tests / production hardening — проект всё ещё без единого автотеста и CI (в package.json только dev/build/start/lint).
 
 ---
 
@@ -156,4 +203,4 @@ npm run build       # ожидаемо: все роуты сгенерирова
 
 Стоп-условия: несовпадение заявленной стабильной точки с HEAD, «непонятные» изменения в working tree, необходимость менять запрещённые файлы, падение tsc, риск потери данных → остановиться и показать отчёт.
 
-Нумерация этапов: `6.0C-*` (UX/bugfix серия завершена), далее `6.0D-*` (preflight), дизайн-фаза — `6.1A-*`.
+Нумерация этапов: старая схема `6.0C-*`/`6.0D-*`/`6.1A-*` на практике заменена описательными именами по теме этапа (например `CUSTOMER-DETAIL-C`, `BOUQUETS-RLS-SECURITY-A/B1-B4`, `WHATSAPP-RLS-SECURITY-A/B1-B3`, `PROJECT-CONTEXT-SYNC-A`). Security-этапы используют суффиксы `-A` (audit), `-B1..Bn` (preflight → draft → apply/verify). Продолжать описательные имена — не возвращаться к нумерации `6.x`.
