@@ -190,23 +190,8 @@ export async function createOrder(formData: {
     customerId = newCust?.id ?? null
   }
 
-  // Generate order number: find global max of BW-XXXXXX, increment
-  const { data: existingNums } = await supabase
-    .from("orders")
-    .select("order_number")
-    .like("order_number", "BW-%")
-  const ORDER_RE = /^BW-(\d+)$/
-  let maxNum = 0
-  for (const row of existingNums ?? []) {
-    if (!row.order_number) continue
-    const match = row.order_number.match(ORDER_RE)
-    if (match) {
-      const n = parseInt(match[1], 10)
-      if (n > maxNum) maxNum = n
-    }
-  }
-  const orderNumber = `BW-${String(maxNum + 1).padStart(4, "0")}`
-
+  // order_number is assigned atomically by the orders_assign_order_number
+  // DB trigger (migration_031) — not computed here.
   const subtotal = formData.subtotal ?? 0
   const deliveryCost = formData.delivery_cost ?? 0
   const discount = formData.discount ?? 0
@@ -224,7 +209,6 @@ export async function createOrder(formData: {
     .from("orders")
     .insert({
       organization_id: orgId,
-      order_number: orderNumber,
       customer_id: customerId,
       order_date: formData.order_date,
       ready_at: formData.ready_at || null,
