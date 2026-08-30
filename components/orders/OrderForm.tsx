@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createOrder, updateOrder, searchCustomers, type BouquetPayload, type OrderWithCustomer, type CustomerSearchResult } from "@/app/actions/orders"
+import type { RecipeOrderPrefill } from "@/app/actions/recipes"
 import { BuilderLayout } from "@/components/bouquet-builder/BuilderLayout"
 import type { FlowerForBuilder, BouquetData } from "@/components/bouquet-builder/BuilderLayout"
 import { useOptionalOrderDirty } from "@/components/orders/OrderDetailShell"
@@ -103,6 +104,19 @@ function buildFormSnapshot(input: {
   }
 }
 
+// Derives the same BouquetData shape BuilderLayout produces via onChange, from a
+// recipe prefill snapshot — used so a recipe-prefilled new order's bouquetData
+// state matches what's visibly rendered from the very first render, not just
+// after the user first touches the builder (BuilderLayout doesn't fire onChange
+// on mount).
+function deriveBouquetDataFromPrefill(prefill: { sale_price: number | null; items: BouquetData["items"] }): BouquetData {
+  const cost_price = prefill.items.reduce((s, i) => s + i.quantity * i.unit_cost, 0)
+  const sale_price = prefill.sale_price ?? 0
+  const profit = sale_price - cost_price
+  const margin_percent = sale_price > 0 ? (profit / sale_price) * 100 : 0
+  return { items: prefill.items, cost_price, sale_price, profit, margin_percent }
+}
+
 type OrderType = "pickup" | "delivery" | "event"
 type PaymentMethod = "cash" | "card" | "transfer"
 
@@ -141,9 +155,12 @@ interface Props {
   initialData?: OrderWithCustomer
   initialOrderDate?: string
   initialCustomer?: InitialCustomer
+  // Prefill for a NEW order composed from a saved recipe. Never applies when
+  // initialData is set — an existing persisted order's bouquet always wins.
+  recipePrefill?: RecipeOrderPrefill | null
 }
 
-export function OrderForm({ flowers, initialData, initialOrderDate, initialCustomer }: Props) {
+export function OrderForm({ flowers, initialData, initialOrderDate, initialCustomer, recipePrefill }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState("")
@@ -152,6 +169,16 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
   const isCancelled = initialData?.status === "cancelled"
   const isStockLocked = Boolean(initialData?.stock_written_off)
   const isReadOnly = isCancelled || isStockLocked
+
+  // Single canonical source for the recipe-prefill bouquet, reused for
+  // BuilderLayout's initialItems/initialSalePrice, the bouquetData seed, and
+  // the dirty-state baseline — so all three can never diverge. Never applies
+  // on the edit-order path (existing persisted bouquet always takes priority,
+  // enforced below at each use site, not just here).
+  const recipeInitialBouquet =
+    !isEdit && recipePrefill && recipePrefill.initialItems.length > 0
+      ? { sale_price: recipePrefill.initialSalePrice ?? null, items: recipePrefill.initialItems }
+      : null
 
   const [customerPhone, setCustomerPhone] = useState(initialData?.customers?.phone ?? initialCustomer?.phone ?? "")
   const [customerName, setCustomerName] = useState(initialData?.customers?.full_name ?? initialCustomer?.full_name ?? "")
@@ -167,7 +194,9 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
   )
   const [deliveryAddress, setDeliveryAddress] = useState(initialData?.delivery_address ?? "")
 
-  const [bouquetData, setBouquetData] = useState<BouquetData | null>(null)
+  const [bouquetData, setBouquetData] = useState<BouquetData | null>(() =>
+    recipeInitialBouquet ? deriveBouquetDataFromPrefill(recipeInitialBouquet) : null
+  )
   const [subtotal, setSubtotal] = useState(initialData?.subtotal != null ? String(initialData.subtotal) : "")
   const [deliveryCost, setDeliveryCost] = useState(initialData?.delivery_cost ? String(initialData.delivery_cost) : "")
   const [discount, setDiscount] = useState(initialData?.discount ? String(initialData.discount) : "")
@@ -199,7 +228,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
       customerComment: initialData?.customer_comment ?? initialCustomer?.comment ?? "",
       floristComment: initialData?.florist_comment ?? "",
       bouquetData: null,
-      initialBouquet: initialData?.bouquet ?? null,
+      initialBouquet: initialData?.bouquet ?? recipeInitialBouquet,
     })
   }
 
@@ -543,28 +572,32 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
         <BuilderLayout
           flowers={flowers}
           onChange={handleBouquetChange}
-          initialItems={initialData?.bouquet?.items.map((item) => {
-            const itemVarietyId = item.variety_id ?? null
-            const itemColorId = item.color_id ?? null
-            // fl.id is a composite stock key (flower_id:variety_id:color_id), not the
-            // raw flower_id — match on the individual identity fields instead.
-            const f = flowers.find(
-              (fl) =>
-                fl.flower_id === item.flower_id &&
-                (fl.variety_id ?? null) === itemVarietyId &&
-                (fl.color_id ?? null) === itemColorId
-            )
-            return {
-              flower_id: item.flower_id ?? "",
-              name: f?.name ?? "",
-              unit: f?.unit ?? "шт",
-              quantity: item.quantity,
-              unit_cost: item.unit_cost ?? 0,
-              variety_id: itemVarietyId,
-              color_id: itemColorId,
-            }
-          })}
-          initialSalePrice={initialData?.bouquet?.sale_price ?? undefined}
+          initialItems={
+            initialData?.bouquet
+              ? initialData.bouquet.items.map((item) => {
+                  const itemVarietyId = item.variety_id ?? null
+                  const itemColorId = item.color_id ?? null
+                  // fl.id is a composite stock key (flower_id:variety_id:color_id), not the
+                  // raw flower_id — match on the individual identity fields instead.
+                  const f = flowers.find(
+                    (fl) =>
+                      fl.flower_id === item.flower_id &&
+                      (fl.variety_id ?? null) === itemVarietyId &&
+                      (fl.color_id ?? null) === itemColorId
+                  )
+                  return {
+                    flower_id: item.flower_id ?? "",
+                    name: f?.name ?? "",
+                    unit: f?.unit ?? "шт",
+                    quantity: item.quantity,
+                    unit_cost: item.unit_cost ?? 0,
+                    variety_id: itemVarietyId,
+                    color_id: itemColorId,
+                  }
+                })
+              : recipeInitialBouquet?.items
+          }
+          initialSalePrice={initialData?.bouquet?.sale_price ?? recipeInitialBouquet?.sale_price ?? undefined}
           readOnly={isReadOnly}
         />
       </div>

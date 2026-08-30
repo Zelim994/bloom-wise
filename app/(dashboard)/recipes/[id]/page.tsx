@@ -173,7 +173,7 @@ export default async function RecipeDetailPage({
           <p className="text-xs text-zinc-400 mt-0.5">Создать заказ на основе этого рецепта</p>
         </div>
         <Link
-          href="/orders/new"
+          href={`/orders/new?recipe=${recipe.id}`}
           className="flex items-center gap-1.5 bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           Создать заказ
