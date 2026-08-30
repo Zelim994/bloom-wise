@@ -346,8 +346,15 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
       profit: initialData.bouquet.profit ?? 0,
       margin_percent: initialData.bouquet.margin_percent ?? 0,
     } : null)
+    // Provenance is only ever sourced from recipePrefill (a NEW order composed
+    // from a recipe). On the edit-order path recipePrefill is never passed in
+    // the first place, so this resolves to null there — harmless, since
+    // updateOrder never writes recipe_id when updating an existing bouquet
+    // row, only when inserting one for the first time.
     const bouquet: BouquetPayload | undefined =
-      currentBouquet && currentBouquet.items.length > 0 ? currentBouquet : undefined
+      currentBouquet && currentBouquet.items.length > 0
+        ? { ...currentBouquet, recipe_id: recipePrefill?.recipeId ?? null }
+        : undefined
 
     const payload = {
       customer_name: customerName,

@@ -129,6 +129,32 @@ export type BouquetPayload = {
   sale_price: number
   profit: number
   margin_percent: number
+  // Provenance: which recipe (if any) this bouquet was originally composed
+  // from. Only ever set on first insert (new order, or an edit that adds a
+  // bouquet to a previously bouquet-less order) — never touched when
+  // updating an existing bouquet row, so persisted provenance is never
+  // overwritten by a later edit.
+  recipe_id?: string | null
+}
+
+// Client-sent recipe_id is never trusted as-is: re-resolve it against the
+// caller's own organization before persisting, so a tampered/forged payload
+// can't attach another organization's recipe as provenance. RLS already
+// enforces this independently; this is an explicit, auditable belt-and-braces
+// check at the actual mutation boundary.
+async function resolveOwnOrgRecipeId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
+  recipeId: string | null | undefined
+): Promise<string | null> {
+  if (!recipeId) return null
+  const { data } = await supabase
+    .from("recipes")
+    .select("id")
+    .eq("id", recipeId)
+    .eq("organization_id", orgId)
+    .maybeSingle()
+  return data?.id ?? null
 }
 
 export async function createOrder(formData: {
@@ -239,6 +265,7 @@ export async function createOrder(formData: {
   // Save bouquet if provided
   if (formData.bouquet && formData.bouquet.items.length > 0) {
     const b = formData.bouquet
+    const recipeId = await resolveOwnOrgRecipeId(supabase, orgId, b.recipe_id)
     const { data: bouquetRow } = await supabase
       .from("bouquets")
       .insert({
@@ -249,6 +276,7 @@ export async function createOrder(formData: {
         profit: b.profit,
         margin_percent: b.margin_percent,
         is_display: false,
+        recipe_id: recipeId,
       })
       .select("id")
       .single()
@@ -454,6 +482,7 @@ export async function updateOrder(
       await supabase.from("bouquet_items").delete().eq("bouquet_id", existingBouquet.id)
       bouquetId = existingBouquet.id
     } else if (b.items.length > 0) {
+      const recipeId = await resolveOwnOrgRecipeId(supabase, orgId, b.recipe_id)
       const { data: newBouquet } = await supabase
         .from("bouquets")
         .insert({
@@ -464,6 +493,7 @@ export async function updateOrder(
           profit: b.profit,
           margin_percent: b.margin_percent,
           is_display: false,
+          recipe_id: recipeId,
         })
         .select("id")
         .single()
