@@ -8,6 +8,8 @@ import { getOrgId } from "@/lib/services/organizationService"
 export type RecipeItemRow = {
   id: string
   flower_id: string | null
+  variety_id: string | null
+  color_id: string | null
   quantity: number
   unit_cost: number | null
   note: string | null
@@ -30,7 +32,7 @@ export async function getRecipe(id: string): Promise<RecipeWithItems | null> {
   const supabase = await createClient()
   const { data } = await supabase
     .from("recipes")
-    .select("*, recipe_items(id, flower_id, quantity, unit_cost, note, flowers(name, unit))")
+    .select("*, recipe_items(id, flower_id, variety_id, color_id, quantity, unit_cost, note, flowers(name, unit))")
     .eq("id", id)
     .single()
   return data as unknown as RecipeWithItems | null
@@ -45,6 +47,8 @@ export type RecipePayload = {
   recommended_price: number
   items: Array<{
     flower_id: string
+    variety_id: string | null
+    color_id: string | null
     quantity: number
     unit_cost: number
   }>
@@ -109,6 +113,8 @@ export async function upsertRecipe(payload: RecipePayload): Promise<{ error?: st
     payload.items.map((item) => ({
       recipe_id: recipeId!,
       flower_id: item.flower_id,
+      variety_id: item.variety_id,
+      color_id: item.color_id,
       product_id: null,
       quantity: item.quantity,
       unit_cost: item.unit_cost,

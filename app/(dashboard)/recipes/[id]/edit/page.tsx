@@ -26,6 +26,8 @@ export default async function EditRecipePage({
       .filter((i) => i.flower_id && i.flowers)
       .map((i) => ({
         flower_id: i.flower_id!,
+        variety_id: i.variety_id ?? null,
+        color_id: i.color_id ?? null,
         name: i.flowers!.name,
         unit: i.flowers!.unit,
         quantity: i.quantity,

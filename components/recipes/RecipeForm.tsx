@@ -66,6 +66,8 @@ export function RecipeForm({ flowers, recipeId, initialRecipe }: Props) {
         recommended_price: recPrice,
         items: bouquetData.items.map((i) => ({
           flower_id: i.flower_id,
+          variety_id: i.variety_id ?? null,
+          color_id: i.color_id ?? null,
           quantity: i.quantity,
           unit_cost: i.unit_cost,
         })),
