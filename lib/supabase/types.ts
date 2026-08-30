@@ -1448,6 +1448,7 @@ export type Database = {
       }
       recipe_items: {
         Row: {
+          color_id: string | null
           flower_id: string | null
           id: string
           note: string | null
@@ -1455,8 +1456,10 @@ export type Database = {
           quantity: number
           recipe_id: string
           unit_cost: number | null
+          variety_id: string | null
         }
         Insert: {
+          color_id?: string | null
           flower_id?: string | null
           id?: string
           note?: string | null
@@ -1464,8 +1467,10 @@ export type Database = {
           quantity: number
           recipe_id: string
           unit_cost?: number | null
+          variety_id?: string | null
         }
         Update: {
+          color_id?: string | null
           flower_id?: string | null
           id?: string
           note?: string | null
@@ -1473,8 +1478,16 @@ export type Database = {
           quantity?: number
           recipe_id?: string
           unit_cost?: number | null
+          variety_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "recipe_items_color_id_fkey"
+            columns: ["color_id"]
+            isOneToOne: false
+            referencedRelation: "flower_colors"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "recipe_items_product_id_fkey"
             columns: ["product_id"]
@@ -1487,6 +1500,13 @@ export type Database = {
             columns: ["recipe_id"]
             isOneToOne: false
             referencedRelation: "recipes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipe_items_variety_id_fkey"
+            columns: ["variety_id"]
+            isOneToOne: false
+            referencedRelation: "flower_varieties"
             referencedColumns: ["id"]
           },
         ]
