@@ -18,9 +18,10 @@ const styleColors: Record<string, string> = {
 export default async function RecipeDetailPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
-  const recipe = await getRecipe(params.id)
+  const { id } = await params
+  const recipe = await getRecipe(id)
   if (!recipe) notFound()
 
   const margin =

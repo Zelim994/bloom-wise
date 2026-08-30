@@ -6,10 +6,11 @@ import { RecipeForm } from "@/components/recipes/RecipeForm"
 export default async function EditRecipePage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
+  const { id } = await params
   const [recipe, flowers] = await Promise.all([
-    getRecipe(params.id),
+    getRecipe(id),
     getFlowersForBuilder(),
   ])
 
