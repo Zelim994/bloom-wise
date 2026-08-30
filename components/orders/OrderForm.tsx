@@ -180,6 +180,18 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
       ? { sale_price: recipePrefill.initialSalePrice ?? null, items: recipePrefill.initialItems }
       : null
 
+  // Canonical initial order-level subtotal: a persisted order's own subtotal
+  // always wins, then a recipe prefill's sale price, then the plain-new-order
+  // default. Computed once and reused for both the `subtotal` state seed and
+  // the dirty-state baseline below, so they can't diverge into a false-dirty
+  // flag on first render.
+  const initialSubtotal =
+    initialData?.subtotal != null
+      ? String(initialData.subtotal)
+      : recipeInitialBouquet?.sale_price != null
+        ? String(recipeInitialBouquet.sale_price)
+        : ""
+
   const [customerPhone, setCustomerPhone] = useState(initialData?.customers?.phone ?? initialCustomer?.phone ?? "")
   const [customerName, setCustomerName] = useState(initialData?.customers?.full_name ?? initialCustomer?.full_name ?? "")
   const [customerFound, setCustomerFound] = useState<boolean | null>(initialCustomer ? true : null)
@@ -197,7 +209,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
   const [bouquetData, setBouquetData] = useState<BouquetData | null>(() =>
     recipeInitialBouquet ? deriveBouquetDataFromPrefill(recipeInitialBouquet) : null
   )
-  const [subtotal, setSubtotal] = useState(initialData?.subtotal != null ? String(initialData.subtotal) : "")
+  const [subtotal, setSubtotal] = useState(initialSubtotal)
   const [deliveryCost, setDeliveryCost] = useState(initialData?.delivery_cost ? String(initialData.delivery_cost) : "")
   const [discount, setDiscount] = useState(initialData?.discount ? String(initialData.discount) : "")
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>((initialData?.payment_method as PaymentMethod) ?? "cash")
@@ -220,7 +232,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
       orderDate: initialData?.order_date ?? initialOrderDate ?? today(),
       readyAt: initialData?.ready_at ? initialData.ready_at.slice(0, 16) : defaultReadyAt(initialOrderDate),
       deliveryAddress: initialData?.delivery_address ?? "",
-      subtotal: initialData?.subtotal != null ? String(initialData.subtotal) : "",
+      subtotal: initialSubtotal,
       deliveryCost: initialData?.delivery_cost ? String(initialData.delivery_cost) : "",
       discount: initialData?.discount ? String(initialData.discount) : "",
       paymentMethod: (initialData?.payment_method as PaymentMethod) ?? "cash",
