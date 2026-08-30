@@ -544,13 +544,24 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
           flowers={flowers}
           onChange={handleBouquetChange}
           initialItems={initialData?.bouquet?.items.map((item) => {
-            const f = flowers.find((fl) => fl.id === item.flower_id)
+            const itemVarietyId = item.variety_id ?? null
+            const itemColorId = item.color_id ?? null
+            // fl.id is a composite stock key (flower_id:variety_id:color_id), not the
+            // raw flower_id — match on the individual identity fields instead.
+            const f = flowers.find(
+              (fl) =>
+                fl.flower_id === item.flower_id &&
+                (fl.variety_id ?? null) === itemVarietyId &&
+                (fl.color_id ?? null) === itemColorId
+            )
             return {
               flower_id: item.flower_id ?? "",
               name: f?.name ?? "",
               unit: f?.unit ?? "шт",
               quantity: item.quantity,
               unit_cost: item.unit_cost ?? 0,
+              variety_id: itemVarietyId,
+              color_id: itemColorId,
             }
           })}
           initialSalePrice={initialData?.bouquet?.sale_price ?? undefined}
