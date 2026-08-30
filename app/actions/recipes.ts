@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { Recipe } from "@/lib/supabase/types"
 import { getOrgId } from "@/lib/services/organizationService"
+import type { InitialBuilderItem } from "@/types/builder"
 
 export type RecipeItemRow = {
   id: string
@@ -36,6 +37,39 @@ export async function getRecipe(id: string): Promise<RecipeWithItems | null> {
     .eq("id", id)
     .single()
   return data as unknown as RecipeWithItems | null
+}
+
+export type RecipeOrderPrefill = {
+  recipeId: string
+  recipeName: string
+  initialItems: InitialBuilderItem[]
+  initialSalePrice: number | undefined
+}
+
+// Read adapter for prefilling a new order/bouquet from a saved recipe.
+// Recipe holds a composition template + a recommended-price snapshot only —
+// live stock/cost enrichment for these items still happens in BuilderLayout
+// via its existing flowers-prop matcher, not here.
+export async function getRecipeForOrderPrefill(id: string): Promise<RecipeOrderPrefill | null> {
+  const recipe = await getRecipe(id)
+  if (!recipe) return null
+
+  return {
+    recipeId: recipe.id,
+    recipeName: recipe.name,
+    initialItems: recipe.recipe_items
+      .filter((i) => i.flower_id && i.flowers)
+      .map((i) => ({
+        flower_id: i.flower_id!,
+        variety_id: i.variety_id ?? null,
+        color_id: i.color_id ?? null,
+        name: i.flowers!.name,
+        unit: i.flowers!.unit,
+        quantity: i.quantity,
+        unit_cost: i.unit_cost ?? 0,
+      })),
+    initialSalePrice: recipe.recommended_price ?? undefined,
+  }
 }
 
 export type RecipePayload = {
