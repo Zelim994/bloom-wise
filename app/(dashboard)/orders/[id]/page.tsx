@@ -78,7 +78,6 @@ export default async function OrderDetailPage({
                 totalAmount={total}
                 readyAt={order.ready_at ?? null}
                 customerName={order.customers.full_name}
-                alreadySent={order.whatsapp_sent ?? false}
               />
             </div>
           )}

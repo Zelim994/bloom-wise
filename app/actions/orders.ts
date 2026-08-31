@@ -529,6 +529,11 @@ export async function updateOrder(
   return {}
 }
 
+// v1 semantics: BloomWise has no WhatsApp provider integration. This logs a
+// handoff attempt and hands the user off to a wa.me deep link — it can never
+// confirm the message was actually sent, only that the handoff to WhatsApp
+// was initiated with the text pre-filled. Both DB writes are checked so a
+// failure here is never reported to the caller as a successful handoff.
 export async function sendWhatsAppMessage(
   orderId: string,
   phone: string,
@@ -538,16 +543,28 @@ export async function sendWhatsAppMessage(
 
   const supabase = await createClient()
 
-  await supabase.from("whatsapp_messages").insert({
+  const { error: logError } = await supabase.from("whatsapp_messages").insert({
     order_id: orderId,
     phone: phone.trim(),
     message,
   })
+  if (logError) {
+    console.error("[sendWhatsAppMessage] log insert failed:", logError.message)
+    return { error: "Не удалось подготовить сообщение WhatsApp. Попробуйте ещё раз." }
+  }
 
-  await supabase
+  // The handoff-attempt row above is already persisted at this point. If the
+  // flag update below fails, that row is not rolled back (no transaction/RPC
+  // in this stage) — it still accurately records that a handoff was
+  // attempted from this order, just without the order-level flag confirming it.
+  const { error: flagError } = await supabase
     .from("orders")
     .update({ whatsapp_sent: true })
     .eq("id", orderId)
+  if (flagError) {
+    console.error("[sendWhatsAppMessage] order flag update failed:", flagError.message)
+    return { error: "Не удалось обновить статус заказа. Попробуйте ещё раз." }
+  }
 
   revalidatePath(`/orders/${orderId}`)
 
