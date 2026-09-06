@@ -119,6 +119,7 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
   const [copied, setCopied] = useState(false)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [promptUsed, setPromptUsed] = useState<string | null>(null)
+  const [attemptId, setAttemptId] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
@@ -139,6 +140,7 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
     setPromptVisible(false)
     setImageUrl(null)
     setPromptUsed(null)
+    setAttemptId(null)
     setGenError(null)
   }
 
@@ -150,7 +152,7 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
   }
 
   const handleSave = async () => {
-    if (!imageUrl || !promptUsed) return
+    if (!imageUrl || !promptUsed || !attemptId) return
     setSaveStatus("saving")
     setSaveError(null)
 
@@ -158,6 +160,7 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
       const result = await saveAIBouquetGeneration({
         imageUrl,
         prompt: promptUsed,
+        attemptId,
         selectedItems: items.map((i) => ({
           flower_id: i.flower_id,
           variety_id: i.variety_id ?? null,
@@ -196,6 +199,7 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
     setGenError(null)
     setImageUrl(null)
     setPromptUsed(null)
+    setAttemptId(null)
     setSaveStatus("idle")
     setSaveError(null)
 
@@ -226,6 +230,7 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
     if (result.success) {
       setImageUrl(result.imageUrl)
       setPromptUsed(result.promptUsed)
+      setAttemptId(result.attemptId)
     } else {
       setGenError(result.error)
     }
@@ -234,6 +239,7 @@ export function AIVisualizationPanel({ items }: { items: BouquetItem[] }) {
   const handleGenerateAnother = () => {
     setImageUrl(null)
     setPromptUsed(null)
+    setAttemptId(null)
     setGenError(null)
     handleGenerate()
   }

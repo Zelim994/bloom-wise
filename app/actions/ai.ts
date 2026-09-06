@@ -31,7 +31,7 @@ export type GeneratePayload = {
 }
 
 export type GenerateResult =
-  | { success: true; imageUrl: string; promptUsed: string }
+  | { success: true; imageUrl: string; promptUsed: string; attemptId: string }
   | { success: false; error: string }
 
 export type SavePayload = {
@@ -39,6 +39,9 @@ export type SavePayload = {
   prompt: string
   selectedItems: SelectedItem[]
   visualizationParams: VisualizationParams
+  // Id of the ai_requests attempt row this image actually came from — the
+  // only trustworthy source for which provider/model to record on save.
+  attemptId: string
 }
 
 export type SaveResult =
@@ -61,12 +64,11 @@ export async function generateBouquetImage(
   if (selectedItems.some((i) => i.quantity <= 0)) {
     return { success: false, error: "Количество цветов должно быть больше 0" }
   }
-  if (!process.env.OPENAI_API_KEY) {
-    return {
-      success: false,
-      error: "AI-генерация не настроена. Добавьте OPENAI_API_KEY в .env.local",
-    }
-  }
+  // No provider-specific key preflight here — readiness is each provider
+  // adapter's own responsibility (OpenAIImageProvider → aiImageService checks
+  // OPENAI_API_KEY; NanoBananaImageProvider checks GEMINI_API_KEY). A generic
+  // check here would either block a provider that isn't selected, or wrongly
+  // pass Nano Banana readiness based on an unrelated OpenAI key.
 
   // Auth + organization
   const supabase = await createClient()
@@ -230,13 +232,13 @@ export async function generateBouquetImage(
     return { success: false, error: result.error }
   }
 
-  return { success: true, imageUrl: result.imageUrl, promptUsed: enhancedPrompt }
+  return { success: true, imageUrl: result.imageUrl, promptUsed: enhancedPrompt, attemptId: attemptRow.id }
 }
 
 export async function saveAIBouquetGeneration(
   payload: SavePayload
 ): Promise<SaveResult> {
-  const { imageUrl, prompt, selectedItems, visualizationParams } = payload
+  const { imageUrl, prompt, selectedItems, visualizationParams, attemptId } = payload
 
   const supabase = await createClient()
 
@@ -263,6 +265,28 @@ export async function saveAIBouquetGeneration(
     return { success: false, error: "Неверный формат изображения" }
   }
 
+  // Provider/model metadata must come from the actual generation record, never
+  // from a client-supplied value — a forged payload could otherwise mislabel
+  // which provider generated this image. Scoped to the caller's own org (RLS
+  // enforces this independently too) and must be a completed success, not a
+  // failed or still-in-progress attempt.
+  const { data: attempt } = await supabase
+    .from("ai_requests")
+    .select("model_used, response_data")
+    .eq("id", attemptId)
+    .eq("organization_id", orgId)
+    .eq("request_type", "ai_image_generation_attempt")
+    .maybeSingle()
+
+  const attemptResponseData = attempt?.response_data as Record<string, unknown> | null
+  if (!attempt || attemptResponseData?.status !== "success") {
+    return { success: false, error: "Не удалось подтвердить источник изображения. Сгенерируйте заново." }
+  }
+
+  const generationProvider =
+    typeof attemptResponseData.provider === "string" ? attemptResponseData.provider : "unknown"
+  const generationModel = attempt.model_used ?? "unknown"
+
   const base64 = imageUrl.split(",")[1]
   const imageData = Buffer.from(base64, "base64")
 
@@ -286,13 +310,13 @@ export async function saveAIBouquetGeneration(
       mode: "free_idea",
       prompt,
       image_path: imagePath,
-      model_used: process.env.OPENAI_IMAGE_MODEL || "gpt-image-1",
+      model_used: generationModel,
       input_params: {
         selected_items: selectedItems,
         visualization_params: visualizationParams,
       },
       response_data: {
-        provider: "openai",
+        provider: generationProvider,
         image_path: imagePath,
         saved_from: "builder",
       },
