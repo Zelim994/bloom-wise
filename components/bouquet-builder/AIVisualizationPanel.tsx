@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Sparkles, ImageOff, Check, Download, RefreshCw, AlertCircle, Loader2, ChevronDown, ChevronUp, Copy } from "lucide-react"
 import type { BouquetItem } from "@/types/builder"
 import { generateBouquetImage, saveAIBouquetGeneration } from "@/app/actions/ai"
+import { buildBouquetImagePrompt } from "@/lib/ai/buildBouquetImagePrompt"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -16,71 +17,12 @@ type VisualizationParams = {
   comment: string
 }
 
-// ─── Prompt builder (for preview display) ────────────────────────────────────
+// ─── Prompt builder ──────────────────────────────────────────────────────────
+// Preview text comes from the same shared builder the server action uses, so
+// what the user sees under "Показать prompt" is exactly what gets sent.
 
 function buildPrompt(items: BouquetItem[], p: VisualizationParams): string {
-  const totalQuantity = items.reduce((sum, i) => sum + i.quantity, 0)
-
-  const lines = items.map((item) => {
-    const parts: string[] = [item.name]
-    if (item.variety_name && !item.name.includes(item.variety_name)) {
-      parts.push(item.variety_name)
-    }
-    if (item.variety_size) parts.push(`размер ${item.variety_size}`)
-    if (item.color_name) parts.push(`цвет ${item.color_name}`)
-    return `- ${parts.join(", ")} — РОВНО ${item.quantity} шт.`
-  })
-
-  const sections: string[] = [
-    "ПРИОРИТЕТЫ (при конфликте требований соблюдай более высокий):",
-    "1. Точное количество цветочных головок и виды цветов.",
-    "2. Указанные цвета и сорта.",
-    "3. Форма, стиль и упаковка.",
-    "4. Фотореалистичность и художественность.\n",
-    "ФОТОРЕАЛИЗМ:",
-    "Создай максимально реалистичную фотографию настоящего букета, как будто его собрал профессиональный флорист и сфотографировал на камеру в цветочном салоне.",
-    "- живые натуральные цветы, не пластиковые, не мультяшные, не 3D-рендер;",
-    "- реалистичные лепестки с естественными изгибами, фактурой и небольшими несовершенствами;",
-    "- естественные зелёные листья и стебли;",
-    "- профессиональная флористическая сборка;",
-    "- мягкий естественный свет;",
-    "- реалистичная глубина резкости;",
-    "- чистый светлый фон;",
-    "- коммерческое фото для отправки клиенту в WhatsApp;",
-    "- без людей, без рук, без текста, без логотипов, без лишних предметов.\n",
-    `СОСТАВ БУКЕТА — РОВНО ${totalQuantity} цветочных головок:`,
-    lines.join("\n"),
-    `\nНа фотографии должно быть видно РОВНО ${totalQuantity} цветочных головок — не больше и не меньше.`,
-    "Каждая цветочная головка должна быть полностью видна, отдельно различима, не перекрыта другими цветами и не обрезана краем кадра.",
-    "Показывай только раскрытые цветочные головки — не заменяй заявленные головки бутонами.",
-    "Если ради точного количества букет нужно сделать менее плотным — сделай его менее плотным: точное количество важнее пышности.\n",
-    "СТИЛЬ И ФОРМА:",
-    `Стиль: ${p.style}`,
-    `Форма: ${p.shape}`,
-    `Повод: ${p.occasion}\n`,
-    "УПАКОВКА:",
-    `Используй только выбранный тип упаковки: ${p.wrapping}.`,
-    `Если выбрана матовая бумага — упаковка должна быть однотонной или спокойной, без ярких разноцветных листов, если пользователь отдельно не указал яркие цвета.\n`,
-  ]
-  if (p.palette) {
-    sections.push(
-      `ЦВЕТОВАЯ ГАММА:\nСоблюдай указанную цветовую гамму: ${p.palette}.\nНе добавляй контрастные цвета, если они не указаны пользователем.\n`
-    )
-  }
-  if (p.comment) {
-    sections.push(`ПОЖЕЛАНИЕ КЛИЕНТА:\n${p.comment}\n`)
-  }
-  sections.push(
-    "НЕ ДОБАВЛЯТЬ:",
-    "- дополнительные цветочные головки или бутоны сверх указанного количества;",
-    "- другие виды цветов;",
-    "- другие цвета цветов;",
-    "- декоративные цветы, которых нет в составе;",
-    "- искусственные украшения, если они не указаны;",
-    "- ягоды, сухоцветы, гипсофилу, зелень или аксессуары, если пользователь не выбрал их."
-  )
-
-  return sections.join("\n")
+  return buildBouquetImagePrompt(items, p)
 }
 
 // ─── Shared field styles ──────────────────────────────────────────────────────
