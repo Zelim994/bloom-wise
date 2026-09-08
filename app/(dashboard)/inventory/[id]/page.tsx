@@ -9,6 +9,7 @@ import {
 } from "@/app/actions/inventory"
 import { FlowerInfoEditor } from "@/components/stock/FlowerInfoEditor"
 import type { HistoryLog } from "@/components/stock/FlowerInfoEditor"
+import { AGING_DAYS } from "@/lib/inventory/aging"
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -48,8 +49,6 @@ const MOVEMENT_META: Record<string, { label: string; cls: string }> = {
   bouquet_reserved:   { label: "Резерв",             cls: "text-purple-600" },
   bouquet_unreserved: { label: "Снят резерв",        cls: "text-zinc-400"   },
 }
-
-const AGING_DAYS = 7
 
 // ─── page ────────────────────────────────────────────────────────────────────
 
