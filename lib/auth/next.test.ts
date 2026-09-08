@@ -18,8 +18,8 @@ describe("getSafeNext — accepted internal paths", () => {
   })
 
   it("preserves query strings and hashes verbatim", () => {
-    // The guard is not a sanitizer — anything starting with a single "/" is
-    // passed through as-is, query and fragment included.
+    // The guard validates but never rewrites: an accepted value comes back
+    // byte-for-byte, query and fragment included.
     expect(getSafeNext("/orders/new?recipe=abc")).toBe("/orders/new?recipe=abc")
     expect(getSafeNext("/orders/123#items")).toBe("/orders/123#items")
   })
@@ -57,6 +57,64 @@ describe("getSafeNext — rejected external destinations", () => {
     expect(getSafeNext("orders/new")).toBeNull()
     // Leading whitespace shifts the "/" off position 0, so this is rejected too.
     expect(getSafeNext(" /orders/new")).toBeNull()
+  })
+})
+
+describe("getSafeNext — URL-parser normalization bypasses", () => {
+  // Regression for the gap found in TESTING-CI-B3. URL parsers strip TAB, LF
+  // and CR *before* parsing the authority, so each of these decodes to the
+  // protocol-relative "//evil.example" and escapes the origin — while a
+  // raw-prefix check sees a harmless-looking "/..." string.
+  const NORMALIZATION_BYPASSES: ReadonlyArray<readonly [string, string]> = [
+    ["TAB", "/\t/evil.example"],
+    ["LF", "/\n/evil.example"],
+    ["CR", "/\r/evil.example"],
+  ]
+
+  it.each(NORMALIZATION_BYPASSES)(
+    "rejects a %s smuggled into the authority position",
+    (_label, payload) => {
+      expect(getSafeNext(payload)).toBeNull()
+    }
+  )
+
+  it("rejects the same payloads as they actually arrive from the query string", () => {
+    // Delivery path proof: searchParams percent-decodes, so ?next=/%09/... is
+    // handed to the guard already containing a real control character.
+    const encoded = ["%09", "%0A", "%0D"]
+
+    for (const seq of encoded) {
+      const decoded = new URLSearchParams(
+        `next=/${seq}/evil.example`
+      ).get("next")
+
+      // The decoded value is what the guard really sees at runtime.
+      expect(decoded).not.toBeNull()
+      expect(decoded).toMatch(/^\/[\t\n\r]\/evil\.example$/)
+      expect(getSafeNext(decoded)).toBeNull()
+    }
+  })
+
+  it("rejects other C0 control characters and DEL", () => {
+    // The guard rejects the whole control range, not three special cases.
+    expect(getSafeNext("/\u0000/evil.example")).toBeNull()
+    expect(getSafeNext("/\u000B/evil.example")).toBeNull()
+    expect(getSafeNext("/\u001F/evil.example")).toBeNull()
+    expect(getSafeNext("/\u007F/evil.example")).toBeNull()
+  })
+
+  it("rejects a control character anywhere in the value, not just at the front", () => {
+    expect(getSafeNext("/orders\t/../../evil.example")).toBeNull()
+    expect(getSafeNext("/orders/new?recipe=a\nb")).toBeNull()
+  })
+})
+
+describe("getSafeNext — percent-encoding is judged by resolution, not by looks", () => {
+  it("keeps percent-encoded text that stays on the same origin", () => {
+    // "%2F" is a literal path segment, not a separator, so this never leaves
+    // the origin and must not be rejected just for containing "%".
+    expect(getSafeNext("/%2F%2Fevil.example")).toBe("/%2F%2Fevil.example")
+    expect(getSafeNext("/%5Cevil.example")).toBe("/%5Cevil.example")
   })
 })
 
