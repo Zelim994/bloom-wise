@@ -57,3 +57,8 @@ next-env.d.ts
 # cover its `docker.env`, whose basename does not begin with `.env`.
 e2e/supabase/.temp/
 e2e/supabase/.branches/
+
+# Supabase CLI version-check cache for the root (production-history) directory.
+# Generated, non-secret, recreated on demand; the migration SQL beside it stays
+# tracked.
+supabase/.temp/

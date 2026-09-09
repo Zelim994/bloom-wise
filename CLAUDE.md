@@ -8,12 +8,21 @@
 
 ## Current stable checkpoint
 
-- **current stable commit:** `047ec452409ffc759ff6c6f9a657a72d0b9755c1 fix: harden WhatsApp message tenant isolation`
-- **дата/контекст:** ноябрь 2026. Предыдущая запись в этом файле указывала на `4f62d7b` и отстала примерно на 80 коммитов — с тех пор закрыто:
+- **current stable commit:** `9ff0054da844251b5adea33b04d9f6b50626e631 chore: ignore local e2e supabase runtime artifacts`
+- **дата/контекст:** 2026-09-09. С предыдущей записи (`047ec45`, 2026-08-27) прошло 24 коммита; главное:
+  - первые автотесты в проекте — Vitest, 64 теста в 4 файлах (`lib/ai`, `lib/auth`, `lib/inventory`, `scripts`);
+  - GitHub Actions CI (`.github/workflows/ci.yml`): lint → typecheck → test → build на push в `main` и на PR;
+  - изолированный локальный E2E Supabase-стек + safety-wrapper — см. «Local E2E Supabase» ниже;
+  - runtime-артефакты Supabase CLI исключены из Git и из ESLint.
+
+  **Внимание:** часть закрытого в этом диапазоне (order numbering, recipes↔orders, WhatsApp-логирование, `migration_030..032`) ещё НЕ отражена в разделах ниже — они описывают более старое состояние. См. `CONTEXT-SYNC-B` в follow-ups.
+- **предыстория:** запись `047ec452409ffc759ff6c6f9a657a72d0b9755c1 fix: harden WhatsApp message tenant isolation` (2026-08-27) закрывала:
   - полный botanical-редизайн Dashboard/Sidebar/Header/Orders/Customers;
   - `CUSTOMER-DETAIL-C` — customer detail переведён на botanical tokens, поправлены tap targets;
   - **`BOUQUETS-RLS-SECURITY-A/B1/B2/B3`** — закрыта CRITICAL cross-tenant RLS-уязвимость в `bouquets`/`bouquet_items` (`migration_028`, применена к live);
   - **`WHATSAPP-RLS-SECURITY-A/B1/B2/B3`** — закрыта структурно идентичная HIGH-уязвимость в `whatsapp_messages` (`migration_029`, применена к live).
+
+  Ещё раньше файл указывал на `4f62d7b` и отставал примерно на 80 коммитов.
 
   Детали security-исправлений — в разделе «Tenant isolation & security state» ниже. Правило на будущее: если стабильная точка в этом файле разошлась с фактическим `HEAD` больше чем на несколько коммитов — это стоп-условие (см. Workflow format), файл нужно обновлять при каждом значимом чекпоинте, а не только по запросу.
 - **working tree expectations:** между этапами working tree всегда чистый; каждый этап = один маленький diff → review → commit → push
@@ -50,15 +59,43 @@
 | Auth-гейт | `proxy.ts` в корне (Next 16 замена middleware) + повторная проверка в `app/(dashboard)/layout.tsx` |
 | Server Actions | `app/actions/*` (experimental serverActions включены в next.config.ts) |
 | AI images | `lib/services/imageProviders/*`: openaiProvider (gpt-image-1), nanoBananaProvider (Gemini) |
-| Тесты | **отсутствуют** (нет Playwright/jest/e2e; в package.json только dev/build/start/lint) |
+| Тесты | Vitest (unit) — 64 теста в 4 файлах, `npm test`. Playwright/e2e-прогон **не установлен и не настроен**; локальный E2E Supabase-стек существует отдельно (см. «Local E2E Supabase») |
 
 Env (имена, без значений): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `OPENAI_API_KEY`, `OPENAI_IMAGE_MODEL`, `OPENAI_IMAGE_QUALITY`; для Nano Banana: `GEMINI_API_KEY`, `NANO_BANANA_IMAGE_MODEL`, `NANO_BANANA_IMAGE_SIZE` (Needs verification — какие из Nano Banana ключей реально заполнены в .env.local).
 
 ---
 
+## Local E2E Supabase
+
+Локальный стек для будущих E2E-тестов. Полностью изолирован от production и от
+чужого стека `brain-dump`, который занимает дефолтные порты Supabase на этой машине.
+
+- **изолированный корень:** `e2e/supabase/` (production-история остаётся в `supabase/`, CLI её не читает)
+- **project_id:** `bloomwise-e2e`
+- **порты:** API 54421, DB 54422, Studio 54423, Mail 54424
+- **safety wrapper:** `scripts/e2e-supabase.mjs` — единственная санкционированная точка входа. Проверяет config, порты и окружение, падает закрыто; `--workdir` вычисляется от самого скрипта и не принимается от вызывающего. Покрыт 24 тестами (`scripts/e2e-supabase.test.ts`)
+- **разрешённые команды:** `npm run e2e:db:check` / `e2e:db:start` / `e2e:db:stop` / `e2e:db:reset`
+- **никогда** не вызывать `supabase start|stop|db reset` напрямую и не трогать контейнеры через `docker stop|rm`
+
+Фактическое состояние проверки (не переоценивать):
+
+| | статус |
+|---|---|
+| `start` | runtime-проверен |
+| `stop` | **runtime НЕ проверен** — этап `E2E-ENV-B4D-R` отложен: Docker Desktop и `brain-dump` были выключены |
+| `reset` | **runtime НЕ проверен и НЕ разрешён** — отдельный этап после появления baseline |
+| canonical baseline | не создан |
+| seed | не создан |
+| Playwright | не установлен и не сконфигурирован |
+
+- **runtime-артефакты:** `e2e/supabase/.temp/` (содержит container start-secrets, mode 0600 — не читать) и `e2e/supabase/.branches/` — generated, в `.gitignore`; `.temp` дополнительно в `globalIgnores` ESLint, иначе минифицированный edge-runtime бандл CLI ломает `npm run lint`
+- **production workflow не менялся:** файлы `supabase/migration_001..032` — операционная история ручных применений через Studio. Не переносить, не переименовывать и не превращать в CLI-цепочку миграций
+
+---
+
 ## Non-negotiable rules
 
-1. **Не менять DB/RLS/RPC/миграции без явного разрешения.** Миграции создаются как файлы в `supabase/migrations/`, применяются пользователем вручную через Supabase Studio SQL Editor (CLI не установлен).
+1. **Не менять DB/RLS/RPC/миграции без явного разрешения.** Миграции создаются как файлы в `supabase/migrations/`, применяются пользователем вручную через Supabase Studio SQL Editor (проект не linked; CLI используется только для локального E2E-стека).
 2. **Не применять SQL к live DB** без отдельного явного подтверждения на каждый запуск.
 3. **service_role не используется в коде приложения. Никогда.** (Подтверждено grep-аудитом.)
 4. **Не делать OpenAI/Nano Banana calls** без разрешения (стоят денег).
@@ -148,7 +185,7 @@ Env (имена, без значений): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUB
 
 - **Live DB может содержать схему, не полностью отражённую в миграциях** (ранние таблицы создавались вручную в Studio; migration_001/004 — документирующие). Не доверять слепо файлам миграций как единственному источнику; при сомнении — read-only SELECT с разрешения пользователя.
 - **Подтверждённый пример schema drift:** `bouquet_items.product_id` объявлен `NOT NULL` в `migration_001_init.sql`, но приложение (`app/actions/orders.ts`) всегда вставляет `product_id: null`, и generated types (`lib/supabase/types.ts`) показывают колонку nullable. Также `bouquet_items.flower_id` используется приложением и индексируется `migration_014`, но ни одна migration не создаёт эту колонку — добавлена вручную в Studio. Живая схема правилась вручную сильнее, чем фиксируют миграции; не восстановить live schema только по файлам миграций.
-- **Supabase CLI не установлен**, проект не linked — миграции применяются пользователем вручную через Studio SQL Editor.
+- **Supabase CLI установлен** (homebrew, 2.113.0), но корневой проект **не linked** к production — миграции по-прежнему применяются пользователем вручную через Studio SQL Editor. CLI используется только для локального E2E-стека и только через wrapper (см. «Local E2E Supabase»).
 - **Сетевые ограничения машины разработки:** трафик идёт через VPN с виртуальными IP (240.0.0.0/4). Следствия: server-side fetch к внешним хостам может падать (из-за этого удалены Google Fonts; Image Optimizer отклонял Supabase-хост → лого рендерится с `unoptimized`). Не возвращать server-side fetch внешних ресурсов без учёта этого.
 - Пользователь тестирует вручную в браузере (localhost:3000); у ассистента нет учётных данных — визуальные проверки подтверждает пользователь (скриншот/ответ).
 - Рабочий язык — русский (UI, коммуникация, комментарии в коде).
@@ -173,7 +210,8 @@ Env (имена, без значений): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUB
 - `WHATSAPP-RELIABILITY-A` — проверять результат insert в `sendWhatsAppMessage`, не проглатывать ошибку молча.
 - `DATABASE-GRANTS-A` — least-privilege аудит table grants (`anon`/`authenticated`), особенно `TRUNCATE`/`REFERENCES`/`TRIGGER`. Только аудит, менять ничего без отдельного review.
 - `NANO-BANANA` verification — подтвердить или исправить вызов Gemini SDK в `nanoBananaProvider.ts`, прежде чем предлагать его как рабочий пользователю.
-- Automated tests / production hardening — проект всё ещё без единого автотеста и CI (в package.json только dev/build/start/lint).
+- `CONTEXT-SYNC-B` — разделы этого файла отстали от кода: `order_number` теперь назначается атомарно триггером `orders_assign_order_number` и scoped по организации (`migration_030`/`031`), `bouquets.recipe_id` реально проставляется из заказов, insert в `whatsapp_messages` проверяется. Разделы «Tenant isolation & security state», «Known product gaps» и первые три пункта этого списка это ещё не отражают — сверить и переписать отдельным этапом.
+- E2E-цепочка — canonical baseline, seed и Playwright ещё не созданы; runtime-проверка `e2e:db:stop` не выполнена (см. «Local E2E Supabase»).
 
 ---
 
@@ -182,8 +220,9 @@ Env (имена, без значений): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUB
 Перед каждым commit, без исключений:
 
 ```bash
+npm test            # ожидаемо: 64/64 passed (4 файла)
 npm run lint        # ожидаемо: 0 errors / 0 warnings
-npx tsc --noEmit    # ожидаемо: без вывода
+npm run typecheck   # ожидаемо: без вывода
 npm run build       # ожидаемо: все роуты сгенерированы
 ```
 
