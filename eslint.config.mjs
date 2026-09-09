@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+
+    // Supabase CLI local E2E runtime state: a minified edge-runtime bundle the
+    // CLI writes on `npm run e2e:db:start`. It is not project source. ESLint
+    // does not read .gitignore, so the rule there does not cover this.
+    "e2e/supabase/.temp/**",
   ]),
 ]);
 
