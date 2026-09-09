@@ -1,0 +1,65 @@
+# BloomWise local E2E Supabase stack.
+#
+# This is NOT the production schema history. The directory `supabase/` at the
+# repo root remains the operational record of what was applied by hand through
+# the Supabase Studio SQL Editor; nothing here touches it, and the CLI never
+# reads it (it is selected explicitly via `supabase --workdir e2e ...`).
+#
+# PORT SAFETY — the reason every port below is written out explicitly:
+# another project's stack ("brain-dump") is already running on this machine and
+# occupies the Supabase DEFAULT ports (54321-54324, 54327). Any section omitted
+# from this file falls back to those defaults, which would aim BloomWise
+# commands — including `db reset` — straight at that other project's database.
+# So every port-bearing key the CLI defines is set here, even for services that
+# are disabled.
+
+# Distinguishes this project from others on the same host and names its
+# containers (supabase_db_bloomwise-e2e, ...). Set explicitly rather than
+# inheriting the directory name, which would otherwise be the generic "e2e".
+project_id = "bloomwise-e2e"
+
+[api]
+port = 54421
+
+[db]
+port = 54422
+shadow_port = 54420
+
+[db.pooler]
+# Disabled by default; the port is still pinned so enabling it later cannot
+# collide with the other stack.
+port = 54429
+
+[db.seed]
+# No fixtures exist yet. Seeding is turned on in a later stage together with
+# the seed file itself, rather than committing an empty seed.sql to satisfy
+# the default sql_paths = ["./seed.sql"].
+enabled = false
+
+[studio]
+port = 54423
+
+[local_smtp]
+# Local mail capture. Needed later for signup-confirmation and invite flows,
+# which is what lets those be tested without real email or a service_role key.
+port = 54424
+
+[analytics]
+# Not required for application behaviour under test; disabled to run one less
+# container. The port stays pinned so re-enabling it stays collision-free.
+enabled = false
+port = 54427
+
+[auth]
+# The E2E app runs on 3100 so it never competes with the everyday dev server
+# on 3000. Provisional: this must stay in sync with the Playwright webServer
+# port once that is chosen.
+site_url = "http://127.0.0.1:3100"
+additional_redirect_urls = ["http://127.0.0.1:3100", "http://localhost:3100"]
+
+[storage]
+# Enabled, but buckets are deliberately NOT declared here. ai-generations,
+# organization-assets and product-photos are created by the canonical baseline
+# SQL, matching how they exist in production and keeping their access policies
+# in the same place as the buckets themselves.
+enabled = true
