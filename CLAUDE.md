@@ -8,14 +8,14 @@
 
 ## Current stable checkpoint
 
-- **current stable commit:** `9ff0054da844251b5adea33b04d9f6b50626e631 chore: ignore local e2e supabase runtime artifacts`
-- **дата/контекст:** 2026-09-09. С предыдущей записи (`047ec45`, 2026-08-27) прошло 24 коммита; главное:
+- **stable base (проверена зелёной перед этим context sync):** `0396f823bedb5ce9dd6f278022268f7149954355 docs: sync project context and ignore supabase cli cache`
+- **конвенция указателя:** здесь стоит последний коммит, на котором quality gate и CI были проверены зелёными **до** правки этого файла — а не коммит, который содержит саму правку. Иначе документ было бы невозможно держать актуальным: указатель не может назвать ещё не существующий коммит. Docs-only коммит поверх этой записи не делает её устаревшей.
+- **дата/контекст:** 2026-09-09. С записи `047ec45` (2026-08-27) прошло 25 коммитов; главное:
   - первые автотесты в проекте — Vitest, 64 теста в 4 файлах (`lib/ai`, `lib/auth`, `lib/inventory`, `scripts`);
   - GitHub Actions CI (`.github/workflows/ci.yml`): lint → typecheck → test → build на push в `main` и на PR;
   - изолированный локальный E2E Supabase-стек + safety-wrapper — см. «Local E2E Supabase» ниже;
   - runtime-артефакты Supabase CLI исключены из Git и из ESLint.
-
-  **Внимание:** часть закрытого в этом диапазоне (order numbering, recipes↔orders, WhatsApp-логирование, `migration_030..032`) ещё НЕ отражена в разделах ниже — они описывают более старое состояние. См. `CONTEXT-SYNC-B` в follow-ups.
+  - order numbering, recipes↔orders и WhatsApp-надёжность сверены с кодом и описаны ниже по факту (`CONTEXT-SYNC-B`, закрыт).
 - **предыстория:** запись `047ec452409ffc759ff6c6f9a657a72d0b9755c1 fix: harden WhatsApp message tenant isolation` (2026-08-27) закрывала:
   - полный botanical-редизайн Dashboard/Sidebar/Header/Orders/Customers;
   - `CUSTOMER-DETAIL-C` — customer detail переведён на botanical tokens, поправлены tap targets;
@@ -152,13 +152,22 @@ Env (имена, без значений): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUB
 - **flower_variant_stock** (view) — остатки per (org, flower, variety, color) из inventory_items.quantity_remaining
 - **purchases / purchase_items** — поставки; создание через RPC `create_purchase_atomic`; delete защищён: партию нельзя удалить, если из неё уже использовано (validateAndDeleteInventoryBatch)
 - **writeoffs** — списания через RPC `create_writeoff_atomic` (FIFO, flower/variety/color из inventory_items — не из payload)
-- **orders** — статусы new/in_progress/ready/delivered/cancelled; payment_status unpaid/partial/paid; флаги stock_written_off/stock_returned; списание склада — RPC `write_off_order_stock` (CAS-update партий), возврат — `return_order_stock`
+- **orders** — статусы new/in_progress/ready/delivered/cancelled; payment_status unpaid/partial/paid; флаги stock_written_off/stock_returned; списание склада — RPC `write_off_order_stock` (CAS-update партий), возврат — `return_order_stock`. `order_number` назначается БД-триггером per-org — см. «Tenant isolation & security state»
+- **organization_order_counters** — служебный per-org счётчик номеров заказов (`migration_031`); RLS включён без policy → клиентам недоступен, пишется только триггерной функцией
 - **bouquets / bouquet_items** — состав заказа (variety_id/color_id с migration_014); Bouquet Builder — единый модуль (`components/bouquet-builder/*`), используется в /builder и в заказах
-- **recipes / recipe_items** — рецепты букетов
+- **recipes / recipe_items** — рецепты букетов; `recipe_items` хранит `flower_id` + `variety_id`/`color_id` (`migration_032`). Используются как источник prefill для нового заказа — см. «Known product gaps»
 - **customers** — клиенты (wa.me-ссылки на страницах клиента)
 - **ai_requests** — история AI-генераций (+prompt_image_path, migration_017)
-- **whatsapp_messages** — лог отправок (пишется в orders action при отправке wa.me)
+- **whatsapp_messages** — лог попыток передачи (handoff), пишется в `sendWhatsAppMessage` при открытии wa.me-ссылки; результат insert проверяется
 - payments / activity_logs: описаны в исходной схеме — Needs verification, используются ли в текущем коде (в actions обращений не найдено)
+
+**Недавние миграции (файлы в `supabase/migrations/`, применены к live вручную через Studio):**
+
+- `migration_030_make_order_numbers_tenant_local` — уникальность `order_number` переведена с глобальной на `(organization_id, order_number)`;
+- `migration_031_add_atomic_order_numbering` — таблица `organization_order_counters`, функция `assign_order_number()` и BEFORE INSERT триггер `orders_assign_order_number`; DEFAULT у `orders.order_number` снят (`order_number_seq` оставлена инертной);
+- `migration_032_add_variant_color_to_recipe_items` — nullable FK `variety_id`/`color_id` в `recipe_items` (тот же паттерн, что `migration_014` для `bouquet_items`).
+
+Файлы миграций не переименовывать, не переносить и не превращать в CLI-цепочку — это операционная история ручных применений.
 
 **Правила статусов склада** (единый источник — lib/inventory/status.ts):
 `no_stock` (stock≤0) → `low` (stock ≤ min_stock, либо ≤ DEFAULT_LOW_THRESHOLD=5 если min не задан) → `aging` (daysOnShelf ≥ AGING_DAYS=7 по старейшей партии) → `ok`. Dashboard и /inventory обязаны использовать getInventoryRows/getInventoryStatus — не дублировать логику. Aging показывается и для архивных цветов; low/out — только для активных.
@@ -177,7 +186,16 @@ Env (имена, без значений): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUB
 
 **Не проверено (verification limitation):** two-organization authenticated E2E (реальные аккаунты из двух разных organizations, живая проверка cross-tenant deny) не выполнялся ни для одной из миграций — только policy-level и static-code verification.
 
-**Известная business-correctness проблема, смежная с tenant isolation, но не security-баг:** `order_number` генерируется глобальным сканом `orders` по всей платформе (`app/actions/orders.ts`, комментарий в коде: «Generate order number: find global max of BW-XXXXXX, increment»), **без фильтра по `organization_id`**. Не даёт cross-tenant доступа к данным, но: (1) по своим номерам организация может примерно оценить объём заказов на всей платформе; (2) конкурентная вставка заказов в разных organizations может столкнуться на retry по `23505`. См. `ORDER-NUMBER-TENANCY` в follow-ups.
+**Order numbering — закрыто (`ORDER-NUMBER-TENANCY`, `migration_030`/`031`, обе применены к live).** Раньше `order_number` считался в JS глобальным сканом `orders` без фильтра по организации; сейчас этого кода нет.
+
+Текущая цепочка:
+- **приложение** — `createOrder` (`app/actions/orders.ts`) номер **не вычисляет и не передаёт**: в insert-payload `order_number` отсутствует (комментарий в коде указывает на триггер). Возвращается только `id`; каждый экран (детали заказа, WhatsApp-текст, dashboard, календарь, история клиента) читает номер из БД отдельным запросом;
+- **БД** — `BEFORE INSERT` триггер `orders_assign_order_number` → `assign_order_number()` (SECURITY DEFINER, `search_path = public`). Функция делает атомарный upsert в `organization_order_counters` (`on conflict do update ... returning`) и перезаписывает `NEW.order_number` значением `'BW-' || lpad(n, greatest(4, length(n)), '0')`. Счётчик для организации без заказов создаётся лениво на первом заказе;
+- **уникальность** — `UNIQUE (organization_id, order_number)` (`orders_organization_order_number_key`), а не глобальная. Две организации могут легитимно иметь одинаковый видимый `BW-0002`; идентичность везде — `id` (uuid), номер как ключ поиска не используется;
+- **конкурентность** — счётчик инкрементируется одной атомарной командой внутри той же транзакции, что и INSERT: параллельные вставки в одной организации сериализуются на строке счётчика, а откат INSERT откатывает и счётчик (номер не «сгорает»). Обработка `23505` в `createOrder` осталась как защитный fallback последней инстанции;
+- **изоляция** — функция дополнительно падает, если `NEW.organization_id` не совпадает с `get_user_organization_id()` (для authenticated-вызовов); у `organization_order_counters` включён RLS без единой policy → доступ клиентов запрещён по умолчанию.
+
+Историческое уточнение: заголовочные комментарии в `migration_030`/`031` описывают состояние **на момент их написания** и говорят, что JS-кандидат ещё остаётся в `createOrder`. Это уже неверно — код удалён отдельным cleanup-коммитом. При расхождении источник правды о текущем поведении — код приложения, а не комментарий миграции.
 
 ---
 
@@ -196,21 +214,21 @@ Env (имена, без значений): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUB
 
 ## Known product gaps
 
-- **Recipes ↔ Bouquet Builder:** `recipes`/`recipe_items` CRUD работает (`app/actions/recipes.ts`), но **не подключены** к Bouquet Builder или к заказам — `bouquets.recipe_id` никогда не устанавливается кодом. Рецепты создаются и хранятся, но нигде не используются downstream. Не описывать эту интеграцию как существующую.
-- **WhatsApp — фактический уровень:** только `wa.me`-ссылки + write-only send-log в `whatsapp_messages` (RLS исправлен, см. выше). Нет incoming webhook, нет `app/api/*` route handlers вообще (ни одного во всём проекте), нет inbox/conversation UI, нет message status callbacks, нет реальной интеграции с WhatsApp Business API. `sendWhatsAppMessage` не проверяет результат insert — см. `WHATSAPP-RELIABILITY-A`.
+- **Recipes — подключены к заказам, НЕ к standalone Bouquet Builder.** Что работает: `/orders/new?recipe=<uuid>` → `getRecipeForOrderPrefill` → `OrderForm` (prefill состава и цены) → `createOrder` → `bouquets.recipe_id`. Состав рецепта хранит `variety_id`/`color_id` (`migration_032`) и переносит их в `bouquet_items`. Клиентский `recipe_id` не принимается на веру: `resolveOwnOrgRecipeId` перепроверяет рецепт по `organization_id` перед записью (RLS это гарантирует и сам — проверка в коде как явная belt-and-braces на границе мутации).
+  **Чего нет:** модуль `components/bouquet-builder/*` (и страница `/builder`) о рецептах не знает вообще — ни одной ссылки; сохранить букет как рецепт или собрать букет из рецепта прямо в билдере нельзя. Именно поэтому follow-up сужен, а не закрыт.
+  **Нюанс provenance (осознанный, зафиксирован комментарием в коде):** `recipe_id` пишется **только при первом insert** букета — новый заказ или правка заказа, у которого букета ещё не было. `updateOrder` при обновлении существующего букета `recipe_id` не трогает, поэтому уже сохранённое происхождение никогда не перезаписывается — но и не обновляется, если состав переделали под другой рецепт. Форма редактирования `recipePrefill` вообще не передаёт.
+- **WhatsApp — фактический уровень:** только `wa.me`-ссылки + write-only send-log в `whatsapp_messages` (RLS исправлен, см. выше). Нет incoming webhook, нет директории `app/api/*` (единственный route handler в проекте — `app/auth/callback/route.ts`), нет inbox/conversation UI, нет message status callbacks, нет интеграции с WhatsApp Business API.
+  **Надёжность записи — закрыто (`WHATSAPP-RELIABILITY-A`):** `sendWhatsAppMessage` проверяет обе записи — insert в `whatsapp_messages` и `orders.whatsapp_sent = true`; при ошибке любой из них возвращается ошибка пользователю, а не молчаливый «успех».
+  **Честная семантика v1:** фиксируется **попытка передачи** (handoff) — открытие `wa.me`-ссылки с подставленным текстом. Подтвердить фактическую отправку или доставку сообщения приложение не может. Две записи не атомарны (нет транзакции/RPC): если flag-update упал после успешного insert, строка лога остаётся и честно означает «попытка была», просто без флага на заказе.
 - **Nano Banana (Gemini) provider:** см. AI-строку в Product goal — существует как код, успешный вызов не подтверждён.
-- **Order numbering не per-org** — см. «Tenant isolation & security state».
 
 ## Open follow-ups
 
 Компактный список известных next-задач (не полный backlog):
 
-- `ORDER-NUMBER-TENANCY` — скопировать генерацию `order_number` по `organization_id`.
-- `RECIPES-BUILDER-INTEGRATION` — подключить recipes к Bouquet Builder (сейчас изолированы).
-- `WHATSAPP-RELIABILITY-A` — проверять результат insert в `sendWhatsAppMessage`, не проглатывать ошибку молча.
+- `RECIPES-BUILDER-INTEGRATION` (сужен) — рецепты подключены к **заказам**, но не к standalone Bouquet Builder: `/builder` о рецептах не знает. Открытые части: собрать букет из рецепта в билдере и сохранить букет как рецепт. Смежный вопрос для отдельного решения — стоит ли `updateOrder` обновлять `bouquets.recipe_id` при смене состава существующего букета (сейчас намеренно не обновляет).
 - `DATABASE-GRANTS-A` — least-privilege аудит table grants (`anon`/`authenticated`), особенно `TRUNCATE`/`REFERENCES`/`TRIGGER`. Только аудит, менять ничего без отдельного review.
 - `NANO-BANANA` verification — подтвердить или исправить вызов Gemini SDK в `nanoBananaProvider.ts`, прежде чем предлагать его как рабочий пользователю.
-- `CONTEXT-SYNC-B` — разделы этого файла отстали от кода: `order_number` теперь назначается атомарно триггером `orders_assign_order_number` и scoped по организации (`migration_030`/`031`), `bouquets.recipe_id` реально проставляется из заказов, insert в `whatsapp_messages` проверяется. Разделы «Tenant isolation & security state», «Known product gaps» и первые три пункта этого списка это ещё не отражают — сверить и переписать отдельным этапом.
 - E2E-цепочка — canonical baseline, seed и Playwright ещё не созданы; runtime-проверка `e2e:db:stop` не выполнена (см. «Local E2E Supabase»).
 
 ---
