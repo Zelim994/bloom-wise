@@ -165,6 +165,10 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState("")
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  // Set only when createOrder reports `partial`: the order row exists on the
+  // server, so this form must never submit a second create. Holds the id so we
+  // can offer the user a way into the order that was actually created.
+  const [partialCreatedOrderId, setPartialCreatedOrderId] = useState<string | null>(null)
   const isEdit = !!initialData
   const isCancelled = initialData?.status === "cancelled"
   const isStockLocked = Boolean(initialData?.stock_written_off)
@@ -328,6 +332,9 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (isReadOnly) return
+    // The order already exists server-side; submitting again would create a
+    // duplicate. Recovery is the link to the created order, not a retry.
+    if (partialCreatedOrderId) return
     setError("")
     setSuccessMessage(null)
 
@@ -383,7 +390,13 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
         router.refresh()
       } else {
         const result = await createOrder(payload)
-        if (result.error) { setError(result.error); return }
+        if (result.error) {
+          setError(result.error)
+          // Partial create: the order row was written before the failure, so
+          // this form is no longer a valid draft and must lock itself.
+          if (result.partial && result.id) setPartialCreatedOrderId(result.id)
+          return
+        }
         router.push(`/orders/${result.id}`)
         router.refresh()
       }
@@ -742,6 +755,22 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
         </p>
       )}
 
+      {partialCreatedOrderId && (
+        <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm text-amber-800">
+            Заказ уже создан, но часть данных не сохранилась. Не создавайте его заново —
+            откройте заказ и допишите недостающее.
+          </p>
+          <Button
+            type="button"
+            onClick={() => router.push(`/orders/${partialCreatedOrderId}`)}
+            className="bg-amber-600 hover:bg-amber-700 text-white h-10 px-6"
+          >
+            Открыть созданный заказ
+          </Button>
+        </div>
+      )}
+
       {successMessage && (
         <p aria-live="polite" className="text-sm text-[var(--sage-text)] bg-[var(--sage-bg)] px-4 py-3 rounded-xl border border-[var(--sage)]">
           {successMessage}
@@ -749,7 +778,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
       )}
 
       <div className="flex items-center gap-3 pt-1">
-        {!isReadOnly && (
+        {!isReadOnly && !partialCreatedOrderId && (
           <Button
             type="submit"
             disabled={isPending}

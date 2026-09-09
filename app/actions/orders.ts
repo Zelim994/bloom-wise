@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import type { Order, Customer } from "@/lib/supabase/types"
 import { getOrgId } from "@/lib/services/organizationService"
 import { buildOrderStockPlan, writeOffOrderStockViaRpc, returnOrderStockViaRpc } from "@/lib/services/orderStockService"
+import { validateBouquetItems, buildBouquetItemRows } from "@/lib/orders/bouquetItems"
 
 export type BouquetItemForEdit = {
   flower_id: string
@@ -115,6 +116,20 @@ export async function searchCustomers(query: string): Promise<CustomerSearchResu
   return data ?? []
 }
 
+/**
+ * Result of createOrder.
+ *
+ * `partial: true` means the ORDER ROW ALREADY EXISTS but a later write failed.
+ * The caller must NOT retry createOrder in that state — a retry would insert a
+ * second order. `id` is always present alongside it so the caller can send the
+ * user to the order that was created.
+ */
+export type CreateOrderResult = {
+  error?: string
+  id?: string
+  partial?: boolean
+}
+
 export type BouquetPayload = {
   items: Array<{
     flower_id: string
@@ -172,21 +187,33 @@ export async function createOrder(formData: {
   customer_comment?: string
   florist_comment?: string
   bouquet?: BouquetPayload
-}): Promise<{ error?: string; id?: string }> {
+}): Promise<CreateOrderResult> {
   const supabase = await createClient()
   const orgId = await getOrgId(supabase)
   if (!orgId) return { error: "Организация не найдена" }
 
+  // Validated before any write: nothing below can be rolled back once it runs.
+  const hasBouquet = Boolean(formData.bouquet && formData.bouquet.items.length > 0)
+  const validatedItems = hasBouquet ? validateBouquetItems(formData.bouquet!.items) : null
+  if (validatedItems && !validatedItems.ok) return { error: validatedItems.error }
+
   // Find or create customer
   let customerId: string | null = null
   if (formData.customer_phone.trim()) {
-    const { data: existing } = await supabase
+    // A query error here must not read as "no such customer": that would fall
+    // through to the insert below and create a duplicate customer for a phone
+    // number that already exists. Same control-flow defect as the bouquet
+    // lookup in updateOrder.
+    const { data: existing, error: lookupErr } = await supabase
       .from("customers")
       .select("id")
       .eq("organization_id", orgId)
       .eq("phone", formData.customer_phone.trim())
       .limit(1)
       .maybeSingle()
+    if (lookupErr) {
+      return { error: "Не удалось проверить клиента. Попробуйте ещё раз." }
+    }
 
     if (existing) {
       customerId = existing.id
@@ -263,10 +290,20 @@ export async function createOrder(formData: {
   const orderId = orderRow.id
 
   // Save bouquet if provided
-  if (formData.bouquet && formData.bouquet.items.length > 0) {
-    const b = formData.bouquet
+  if (validatedItems?.ok) {
+    // The order row is already committed, so every failure below still has to
+    // invalidate the list cache before reporting — otherwise the new order
+    // stays invisible until the next navigation.
+    // Every failure past this point leaves a real order row behind, so the
+    // result carries its id and `partial: true`. The caller must recover by
+    // opening that order, never by calling createOrder again.
+    const failAfterOrderCreated = (message: string): CreateOrderResult => {
+      revalidatePath("/orders")
+      return { id: orderId, error: message, partial: true }
+    }
+    const b = formData.bouquet!
     const recipeId = await resolveOwnOrgRecipeId(supabase, orgId, b.recipe_id)
-    const { data: bouquetRow } = await supabase
+    const { data: bouquetRow, error: bouquetErr } = await supabase
       .from("bouquets")
       .insert({
         order_id: orderId,
@@ -280,30 +317,32 @@ export async function createOrder(formData: {
       })
       .select("id")
       .single()
+    // The order row already exists at this point and is deliberately NOT
+    // rolled back — separate PostgREST calls are separate transactions, and a
+    // compensating delete would be a fake rollback. Reporting the failure
+    // truthfully is what this stage guarantees; atomicity comes with the RPC.
+    if (bouquetErr || !bouquetRow) {
+      return failAfterOrderCreated("Заказ создан, но состав букета сохранить не удалось. Откройте заказ и добавьте букет ещё раз.")
+    }
 
-    if (bouquetRow) {
-      const bouquetRows = b.items.map((item) => {
-        const flowerId = item.flower_id
-        if (!flowerId) throw new Error("Не удалось определить flower_id для позиции букета")
-        return {
-          bouquet_id: bouquetRow.id,
-          flower_id: flowerId,
-          variety_id: item.variety_id ?? null,
-          color_id: item.color_id ?? null,
-          product_id: null,
-          quantity: item.quantity,
-          unit_cost: item.unit_cost,
-          total_cost: item.quantity * item.unit_cost,
-        }
-      })
-      await supabase.from("bouquet_items").insert(bouquetRows)
+    const { error: itemsErr } = await supabase
+      .from("bouquet_items")
+      .insert(buildBouquetItemRows(bouquetRow.id, validatedItems.items))
+    if (itemsErr) {
+      return failAfterOrderCreated("Заказ создан, но состав букета сохранить не удалось. Откройте заказ и добавьте букет ещё раз.")
     }
 
     // Store cost_price on the order
-    await supabase
+    const { data: costRow, error: costErr } = await supabase
       .from("orders")
       .update({ cost_price: b.cost_price })
       .eq("id", orderId)
+      .eq("organization_id", orgId)
+      .select("id")
+      .maybeSingle()
+    if (costErr || !costRow) {
+      return failAfterOrderCreated("Не удалось сохранить стоимость заказа. Попробуйте ещё раз.")
+    }
   }
 
   revalidatePath("/orders")
@@ -401,19 +440,34 @@ export async function updateOrder(
   if (existingOrder.status === "cancelled") return { error: "Отменённый заказ нельзя редактировать" }
   if (existingOrder.stock_written_off) return { error: "Нельзя изменить заказ после списания склада" }
 
+  // Validated before any write — in particular before the destructive
+  // bouquet_items delete further down, which cannot be undone.
+  const validatedItems = formData.bouquet ? validateBouquetItems(formData.bouquet.items) : null
+  if (validatedItems && !validatedItems.ok) return { error: validatedItems.error }
+
   // Update or create customer
   let customerId = existingOrder.customer_id
   if (formData.customer_name.trim() || formData.customer_phone.trim()) {
     if (customerId) {
-      await supabase
+      // `.select()` proves the row was really updated: an RLS-filtered UPDATE
+      // matches zero rows and returns NO error, so `error === null` alone
+      // would not tell us anything happened.
+      const { data: updatedCust, error: custErr } = await supabase
         .from("customers")
         .update({
           full_name: formData.customer_name.trim() || "Клиент",
           phone: formData.customer_phone.trim() || null,
         })
         .eq("id", customerId)
+        .select("id")
+        .maybeSingle()
+      if (custErr || !updatedCust) {
+        return { error: "Не удалось сохранить клиента. Попробуйте ещё раз." }
+      }
     } else {
-      const { data: newCust } = await supabase
+      // This branch runs only when the order had no customer at all, so a
+      // failure here attaches nobody — it never detaches an existing link.
+      const { data: newCust, error: custErr } = await supabase
         .from("customers")
         .insert({
           organization_id: orgId,
@@ -422,7 +476,10 @@ export async function updateOrder(
         })
         .select("id")
         .single()
-      customerId = newCust?.id ?? null
+      if (custErr || !newCust) {
+        return { error: "Не удалось сохранить клиента. Попробуйте ещё раз." }
+      }
+      customerId = newCust.id
     }
   }
 
@@ -460,17 +517,35 @@ export async function updateOrder(
   if (oe) return { error: oe.message }
 
   // Update bouquet
-  if (formData.bouquet) {
+  if (formData.bouquet && validatedItems?.ok) {
+    // The order fields above are already committed, so a failure below must
+    // still invalidate the caches before reporting — the form does not refresh
+    // on error, and the page would otherwise keep showing pre-save data.
+    const failAfterOrderUpdated = (message: string) => {
+      revalidatePath(`/orders/${orderId}`)
+      revalidatePath("/orders")
+      return { error: message }
+    }
     const b = formData.bouquet
-    const { data: existingBouquet } = await supabase
+    // A query error here used to be indistinguishable from "no bouquet yet",
+    // which silently diverted into the insert branch and could leave the order
+    // with a second bouquet (bouquets.order_id is not unique). maybeSingle()
+    // also errors when several rows already match — that is surfaced, not
+    // repaired here.
+    const { data: existingBouquet, error: lookupErr } = await supabase
       .from("bouquets")
       .select("id")
       .eq("order_id", orderId)
       .maybeSingle()
+    if (lookupErr) {
+      return failAfterOrderUpdated("Не удалось загрузить состав букета. Попробуйте ещё раз.")
+    }
 
     let bouquetId: string | null = null
     if (existingBouquet) {
-      await supabase
+      // recipe_id is deliberately absent from this payload: provenance is
+      // written only on first insert and must never be overwritten by an edit.
+      const { data: updatedBouquet, error: bouquetErr } = await supabase
         .from("bouquets")
         .update({
           cost_price: b.cost_price,
@@ -479,11 +554,27 @@ export async function updateOrder(
           margin_percent: b.margin_percent,
         })
         .eq("id", existingBouquet.id)
-      await supabase.from("bouquet_items").delete().eq("bouquet_id", existingBouquet.id)
+        .select("id")
+        .maybeSingle()
+      if (bouquetErr || !updatedBouquet) {
+        return failAfterOrderUpdated("Не удалось обновить состав букета. Попробуйте ещё раз.")
+      }
+
+      // Destructive: from here on the previous items are gone. B1 cannot undo
+      // this if the replacement insert below fails — it only guarantees the
+      // failure is reported instead of silently succeeding.
+      const { error: deleteErr } = await supabase
+        .from("bouquet_items")
+        .delete()
+        .eq("bouquet_id", existingBouquet.id)
+      // A bouquet may legitimately have zero items, so no row-count check.
+      if (deleteErr) {
+        return failAfterOrderUpdated("Не удалось обновить состав букета. Попробуйте ещё раз.")
+      }
       bouquetId = existingBouquet.id
-    } else if (b.items.length > 0) {
+    } else if (validatedItems.items.length > 0) {
       const recipeId = await resolveOwnOrgRecipeId(supabase, orgId, b.recipe_id)
-      const { data: newBouquet } = await supabase
+      const { data: newBouquet, error: insertErr } = await supabase
         .from("bouquets")
         .insert({
           order_id: orderId,
@@ -497,31 +588,31 @@ export async function updateOrder(
         })
         .select("id")
         .single()
-      bouquetId = newBouquet?.id ?? null
+      if (insertErr || !newBouquet) {
+        return failAfterOrderUpdated("Не удалось обновить состав букета. Попробуйте ещё раз.")
+      }
+      bouquetId = newBouquet.id
     }
 
-    if (bouquetId && b.items.length > 0) {
-      const bouquetRows = b.items.map((item) => {
-        const flowerId = item.flower_id
-        if (!flowerId) throw new Error("Не удалось определить flower_id для позиции букета")
-        return {
-          bouquet_id: bouquetId!,
-          flower_id: flowerId,
-          variety_id: item.variety_id ?? null,
-          color_id: item.color_id ?? null,
-          product_id: null,
-          quantity: item.quantity,
-          unit_cost: item.unit_cost,
-          total_cost: item.quantity * item.unit_cost,
-        }
-      })
-      await supabase.from("bouquet_items").insert(bouquetRows)
+    if (bouquetId && validatedItems.items.length > 0) {
+      const { error: itemsErr } = await supabase
+        .from("bouquet_items")
+        .insert(buildBouquetItemRows(bouquetId, validatedItems.items))
+      if (itemsErr) {
+        return failAfterOrderUpdated("Не удалось обновить состав букета. Попробуйте ещё раз.")
+      }
     }
 
-    await supabase
+    const { data: costRow, error: costErr } = await supabase
       .from("orders")
       .update({ cost_price: b.cost_price })
       .eq("id", orderId)
+      .eq("organization_id", orgId)
+      .select("id")
+      .maybeSingle()
+    if (costErr || !costRow) {
+      return failAfterOrderUpdated("Не удалось сохранить стоимость заказа. Попробуйте ещё раз.")
+    }
   }
 
   revalidatePath(`/orders/${orderId}`)
