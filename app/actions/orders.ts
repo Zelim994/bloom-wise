@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import type { Order, Customer } from "@/lib/supabase/types"
 import { getOrgId } from "@/lib/services/organizationService"
 import { buildOrderStockPlan, writeOffOrderStockViaRpc, returnOrderStockViaRpc } from "@/lib/services/orderStockService"
-import { validateBouquetItems, buildBouquetItemRows } from "@/lib/orders/bouquetItems"
+import { validateBouquetItems, type NormalizedBouquetItem } from "@/lib/orders/bouquetItems"
 
 export type BouquetItemForEdit = {
   flower_id: string
@@ -152,24 +152,24 @@ export type BouquetPayload = {
   recipe_id?: string | null
 }
 
-// Client-sent recipe_id is never trusted as-is: re-resolve it against the
-// caller's own organization before persisting, so a tampered/forged payload
-// can't attach another organization's recipe as provenance. RLS already
-// enforces this independently; this is an explicit, auditable belt-and-braces
-// check at the actual mutation boundary.
-async function resolveOwnOrgRecipeId(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  orgId: string,
-  recipeId: string | null | undefined
-): Promise<string | null> {
-  if (!recipeId) return null
-  const { data } = await supabase
-    .from("recipes")
-    .select("id")
-    .eq("id", recipeId)
-    .eq("organization_id", orgId)
-    .maybeSingle()
-  return data?.id ?? null
+// Exactly the item shape replace_order_bouquet's input contract owns, and
+// nothing else. Validated items also carry total_cost, but the RPC derives that
+// itself from quantity x unit_cost in the same transaction as the write, so
+// sending it would offer the database a number it is not going to trust.
+// bouquet_id and product_id are likewise the RPC's to decide.
+//
+// Client-sent recipe_id is not re-checked here any more either: the RPC
+// re-resolves it against the caller's own organization before persisting, so a
+// tampered payload still can't attach another organization's recipe as
+// provenance. That check moved inside the transaction it guards.
+function toBouquetRpcItems(items: NormalizedBouquetItem[]) {
+  return items.map((item) => ({
+    flower_id: item.flower_id,
+    variety_id: item.variety_id,
+    color_id: item.color_id,
+    quantity: item.quantity,
+    unit_cost: item.unit_cost,
+  }))
 }
 
 export async function createOrder(formData: {
@@ -302,46 +302,27 @@ export async function createOrder(formData: {
       return { id: orderId, error: message, partial: true }
     }
     const b = formData.bouquet!
-    const recipeId = await resolveOwnOrgRecipeId(supabase, orgId, b.recipe_id)
-    const { data: bouquetRow, error: bouquetErr } = await supabase
-      .from("bouquets")
-      .insert({
-        order_id: orderId,
-        mode: "stock_only",
+    // One transaction for the whole bouquet: header, items and the order's
+    // cost_price either all land or none of them do. The order row itself was
+    // written by a separate request above and is still deliberately NOT rolled
+    // back — a compensating delete would be a fake rollback. That residue is
+    // exactly what `partial: true` reports, so createOrder as a whole is not
+    // atomic; only its bouquet persistence now is.
+    const { error: rpcErr } = await supabase.rpc("replace_order_bouquet", {
+      p_order_id: orderId,
+      p_bouquet: {
         cost_price: b.cost_price,
         sale_price: b.sale_price,
         profit: b.profit,
         margin_percent: b.margin_percent,
-        is_display: false,
-        recipe_id: recipeId,
-      })
-      .select("id")
-      .single()
-    // The order row already exists at this point and is deliberately NOT
-    // rolled back — separate PostgREST calls are separate transactions, and a
-    // compensating delete would be a fake rollback. Reporting the failure
-    // truthfully is what this stage guarantees; atomicity comes with the RPC.
-    if (bouquetErr || !bouquetRow) {
+        recipe_id: b.recipe_id ?? null,
+      },
+      p_items: toBouquetRpcItems(validatedItems.items),
+    })
+    // The RPC's own message stays behind the database boundary: it may carry
+    // ids and internal detail, so the user gets the stable generic copy.
+    if (rpcErr) {
       return failAfterOrderCreated("Заказ создан, но состав букета сохранить не удалось. Откройте заказ и добавьте букет ещё раз.")
-    }
-
-    const { error: itemsErr } = await supabase
-      .from("bouquet_items")
-      .insert(buildBouquetItemRows(bouquetRow.id, validatedItems.items))
-    if (itemsErr) {
-      return failAfterOrderCreated("Заказ создан, но состав букета сохранить не удалось. Откройте заказ и добавьте букет ещё раз.")
-    }
-
-    // Store cost_price on the order
-    const { data: costRow, error: costErr } = await supabase
-      .from("orders")
-      .update({ cost_price: b.cost_price })
-      .eq("id", orderId)
-      .eq("organization_id", orgId)
-      .select("id")
-      .maybeSingle()
-    if (costErr || !costRow) {
-      return failAfterOrderCreated("Не удалось сохранить стоимость заказа. Попробуйте ещё раз.")
     }
   }
 
@@ -527,91 +508,31 @@ export async function updateOrder(
       return { error: message }
     }
     const b = formData.bouquet
-    // A query error here used to be indistinguishable from "no bouquet yet",
-    // which silently diverted into the insert branch and could leave the order
-    // with a second bouquet (bouquets.order_id is not unique). maybeSingle()
-    // also errors when several rows already match — that is surfaced, not
-    // repaired here.
-    const { data: existingBouquet, error: lookupErr } = await supabase
-      .from("bouquets")
-      .select("id")
-      .eq("order_id", orderId)
-      .maybeSingle()
-    if (lookupErr) {
-      return failAfterOrderUpdated("Не удалось загрузить состав букета. Попробуйте ещё раз.")
-    }
-
-    let bouquetId: string | null = null
-    if (existingBouquet) {
-      // recipe_id is deliberately absent from this payload: provenance is
-      // written only on first insert and must never be overwritten by an edit.
-      const { data: updatedBouquet, error: bouquetErr } = await supabase
-        .from("bouquets")
-        .update({
-          cost_price: b.cost_price,
-          sale_price: b.sale_price,
-          profit: b.profit,
-          margin_percent: b.margin_percent,
-        })
-        .eq("id", existingBouquet.id)
-        .select("id")
-        .maybeSingle()
-      if (bouquetErr || !updatedBouquet) {
-        return failAfterOrderUpdated("Не удалось обновить состав букета. Попробуйте ещё раз.")
-      }
-
-      // Destructive: from here on the previous items are gone. B1 cannot undo
-      // this if the replacement insert below fails — it only guarantees the
-      // failure is reported instead of silently succeeding.
-      const { error: deleteErr } = await supabase
-        .from("bouquet_items")
-        .delete()
-        .eq("bouquet_id", existingBouquet.id)
-      // A bouquet may legitimately have zero items, so no row-count check.
-      if (deleteErr) {
-        return failAfterOrderUpdated("Не удалось обновить состав букета. Попробуйте ещё раз.")
-      }
-      bouquetId = existingBouquet.id
-    } else if (validatedItems.items.length > 0) {
-      const recipeId = await resolveOwnOrgRecipeId(supabase, orgId, b.recipe_id)
-      const { data: newBouquet, error: insertErr } = await supabase
-        .from("bouquets")
-        .insert({
-          order_id: orderId,
-          mode: "stock_only",
-          cost_price: b.cost_price,
-          sale_price: b.sale_price,
-          profit: b.profit,
-          margin_percent: b.margin_percent,
-          is_display: false,
-          recipe_id: recipeId,
-        })
-        .select("id")
-        .single()
-      if (insertErr || !newBouquet) {
-        return failAfterOrderUpdated("Не удалось обновить состав букета. Попробуйте ещё раз.")
-      }
-      bouquetId = newBouquet.id
-    }
-
-    if (bouquetId && validatedItems.items.length > 0) {
-      const { error: itemsErr } = await supabase
-        .from("bouquet_items")
-        .insert(buildBouquetItemRows(bouquetId, validatedItems.items))
-      if (itemsErr) {
-        return failAfterOrderUpdated("Не удалось обновить состав букета. Попробуйте ещё раз.")
-      }
-    }
-
-    const { data: costRow, error: costErr } = await supabase
-      .from("orders")
-      .update({ cost_price: b.cost_price })
-      .eq("id", orderId)
-      .eq("organization_id", orgId)
-      .select("id")
-      .maybeSingle()
-    if (costErr || !costRow) {
-      return failAfterOrderUpdated("Не удалось сохранить стоимость заказа. Попробуйте ещё раз.")
+    // A present bouquet is always a real save, empty items included: that is
+    // how an edit clears the composition, and it is why this condition stays
+    // wider than createOrder's non-empty one.
+    //
+    // Whether the order has no bouquet, one, or several is decided inside the
+    // RPC, in the same transaction as the write: it updates the single existing
+    // header (never its recipe_id, so provenance is not overwritten by an
+    // edit), creates one only when there are items, and fails closed on more
+    // than one. Re-deciding any of that here would only be a second, racier
+    // opinion — hence no bouquet lookup in this action any more.
+    const { error: rpcErr } = await supabase.rpc("replace_order_bouquet", {
+      p_order_id: orderId,
+      p_bouquet: {
+        cost_price: b.cost_price,
+        sale_price: b.sale_price,
+        profit: b.profit,
+        margin_percent: b.margin_percent,
+        recipe_id: b.recipe_id ?? null,
+      },
+      p_items: toBouquetRpcItems(validatedItems.items),
+    })
+    // Generic copy on purpose: the RPC's own message may carry ids and internal
+    // detail and stays behind the database boundary.
+    if (rpcErr) {
+      return failAfterOrderUpdated("Не удалось обновить состав букета. Попробуйте ещё раз.")
     }
   }
 

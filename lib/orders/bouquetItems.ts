@@ -1,12 +1,13 @@
 // Deterministic validation and row-building for the items of an order's
 // bouquet.
 //
-// Why this is a separate pure module: replacing an existing bouquet is a
-// delete-then-insert across two separate PostgREST requests, i.e. two separate
-// transactions. Anything that can reject the payload must therefore run BEFORE
-// the delete — once the old items are gone there is nothing left to roll back
-// to. Previously the flower_id check lived inside the row-mapping loop and
-// threw *after* the delete had already committed.
+// Why this is a separate pure module: it is the last place a bad payload can be
+// rejected in the application's own words. Order mutations now persist a
+// bouquet through the replace_order_bouquet RPC, so the delete-then-insert is a
+// single transaction and no longer leaves a half-replaced bouquet behind — but
+// that RPC reports failures in messages meant for the database boundary, not
+// for the florist. Validating here keeps the common mistakes answerable with a
+// precise user-facing message instead of a generic one.
 //
 // It validates only invariants the database already enforces today
 // (bouquet_items.quantity is `int not null check (quantity > 0)`, flower_id is
@@ -70,7 +71,13 @@ export function validateBouquetItems(items: BouquetItemInput[]): BouquetItemsVal
   return { ok: true, items: normalized }
 }
 
-/** Attaches the bouquet id to already-validated items. */
+/**
+ * Attaches the bouquet id to already-validated items.
+ *
+ * No production caller since order mutations moved to replace_order_bouquet,
+ * which builds these rows itself inside the transaction. Retained (and still
+ * covered by tests) rather than deleted as an unrelated change.
+ */
 export function buildBouquetItemRows(bouquetId: string, items: NormalizedBouquetItem[]) {
   return items.map((item) => ({
     bouquet_id: bouquetId,
