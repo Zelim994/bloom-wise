@@ -12,7 +12,8 @@
     "e2e:db:check": "node scripts/e2e-supabase.mjs check",
     "e2e:db:start": "node scripts/e2e-supabase.mjs start",
     "e2e:db:reset": "node scripts/e2e-supabase.mjs reset",
-    "e2e:db:stop": "node scripts/e2e-supabase.mjs stop"
+    "e2e:db:stop": "node scripts/e2e-supabase.mjs stop",
+    "test:db:order-bouquet": "npm run e2e:db:check && vitest run --config e2e/integration/vitest.integration.config.mts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -33,10 +34,12 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
+    "pg": "^8.23.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.11"
