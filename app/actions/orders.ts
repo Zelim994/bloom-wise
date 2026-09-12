@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import type { Order, Customer } from "@/lib/supabase/types"
 import { getOrgId } from "@/lib/services/organizationService"
 import { buildOrderStockPlan, writeOffOrderStockViaRpc, returnOrderStockViaRpc } from "@/lib/services/orderStockService"
-import { validateBouquetItems, type NormalizedBouquetItem } from "@/lib/orders/bouquetItems"
+import { validateBouquetPayload, type NormalizedBouquetItem } from "@/lib/orders/bouquetItems"
 
 export type BouquetItemForEdit = {
   flower_id: string
@@ -193,8 +193,12 @@ export async function createOrder(formData: {
   if (!orgId) return { error: "Организация не найдена" }
 
   // Validated before any write: nothing below can be rolled back once it runs.
+  // A bouquet with no items is never persisted on this path, so its header is
+  // deliberately not range-checked either — see validateBouquetPayload.
   const hasBouquet = Boolean(formData.bouquet && formData.bouquet.items.length > 0)
-  const validatedItems = hasBouquet ? validateBouquetItems(formData.bouquet!.items) : null
+  const validatedItems = hasBouquet
+    ? validateBouquetPayload(formData.bouquet!, formData.bouquet!.items)
+    : null
   if (validatedItems && !validatedItems.ok) return { error: validatedItems.error }
 
   // Find or create customer
@@ -423,7 +427,11 @@ export async function updateOrder(
 
   // Validated before any write — in particular before the destructive
   // bouquet_items delete further down, which cannot be undone.
-  const validatedItems = formData.bouquet ? validateBouquetItems(formData.bouquet.items) : null
+  // Wider than createOrder's condition on purpose: a present bouquet is always
+  // persisted here, empty items included, so its header is always validated.
+  const validatedItems = formData.bouquet
+    ? validateBouquetPayload(formData.bouquet, formData.bouquet.items)
+    : null
   if (validatedItems && !validatedItems.ok) return { error: validatedItems.error }
 
   // Update or create customer

@@ -57,15 +57,23 @@ const BQ = {
 } as const
 
 let admin: Client
+/**
+ * A second, independent connection used only for reading persisted state.
+ * Scenarios drive `admin` inside a transaction that is normally rolled back, so
+ * observing on that same connection could not distinguish "the RPC left nothing
+ * behind" from "the harness rolled the transaction back". Reading here, after
+ * the scenario's transaction has ended, is what makes the assertion meaningful.
+ */
+let observer: Client
 
-/** Reads persisted state through a connection that is NOT the actor's. */
+/** Reads committed state on the observer connection — never the actor's. */
 async function observe(orderId: string) {
-  const { rows: bouquets } = await admin.query(
+  const { rows: bouquets } = await observer.query(
     `select id, cost_price::text, sale_price::text, profit::text, margin_percent::text, recipe_id
        from public.bouquets where order_id = $1 order by id`,
     [orderId],
   )
-  const { rows: items } = await admin.query(
+  const { rows: items } = await observer.query(
     `select bi.bouquet_id, bi.flower_id, bi.variety_id, bi.color_id,
             bi.quantity, bi.unit_cost::text, bi.total_cost::text
        from public.bouquet_items bi
@@ -73,7 +81,7 @@ async function observe(orderId: string) {
       where b.order_id = $1 order by bi.quantity, bi.unit_cost`,
     [orderId],
   )
-  const { rows: order } = await admin.query(
+  const { rows: order } = await observer.query(
     `select cost_price::text, status, stock_written_off from public.orders where id = $1`,
     [orderId],
   )
@@ -94,6 +102,7 @@ async function callRpc(
 
 beforeAll(async () => {
   admin = await connect()
+  observer = await connect()
   await assertCanonicalLocalDatabase(admin)
   await cleanup(admin) // clear any residue from an earlier interrupted run
   await createTenants(admin)
@@ -140,7 +149,7 @@ afterAll(async () => {
   // Only clean up when nothing failed; a failed run keeps its evidence.
   const failed = Boolean((globalThis as { __bwSuiteFailed?: boolean }).__bwSuiteFailed)
   if (!failed) await cleanup(admin)
-  await admin.end()
+  await Promise.all([admin.end(), observer.end()].map((p) => p.catch(() => undefined)))
 })
 
 describe("replace_order_bouquet — local transaction proof", () => {
@@ -192,33 +201,86 @@ describe("replace_order_bouquet — local transaction proof", () => {
     expect(after.items.map((i) => i.quantity).sort()).toEqual([3, 5])
   })
 
-  it("S2 rolls back the item DELETE when the replacement INSERT fails", async () => {
+  // The replacement for the original S2, which used an unvalidated
+  // quantity x unit_cost overflow as the post-delete fault. That payload is now
+  // rejected by replace_order_bouquet BEFORE any mutation (see the R-scenarios),
+  // so it can no longer reach the INSERT — a controlled fault is injected here
+  // instead, and the overflow keeps its own test as a validation case.
+  //
+  // What this proves, stated exactly: execution reached the bouquet_items
+  // INSERT, which by the function's source order is after the bouquet header
+  // UPDATE and after the DELETE of the old items; the fault propagated out of
+  // the RPC instead of being swallowed; and once the transaction ended, an
+  // independent connection sees the pre-call state. It does NOT claim the
+  // function runs in a transaction of its own — a plpgsql function always
+  // executes inside its caller's transaction.
+  it("S2 leaves nothing behind when the item INSERT fails after the DELETE", async () => {
     const before = await observe(ORDER.rollback)
     expect(before.items).toHaveLength(1)
 
-    let code: string | undefined
+    const SENTINEL = "BW_ITEST_POST_DELETE_INSERT_FAULT"
+    const fault = await connect()
     let message = ""
+
     try {
-      await callRpc(TENANT_A, ORDER.rollback, bouquetPayload({ cost_price: 300 }), [
-        // valid for every validation rule, but quantity * unit_cost overflows
-        // bouquet_items.total_cost numeric(10,2) at INSERT time — i.e. AFTER
-        // the header UPDATE and the DELETE of the old items.
-        itemPayload(TENANT_A, 2, 99999999.99),
-      ])
-    } catch (error) {
-      const e = asPgError(error)
-      code = e.code
-      message = e.message
+      await fault.query("begin")
+      // The savepoint is taken BEFORE the fault objects are created, so the
+      // rollback below removes them together with everything the RPC did.
+      // Nothing is left to drop, and a crashed process rolls back on disconnect.
+      await fault.query("savepoint bw_post_delete_fault")
+      await fault.query(`
+        create function public.bw_itest_post_delete_fault() returns trigger
+        language plpgsql as $fn$
+        begin
+          raise exception '${SENTINEL}';
+        end;
+        $fn$`)
+      await fault.query(`
+        create trigger bw_itest_post_delete_fault
+          before insert on public.bouquet_items
+          for each row execute function public.bw_itest_post_delete_fault()`)
+
+      await fault.query("select set_config('request.jwt.claim.sub', $1, true)", [TENANT_A.userId])
+      await fault.query("set local role authenticated")
+      const { rows: who } = await fault.query<{ who: string; uid: string; org: string }>(
+        "select current_user as who, auth.uid()::text as uid, public.get_user_organization_id()::text as org",
+      )
+      expect(who[0]).toEqual({ who: "authenticated", uid: TENANT_A.userId, org: TENANT_A.orgId })
+
+      try {
+        // Valid under every G1 range rule: the only thing that can fail is the
+        // injected trigger, and only once the INSERT is actually reached.
+        await fault.query(RPC, [
+          ORDER.rollback,
+          JSON.stringify(bouquetPayload({ cost_price: 777 })),
+          JSON.stringify([itemPayload(TENANT_A, 1, 10)]),
+        ])
+      } catch (error) {
+        message = asPgError(error).message
+      }
+
+      expect(message).toContain(SENTINEL)
+
+      await fault.query("rollback to savepoint bw_post_delete_fault")
+      await fault.query("commit")
+    } finally {
+      await fault.query("rollback").catch(() => undefined)
+      await fault.end().catch(() => undefined)
     }
 
-    expect(code).toBe("22003")                          // numeric_value_out_of_range
-    expect(message.toLowerCase()).toContain("numeric field overflow")
-
     const after = await observe(ORDER.rollback)
-    expect(after.bouquets).toHaveLength(1)
-    expect(after.bouquets[0]).toEqual(before.bouquets[0])   // header + recipe_id
-    expect(after.items).toEqual(before.items)              // OLD ITEMS SURVIVED
+    expect(after.bouquets).toEqual(before.bouquets)   // header + recipe_id untouched
+    expect(after.items).toEqual(before.items)          // OLD ITEMS SURVIVED
     expect(after.order.cost_price).toBe(before.order.cost_price)
+
+    // No test-only object may outlive the scenario.
+    const { rows: leftovers } = await observer.query<{ fns: string; trgs: string }>(`
+      select
+        (select count(*)::text from pg_proc
+          where proname = 'bw_itest_post_delete_fault')                    as fns,
+        (select count(*)::text from pg_trigger
+          where tgname = 'bw_itest_post_delete_fault')                     as trgs`)
+    expect(leftovers[0]).toEqual({ fns: "0", trgs: "0" })
   })
 
   it("S3 refuses another tenant's order", async () => {
@@ -444,5 +506,86 @@ describe("replace_order_bouquet — concurrent serialization", () => {
       await s2.query("rollback").catch(() => undefined)
       await Promise.all([s1.end(), s2.end(), watcher.end()].map((p) => p.catch(() => undefined)))
     }
+  })
+
+  // Authoritative range validation (CORE-READY-G1). Every rejection below must
+  // be a controlled domain error raised BEFORE any mutation — never a raw
+  // 22003 numeric overflow discovered at write time. Each case runs against an
+  // order that already has a persisted bouquet, so "nothing moved" is a real
+  // assertion rather than a statement about an empty row set.
+  describe("numeric domain", () => {
+    const expectRejected = async (
+      bouquet: unknown,
+      items: unknown[],
+      expected: RegExp,
+    ) => {
+      const before = await observe(ORDER.rollback)
+      let code: string | undefined
+      let message = ""
+      try {
+        await callRpc(TENANT_A, ORDER.rollback, bouquet, items)
+      } catch (error) {
+        const e = asPgError(error)
+        code = e.code
+        message = e.message
+      }
+      expect(message).toMatch(expected)
+      expect(code).not.toBe("22003")                  // not a raw overflow any more
+      expect(message.toLowerCase()).not.toContain("numeric field overflow")
+      expect(await observe(ORDER.rollback)).toEqual(before)
+    }
+
+    it("R1 rejects an item whose quantity x unit_cost cannot be stored", async () => {
+      await expectRejected(
+        bouquetPayload(),
+        [itemPayload(TENANT_A, 2, 99999999.99)],
+        /Сумма позиции букета вне допустимого диапазона/,
+      )
+    })
+
+    it("R2 rejects an out-of-range unit_cost", async () => {
+      await expectRejected(
+        bouquetPayload(),
+        [itemPayload(TENANT_A, 1, 1e30)],
+        /Себестоимость позиции букета вне допустимого диапазона/,
+      )
+    })
+
+    it("R3 rejects a quantity above the integer domain", async () => {
+      await expectRejected(
+        bouquetPayload(),
+        [itemPayload(TENANT_A, 2147483648, 1)],
+        /Количество в позиции букета вне допустимого диапазона/,
+      )
+    })
+
+    it("R4 rejects an out-of-range bouquet money value", async () => {
+      await expectRejected(
+        bouquetPayload({ cost_price: 1e30 }),
+        [itemPayload(TENANT_A, 1, 10)],
+        /Денежное значение букета вне допустимого диапазона/,
+      )
+    })
+
+    it("R5 rejects an out-of-range margin_percent", async () => {
+      await expectRejected(
+        bouquetPayload({ margin_percent: 1000 }),
+        [itemPayload(TENANT_A, 1, 10)],
+        /Маржа букета вне допустимого диапазона/,
+      )
+    })
+
+    // The measured rounding edge: PostgreSQL rounds to the column scale before
+    // checking precision, so these values are storable and must NOT be rejected.
+    it("R6 accepts the values PostgreSQL rounds down into range", async () => {
+      const result = await callRpc(
+        TENANT_A,
+        ORDER.success,
+        bouquetPayload({ cost_price: 99999999.994, margin_percent: 999.994 }),
+        [itemPayload(TENANT_A, 1, 99999999.994)],
+      )
+      expect(result.ok).toBe(true)
+      expect(result.bouquet_id).toBe(BQ.success)
+    })
   })
 })

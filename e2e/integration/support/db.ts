@@ -33,6 +33,13 @@ const BRAIN_DUMP_PORTS = [54320, 54321, 54322, 54323, 54324, 54327, 54329]
 /** The canonical baseline this suite is written against. */
 const CANONICAL_MIGRATION = "20260911180000"
 
+/**
+ * Forward migrations that must sit on top of the baseline. The suite asserts
+ * behaviour these add, so running against a database that only has the baseline
+ * would fail in a confusing way instead of refusing up front.
+ */
+const REQUIRED_FORWARD_MIGRATIONS = ["20260912120000"] as const
+
 function assertTargetIsLocalBloomWise(): void {
   if (LOCAL_DB.host !== "127.0.0.1") {
     throw new Error(`refusing non-local host ${LOCAL_DB.host}`)
@@ -60,6 +67,7 @@ export async function assertCanonicalLocalDatabase(client: Client): Promise<void
   const { rows } = await client.query<{
     port: string
     migrations: string
+    forward: string
     rpc: string
     counters: string
     diagnostic_fn: string
@@ -69,6 +77,8 @@ export async function assertCanonicalLocalDatabase(client: Client): Promise<void
       current_setting('port')                                                         as port,
       (select count(*)::text from supabase_migrations.schema_migrations
         where version = $1)                                                           as migrations,
+      (select count(*)::text from supabase_migrations.schema_migrations
+        where version = any($2::text[]))                                              as forward,
       (select count(*)::text from pg_proc
         where pronamespace = 'public'::regnamespace and proname = 'replace_order_bouquet') as rpc,
       (select count(*)::text from pg_class
@@ -77,12 +87,18 @@ export async function assertCanonicalLocalDatabase(client: Client): Promise<void
       (select count(*)::text from information_schema.columns
         where table_schema = 'public' and table_name = 'profiles'
           and column_name = 'ai_profile_enc')                                         as ai_column
-  `, [CANONICAL_MIGRATION])
+  `, [CANONICAL_MIGRATION, REQUIRED_FORWARD_MIGRATIONS as unknown as string[]])
 
   const r = rows[0]
   const problems: string[] = []
   if (r.port !== "5432") problems.push(`unexpected server port ${r.port} (container-internal 5432 expected)`)
   if (r.migrations !== "1") problems.push(`canonical migration ${CANONICAL_MIGRATION} applied ${r.migrations} times, expected once`)
+  if (r.forward !== String(REQUIRED_FORWARD_MIGRATIONS.length)) {
+    problems.push(
+      `expected ${REQUIRED_FORWARD_MIGRATIONS.length} forward migration(s) ` +
+      `(${REQUIRED_FORWARD_MIGRATIONS.join(", ")}), found ${r.forward}`,
+    )
+  }
   if (r.rpc !== "1") problems.push("public.replace_order_bouquet is missing")
   if (r.counters !== "1") problems.push("public.organization_order_counters is missing")
   if (r.diagnostic_fn !== "0") problems.push("bw_plpgsql_test is present — this is not the cleaned baseline")
