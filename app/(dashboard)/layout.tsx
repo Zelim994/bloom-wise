@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { DashboardShell } from "@/components/layout/DashboardShell"
 import { getSafeOrganizationLogoUrl } from "@/lib/organization/logo"
+import { getAccountState, getDashboardRedirect } from "@/lib/auth/accountState"
 
 export default async function DashboardLayout({
   children,
@@ -10,37 +11,24 @@ export default async function DashboardLayout({
 }) {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Только чтение: организация создаётся исключительно явной формой /onboarding
+  const state = await getAccountState(supabase)
 
-  if (!user) redirect("/login")
+  const target = getDashboardRedirect(state)
+  if (target) redirect(target)
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
+  if (state.status !== "member") {
+    // profile_error: не выдаём сбой чтения за «нет организации»
+    throw new Error("Не удалось загрузить профиль пользователя")
+  }
+
+  const { profile, organizationId } = state
+
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("name, settings")
+    .eq("id", organizationId)
     .single()
-
-  if (profile?.is_active === false) {
-    redirect("/deactivated")
-  }
-
-  // Пользователь подтвердил email, но ещё не создал организацию
-  // (например, пришёл через /auth/callback, минуя login)
-  if (profile && !profile.organization_id) {
-    const salonName =
-      (user.user_metadata?.salon_name as string | undefined) ?? "Мой салон"
-    await supabase.rpc("create_my_organization", { p_org_name: salonName })
-  }
-
-  const { data: org } = profile?.organization_id
-    ? await supabase
-        .from("organizations")
-        .select("name, settings")
-        .eq("id", profile.organization_id)
-        .single()
-    : { data: null }
 
   const orgLogoUrl = getSafeOrganizationLogoUrl(org?.settings)
 

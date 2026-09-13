@@ -5,6 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { getSafeNext } from "@/lib/auth/next"
+import {
+  getPostSignupDestination,
+  getSignupEmailRedirectTo,
+  isInvitePath,
+} from "@/lib/auth/onboarding"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,7 +19,7 @@ function RegisterContent() {
   const router = useRouter()
   const rawNext = useSearchParams().get("next")
   const safeNext = getSafeNext(rawNext)
-  const isInviteFlow = safeNext?.startsWith("/invite/") === true
+  const isInviteFlow = isInvitePath(safeNext)
 
   const [fullName, setFullName] = useState("")
   const [salonName, setSalonName] = useState("")
@@ -35,16 +40,14 @@ function RegisterContent() {
       ? { full_name: fullName }
       : { full_name: fullName, role: "owner", salon_name: salonName }
 
+    // Письмо подтверждения ведёт обратно в приглашение или на онбординг
     const signUpOptions: Parameters<typeof supabase.auth.signUp>[0] = {
       email,
       password,
-      options: { data: userData },
-    }
-
-    // Invite flow: указываем emailRedirectTo, чтобы callback знал о приглашении
-    if (isInviteFlow && safeNext) {
-      signUpOptions.options!.emailRedirectTo =
-        `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNext)}`
+      options: {
+        data: userData,
+        emailRedirectTo: getSignupEmailRedirectTo(window.location.origin, safeNext),
+      },
     }
 
     const { data: authData, error: authError } = await supabase.auth.signUp(signUpOptions)
@@ -62,13 +65,9 @@ function RegisterContent() {
       return
     }
 
-    // Сессия есть (подтверждение отключено)
-    // Invite flow: не создаём организацию — redirect на /invite/[token]
-    if (authData.user && !isInviteFlow) {
-      await supabase.rpc("create_my_organization", { p_org_name: salonName })
-    }
-
-    router.push(safeNext || "/")
+    // Сессия есть (подтверждение отключено): тот же адрес, что и из письма.
+    // Организацию не создаём — это делает только явная форма /onboarding.
+    router.push(getPostSignupDestination(safeNext))
     router.refresh()
   }
 
@@ -97,7 +96,7 @@ function RegisterContent() {
             <p className="text-xs text-zinc-400 mb-6">
               {isInviteFlow
                 ? "Перейдите по ссылке в письме — после этого вы вернётесь к странице приглашения."
-                : "Перейдите по ссылке в письме — после этого вы сможете войти в BloomWise."}
+                : "Перейдите по ссылке в письме — после этого вы сможете создать свой салон в BloomWise."}
             </p>
             <Link href={loginHref}>
               <Button

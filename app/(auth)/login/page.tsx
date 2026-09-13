@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { getSafeNext } from "@/lib/auth/next"
+import { getPostLoginDestination, isInvitePath } from "@/lib/auth/onboarding"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,7 +15,7 @@ function LoginContent() {
   const searchParams = useSearchParams()
   const rawNext = searchParams.get("next")
   const safeNext = getSafeNext(rawNext)
-  const isInviteFlow = safeNext?.startsWith("/invite/") === true
+  const isInviteFlow = isInvitePath(safeNext)
   const resetSuccess = searchParams.get("reset") === "success"
 
   const [email, setEmail] = useState("")
@@ -29,7 +30,7 @@ function LoginContent() {
 
     const supabase = createClient()
 
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
+    const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
@@ -40,21 +41,8 @@ function LoginContent() {
       return
     }
 
-    // Invite flow: не создаём организацию — acceptTeamInvitation сделает это
-    if (data.user && !isInviteFlow) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("id", data.user.id)
-        .single()
-
-      if (!profile?.organization_id) {
-        const salonName = data.user.user_metadata?.salon_name ?? "Мой салон"
-        await supabase.rpc("create_my_organization", { p_org_name: salonName })
-      }
-    }
-
-    router.push(safeNext || "/")
+    // Только вход и редирект: без организации DashboardLayout отправит на /onboarding
+    router.push(getPostLoginDestination(safeNext))
     router.refresh()
   }
 

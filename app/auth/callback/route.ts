@@ -3,6 +3,9 @@ import { getSafeNext } from "@/lib/auth/next"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
+// Только обмен кода на сессию и безопасный редирект. Организацию не создаём:
+// обычная регистрация приходит сюда с next=/onboarding, приглашение — с
+// next=/invite/<token>, восстановление пароля — с next=/reset-password.
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
@@ -10,23 +13,9 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     const supabase = await createClient()
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
       const safeNext = getSafeNext(rawNext) ?? "/"
-      const isInviteFlow = safeNext.startsWith("/invite/")
-      const isRecoveryFlow = safeNext === "/reset-password"
-
-      if (data.user && !isInviteFlow && !isRecoveryFlow) {
-        const salonName =
-          (data.user.user_metadata?.salon_name as string | undefined) ?? "Мой салон"
-        const { error: rpcError } = await supabase.rpc("create_my_organization", {
-          p_org_name: salonName,
-        })
-        if (rpcError) {
-          console.error("[auth/callback] create_my_organization:", rpcError.message)
-        }
-      }
-
       return NextResponse.redirect(`${origin}${safeNext}`)
     }
   }
