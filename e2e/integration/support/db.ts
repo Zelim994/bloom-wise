@@ -38,7 +38,7 @@ const CANONICAL_MIGRATION = "20260911180000"
  * behaviour these add, so running against a database that only has the baseline
  * would fail in a confusing way instead of refusing up front.
  */
-const REQUIRED_FORWARD_MIGRATIONS = ["20260912120000"] as const
+const REQUIRED_FORWARD_MIGRATIONS = ["20260912120000", "20260912170000"] as const
 
 function assertTargetIsLocalBloomWise(): void {
   if (LOCAL_DB.host !== "127.0.0.1") {
