@@ -2,12 +2,16 @@
 
 import { Suspense, useState } from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { getForgotPasswordErrorMessage } from "@/lib/auth/authReturn"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
 function ForgotPasswordContent() {
+  // Сюда /auth/callback отправляет неудавшуюся ссылку восстановления
+  const linkError = getForgotPasswordErrorMessage(useSearchParams().get("error"))
   const [email, setEmail] = useState("")
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState("")
@@ -68,6 +72,11 @@ function ForgotPasswordContent() {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
+              {linkError && (
+                <div role="alert" className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
+                  <p className="text-sm text-amber-700">{linkError}</p>
+                </div>
+              )}
               <p className="text-sm text-zinc-600 leading-relaxed">
                 Введите email вашего аккаунта — мы отправим ссылку для сброса пароля.
               </p>
