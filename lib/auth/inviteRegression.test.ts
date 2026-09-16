@@ -11,6 +11,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { getSafeNext } from "./next"
 import { createSupabaseMock, elementStrings, type SupabaseMockOptions } from "./testing/supabaseMock"
 
 const current = vi.hoisted(() => ({ client: null as unknown }))
@@ -25,7 +26,10 @@ const { GET } = await import("@/app/auth/callback/route")
 const { acceptTeamInvitation } = await import("@/app/actions/invitations")
 const { default: InvitePage } = await import("@/app/invite/[token]/page")
 
-const ORIGIN = "https://app.bloomwise.test"
+// Origin, который видит Next внутри (dev на localhost или upstream за прокси),
+// и отличающийся от него публичный origin, открытый в браузере пользователя.
+const INTERNAL_ORIGIN = "http://localhost:3100"
+const PUBLIC_ORIGIN = "http://127.0.0.1:3100"
 const USER = { id: "user-1", user_metadata: { salon_name: "Салон" } }
 
 function useSupabase(options: SupabaseMockOptions) {
@@ -34,10 +38,17 @@ function useSupabase(options: SupabaseMockOptions) {
   return mock
 }
 
-async function callback(query: string) {
-  const request = new Request(`${ORIGIN}/auth/callback${query}`)
+/** Возвращает сырой Location — ровно то, что получит браузер. */
+async function callback(query: string, headers: Record<string, string> = {}) {
+  const request = new Request(`${INTERNAL_ORIGIN}/auth/callback${query}`, { headers })
   const response = await GET(request as never)
+  expect(response.status).toBe(307)
   return response.headers.get("location")
+}
+
+/** Как браузер разрешит Location от URL, который открыл он сам. */
+function resolvedByBrowser(location: string | null): URL {
+  return new URL(location!, `${PUBLIC_ORIGIN}/auth/callback?code=x`)
 }
 
 beforeEach(() => {
@@ -51,7 +62,7 @@ describe("GET /auth/callback", () => {
       rpc: { create_my_organization: { data: "org-new", error: null } },
     })
 
-    expect(await callback("?code=abc&next=%2Fonboarding")).toBe(`${ORIGIN}/onboarding`)
+    expect(await callback("?code=abc&next=%2Fonboarding")).toBe(`/onboarding`)
     expect(mock.client.auth.exchangeCodeForSession).toHaveBeenCalledWith("abc")
     expect(mock.rpc).not.toHaveBeenCalled()
     expect(mock.queries).toEqual([])
@@ -61,7 +72,7 @@ describe("GET /auth/callback", () => {
     const mock = useSupabase({ user: USER })
 
     expect(await callback("?code=abc&next=%2Finvite%2Fexample-token")).toBe(
-      `${ORIGIN}/invite/example-token`
+      `/invite/example-token`
     )
     expect(mock.rpc).not.toHaveBeenCalled()
   })
@@ -69,7 +80,7 @@ describe("GET /auth/callback", () => {
   it("keeps the password recovery destination", async () => {
     const mock = useSupabase({ user: USER })
 
-    expect(await callback("?code=abc&next=%2Freset-password")).toBe(`${ORIGIN}/reset-password`)
+    expect(await callback("?code=abc&next=%2Freset-password")).toBe(`/reset-password`)
     expect(mock.rpc).not.toHaveBeenCalled()
   })
 
@@ -80,28 +91,188 @@ describe("GET /auth/callback", () => {
   ])("falls back to / for an unsafe next (%s)", async (_label, next) => {
     const mock = useSupabase({ user: USER })
 
-    expect(await callback(`?code=abc&next=${next}`)).toBe(`${ORIGIN}/`)
+    expect(await callback(`?code=abc&next=${next}`)).toBe(`/`)
     expect(mock.rpc).not.toHaveBeenCalled()
   })
 
   it("falls back to / when next is absent (the dashboard gate handles orgless users)", async () => {
     const mock = useSupabase({ user: USER })
 
-    expect(await callback("?code=abc")).toBe(`${ORIGIN}/`)
+    expect(await callback("?code=abc")).toBe(`/`)
     expect(mock.rpc).not.toHaveBeenCalled()
   })
 
-  it("sends a failed exchange to /login?error=auth", async () => {
-    const mock = useSupabase({ user: null, exchangeError: { message: "expired" } })
+  it("a failed exchange (expired, reused or other-browser code) keeps onboarding through login", async () => {
+    const mock = useSupabase({ user: null, exchangeError: { message: "invalid flow state" } })
 
-    expect(await callback("?code=bad&next=%2Fonboarding")).toBe(`${ORIGIN}/login?error=auth`)
+    expect(await callback("?code=bad&next=%2Fonboarding")).toBe(
+      `/login?error=auth&next=%2Fonboarding`
+    )
     expect(mock.rpc).not.toHaveBeenCalled()
   })
 
-  it("sends a request without a code to /login?error=auth without touching Supabase", async () => {
+  it("a failed exchange keeps the invitation through login", async () => {
+    const mock = useSupabase({ user: null, exchangeError: { message: "code verifier missing" } })
+
+    expect(await callback("?code=reused&next=%2Finvite%2Fexample-token")).toBe(
+      `/login?error=auth&next=%2Finvite%2Fexample-token`
+    )
+    expect(mock.rpc).not.toHaveBeenCalled()
+  })
+
+  it("an expired link without a code (Supabase error params) keeps the invitation, no exchange", async () => {
     const mock = useSupabase({ user: USER })
 
-    expect(await callback("?next=%2Finvite%2Fexample-token")).toBe(`${ORIGIN}/login?error=auth`)
+    expect(
+      await callback("?error=access_denied&error_code=otp_expired&next=%2Finvite%2Fexample-token")
+    ).toBe(`/login?error=auth&next=%2Finvite%2Fexample-token`)
+    expect(mock.client.auth.exchangeCodeForSession).not.toHaveBeenCalled()
+    expect(mock.rpc).not.toHaveBeenCalled()
+  })
+
+  it("a failed recovery link goes to request a new one, not to reset-password", async () => {
+    const mock = useSupabase({ user: null, exchangeError: { message: "expired" } })
+
+    expect(await callback("?code=old&next=/reset-password")).toBe(
+      `/forgot-password?error=recovery_link`
+    )
+    expect(await callback("?error=access_denied&next=%2Freset-password")).toBe(
+      `/forgot-password?error=recovery_link`
+    )
+    expect(mock.rpc).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ["absolute URL", "https%3A%2F%2Fevil.example"],
+    ["protocol-relative", "%2F%2Fevil.example"],
+    ["encoded double slash", "%2F%252F%252Fevil.example"],
+    ["auth loop", "%2Flogin"],
+    ["callback loop", "%2Fauth%2Fcallback"],
+  ])("a failed link never forwards an unsafe next (%s)", async (_label, next) => {
+    useSupabase({ user: null, exchangeError: { message: "expired" } })
+
+    expect(await callback(`?code=bad&next=${next}`)).toBe(`/login?error=auth`)
+    expect(await callback(`?next=${next}`)).toBe(`/login?error=auth`)
+  })
+
+  it.each([
+    ["success", { user: USER }, "?code=abc&next=%2Freset-password", "/reset-password"],
+    ["failure", { user: null, exchangeError: { message: "expired" } }, "?code=old&next=%2Finvite%2Ft", "/login"],
+  ] as const)(
+    "%s keeps the browser's public host when Next sees an internal origin",
+    async (_label, options, query, pathname) => {
+      useSupabase(options)
+
+      const location = await callback(query, {
+        host: "localhost:3100",
+        "x-forwarded-host": "evil.example",
+        "x-forwarded-proto": "https",
+      })
+
+      // Относительный путь: ни внутреннего, ни пересланного хоста в Location нет
+      expect(location).toMatch(/^\/(?![/\\])/)
+      expect(location).not.toContain("localhost")
+      expect(location).not.toContain("evil.example")
+      const url = resolvedByBrowser(location)
+      expect(url.origin).toBe(PUBLIC_ORIGIN)
+      expect(url.pathname).toBe(pathname)
+    }
+  )
+
+  it.each([
+    "https%3A%2F%2Fevil.example",
+    "%2F%2Fevil.example",
+    "%2F%5Cevil.example",
+    "%5C%5Cevil.example",
+    "%2F%09%2Fevil.example",
+    "%2F%0D%0ALocation%3A%20https%3A%2F%2Fevil.example",
+    "javascript%3Aalert(1)",
+    "%2F%252F%252Fevil.example",
+    // getSafeNext принимает (тот же origin), но канонизация даёт "//evil.example"
+    encodeURIComponent("/safe/..//evil.example"),
+    encodeURIComponent("/safe/..\\/evil.example"),
+    encodeURIComponent("/a/b/../..//evil.example/path?x=1"),
+  ])("a hostile next=%s never yields an off-origin Location (success or failure)", async (next) => {
+    for (const options of [{ user: USER }, { user: null, exchangeError: { message: "expired" } }]) {
+      current.client = createSupabaseMock(options).client
+      for (const query of [`?code=abc&next=${next}`, `?next=${next}`]) {
+        const location = await callback(query)
+        expect(location).toMatch(/^\/(?![/\\])/)
+        expect(location).not.toMatch(/[\r\n]/)
+        expect(resolvedByBrowser(location).origin).toBe(PUBLIC_ORIGIN)
+      }
+    }
+  })
+
+  it("never emits a network-path Location for a dot-segment target that collapses to //host", async () => {
+    // Регрессия сериализации: до канонизации значение внутреннее, после — "//evil.example"
+    expect(getSafeNext("/safe/..//evil.example")).toBe("/safe/..//evil.example")
+
+    useSupabase({ user: USER })
+    const success = await callback(`?code=abc&next=${encodeURIComponent("/safe/..//evil.example")}`)
+    expect(success).toBe("/")
+
+    useSupabase({ user: null, exchangeError: { message: "expired" } })
+    const failure = await callback(`?code=bad&next=${encodeURIComponent("/safe/..//evil.example")}`)
+    expect(failure).toBe("/login?error=auth")
+
+    for (const location of [success, failure]) {
+      expect(resolvedByBrowser(location).origin).toBe(PUBLIC_ORIGIN)
+    }
+  })
+
+  it("serializes a safe Unicode query into an ASCII Location instead of throwing", async () => {
+    useSupabase({ user: USER })
+
+    const location = await callback(`?code=abc&next=${encodeURIComponent("/onboarding?name=Салон")}`)
+    expect(location).toBe("/onboarding?name=%D0%A1%D0%B0%D0%BB%D0%BE%D0%BD")
+    expect(() => new Headers({ Location: location! })).not.toThrow()
+
+    const url = resolvedByBrowser(location)
+    expect(url.origin).toBe(PUBLIC_ORIGIN)
+    expect(url.pathname).toBe("/onboarding")
+    expect(url.searchParams.get("name")).toBe("Салон")
+  })
+
+  it("serializes a Unicode invite path and hash, keeping them internal", async () => {
+    useSupabase({ user: USER })
+
+    const location = await callback(`?code=abc&next=${encodeURIComponent("/invite/токен#Приглашение")}`)
+    expect(location).toBe(
+      "/invite/%D1%82%D0%BE%D0%BA%D0%B5%D0%BD#%D0%9F%D1%80%D0%B8%D0%B3%D0%BB%D0%B0%D1%88%D0%B5%D0%BD%D0%B8%D0%B5"
+    )
+    expect(decodeURIComponent(resolvedByBrowser(location).pathname)).toBe("/invite/токен")
+  })
+
+  it("keeps an already percent-encoded invitation byte-for-byte (no double encoding)", async () => {
+    useSupabase({ user: USER })
+
+    const target = "/invite/Ab%2Fc%20d?src=mail%26x"
+    expect(await callback(`?code=abc&next=${encodeURIComponent(target)}`)).toBe(target)
+  })
+
+  it("canonicalizes internal dot segments", async () => {
+    useSupabase({ user: USER })
+
+    expect(await callback(`?code=abc&next=${encodeURIComponent("/invite/../onboarding")}`)).toBe("/onboarding")
+  })
+
+  it("a failed Unicode invite link still returns through login with a safe ASCII next", async () => {
+    useSupabase({ user: null, exchangeError: { message: "expired" } })
+
+    const location = await callback(`?code=bad&next=${encodeURIComponent("/invite/токен?name=Салон")}`)
+    expect(location).toMatch(/^\/login\?error=auth&next=/)
+    expect(() => new Headers({ Location: location! })).not.toThrow()
+
+    const url = resolvedByBrowser(location)
+    expect(url.origin).toBe(PUBLIC_ORIGIN)
+    expect(getSafeNext(url.searchParams.get("next"))).toBe("/invite/токен?name=Салон")
+  })
+
+  it("a request without code or next goes to /login?error=auth without touching Supabase", async () => {
+    const mock = useSupabase({ user: USER })
+
+    expect(await callback("")).toBe(`/login?error=auth`)
     expect(mock.client.auth.exchangeCodeForSession).not.toHaveBeenCalled()
   })
 })

@@ -93,10 +93,14 @@ function RegisterContent() {
               Мы отправили письмо на
             </p>
             <p className="text-sm font-medium text-zinc-800 mb-4">{email}</p>
-            <p className="text-xs text-zinc-400 mb-6">
+            <p className="text-xs text-zinc-400 mb-2">
               {isInviteFlow
                 ? "Перейдите по ссылке в письме — после этого вы вернётесь к странице приглашения."
                 : "Перейдите по ссылке в письме — после этого вы сможете создать свой салон в BloomWise."}
+            </p>
+            <p className="text-xs text-zinc-400 mb-6">
+              Откройте ссылку в этом же браузере и на этом же устройстве — ссылка,
+              открытая в другом браузере или почтовом приложении, не выполнит вход.
             </p>
             <Link href={loginHref}>
               <Button
