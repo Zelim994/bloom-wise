@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useState } from "react"
+import { Suspense, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -9,7 +9,22 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
+const subscribe = () => () => {}
+const clientReady = () => true
+const serverReady = () => false
+
+function FormLoadingMessage() {
+  return (
+    <p role="status" className="text-sm text-zinc-600">
+      Загружаем форму. Если она не становится доступной, обновите страницу
+      и проверьте, что JavaScript включён.
+    </p>
+  )
+}
+
 function ForgotPasswordContent() {
+  // A server-rendered form must not submit as a plain GET before hydration.
+  const ready = useSyncExternalStore(subscribe, clientReady, serverReady)
   // Сюда /auth/callback отправляет неудавшуюся ссылку восстановления
   const linkError = getForgotPasswordErrorMessage(useSearchParams().get("error"))
   const [email, setEmail] = useState("")
@@ -22,21 +37,20 @@ function ForgotPasswordContent() {
     setError("")
     setLoading(true)
 
-    const supabase = createClient()
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
-    })
-
-    setLoading(false)
-
-    if (resetError) {
+    try {
+      const supabase = createClient()
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+      })
+      if (resetError) throw resetError
+      // Neutral message: never disclose whether the account exists.
+      setSubmitted(true)
+    } catch {
       // Only show generic error for technical failures — never reveal email existence
       setError("Не удалось отправить ссылку. Попробуйте позже.")
-      return
+    } finally {
+      setLoading(false)
     }
-
-    // Always show neutral message — do not reveal whether the email exists
-    setSubmitted(true)
   }
 
   return (
@@ -72,6 +86,7 @@ function ForgotPasswordContent() {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
+              {!ready && <FormLoadingMessage />}
               {linkError && (
                 <div role="alert" className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
                   <p className="text-sm text-amber-700">{linkError}</p>
@@ -92,17 +107,18 @@ function ForgotPasswordContent() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  disabled={!ready || loading}
                   className="h-10 border-zinc-200"
                 />
               </div>
 
               {error && (
-                <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
+                <p role="alert" className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
               )}
 
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={!ready || loading}
                 className="w-full h-10 bg-rose-500 hover:bg-rose-600 text-white font-medium"
               >
                 {loading ? "Отправляем..." : "Отправить ссылку"}
@@ -123,7 +139,11 @@ function ForgotPasswordContent() {
 
 export default function ForgotPasswordPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-[#f8f8fa] px-4">
+        <div className="w-full max-w-sm"><FormLoadingMessage /></div>
+      </div>
+    }>
       <ForgotPasswordContent />
     </Suspense>
   )
