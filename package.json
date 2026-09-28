@@ -14,7 +14,9 @@
     "e2e:db:reset": "node scripts/e2e-supabase.mjs reset",
     "e2e:db:stop": "node scripts/e2e-supabase.mjs stop",
     "test:db:order-bouquet": "npm run e2e:db:check && vitest run --config e2e/integration/vitest.integration.config.mts",
-    "test:browser:forgot-password": "node --test scripts/forgot-password.browser.mjs"
+    "test:browser:forgot-password": "node --test scripts/forgot-password.browser.mjs",
+    "test:browser:recipe-save": "node scripts/recipe-save.real-browser.mjs",
+    "test:browser:recipes": "node scripts/recipe-save.browser.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -44,6 +46,7 @@
     "playwright": "1.63.0",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "vite": "8.2.2"
   }
 }

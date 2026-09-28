@@ -5,7 +5,7 @@
 // be hand-edited. Do not copy generated Database definitions into this file —
 // everything here is hand-maintained and inherits from the generated schema.
 //
-// Two Supabase-generator limitations are corrected below, each narrowly and
+// Three Supabase-generator limitations are corrected below, each narrowly and
 // against a verified PostgreSQL contract. Nothing else is overridden.
 
 import type { Database as GeneratedDatabase, Json } from "./database.generated"
@@ -83,12 +83,36 @@ type CreateWriteoffAtomicArgs = Omit<
   p_comment: string | null
 }
 
+/**
+ * Limitation 3 — a function that exists in SQL but not yet in the generated
+ * schema.
+ *
+ * save_recipe_atomic(p_recipe_id uuid, p_recipe jsonb, p_items jsonb) returns
+ * jsonb [migration_038] is declared here because database.generated.ts is a
+ * snapshot taken before that migration was applied, and regenerating it is a
+ * separate, machine-owned step.
+ *
+ * This is a forward declaration, not an override: the moment the schema is
+ * regenerated with the function present, `Omit` below removes the generated
+ * entry and this one keeps describing the exact same SQL signature. Argument
+ * types mirror the SQL literally — p_recipe_id has no DEFAULT (so it must be
+ * supplied) and is genuinely called with NULL when a new recipe is created.
+ */
+type SaveRecipeAtomicFunction = {
+  Args: { p_recipe_id: string | null; p_recipe: Json; p_items: Json }
+  Returns: Json
+}
+
 // Returns are inherited rather than restated, so future regeneration stays
 // authoritative for them. Every other function passes through untouched.
 type ApplicationFunctions = Omit<
   GeneratedFunctions,
-  "create_team_invitation" | "create_purchase_atomic" | "create_writeoff_atomic"
+  | "create_team_invitation"
+  | "create_purchase_atomic"
+  | "create_writeoff_atomic"
+  | "save_recipe_atomic"
 > & {
+  save_recipe_atomic: SaveRecipeAtomicFunction
   create_team_invitation: Omit<
     GeneratedFunctions["create_team_invitation"],
     "Args"
