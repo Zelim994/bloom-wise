@@ -6,6 +6,7 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { getSafeNext } from "@/lib/auth/next"
 import { getPostLoginDestination, isInvitePath } from "@/lib/auth/onboarding"
+import { getLoginErrorMessage } from "@/lib/auth/authReturn"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,6 +18,7 @@ function LoginContent() {
   const safeNext = getSafeNext(rawNext)
   const isInviteFlow = isInvitePath(safeNext)
   const resetSuccess = searchParams.get("reset") === "success"
+  const linkError = getLoginErrorMessage(searchParams.get("error"))
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -69,6 +71,11 @@ function LoginContent() {
           {resetSuccess && (
             <div className="mb-4 rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2">
               <p className="text-sm text-emerald-700">Пароль изменён. Войдите с новым паролем.</p>
+            </div>
+          )}
+          {linkError && (
+            <div role="alert" className="mb-4 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
+              <p className="text-sm text-amber-700">{linkError}</p>
             </div>
           )}
           <form onSubmit={handleLogin} className="space-y-4">
