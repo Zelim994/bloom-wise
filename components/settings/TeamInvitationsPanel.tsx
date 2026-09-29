@@ -44,6 +44,7 @@ export function TeamInvitationsPanel({ invitations, currentUserRole }: Props) {
   const [formError, setFormError] = useState<string | null>(null)
   const [createdToken, setCreatedToken] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [needsRefresh, setNeedsRefresh] = useState(false)
 
   // ── Статус копирования ─────────────────────────────────────────────────────
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -69,19 +70,24 @@ export function TeamInvitationsPanel({ invitations, currentUserRole }: Props) {
     setFormError(null)
     setCreatedToken(null)
     startTransition(async () => {
-      const result = await createTeamInvitation({
-        role,
-        invitedName: invitedName || undefined,
-        invitedPhone: invitedPhone || undefined,
-        invitedEmail: invitedEmail || undefined,
-      })
-      if (result.error) {
-        setFormError(result.error)
-      } else if (result.data) {
-        setCreatedToken(result.data.token)
-        setInvitedName("")
-        setInvitedPhone("")
-        setInvitedEmail("")
+      try {
+        const result = await createTeamInvitation({
+          role,
+          invitedName: invitedName || undefined,
+          invitedPhone: invitedPhone || undefined,
+          invitedEmail: invitedEmail || undefined,
+        })
+        if (result.error) {
+          setFormError(result.error)
+        } else if (result.data) {
+          setCreatedToken(result.data.token)
+          setInvitedName("")
+          setInvitedPhone("")
+          setInvitedEmail("")
+        }
+      } catch {
+        setNeedsRefresh(true)
+        setFormError("Не удалось получить ответ. Обновите страницу и проверьте активные приглашения перед повтором.")
       }
     })
   }
@@ -90,10 +96,16 @@ export function TeamInvitationsPanel({ invitations, currentUserRole }: Props) {
     setRevokeErrors((prev) => ({ ...prev, [id]: "" }))
     setRevoking(id)
     startTransition(async () => {
-      const result = await revokeTeamInvitation(id)
-      setRevoking(null)
-      if (result.error) {
-        setRevokeErrors((prev) => ({ ...prev, [id]: result.error! }))
+      try {
+        const result = await revokeTeamInvitation(id)
+        if (result.error) {
+          setRevokeErrors((prev) => ({ ...prev, [id]: result.error! }))
+        }
+      } catch {
+        setNeedsRefresh(true)
+        setRevokeErrors((prev) => ({ ...prev, [id]: "Не удалось получить ответ. Обновите страницу и проверьте состояние приглашения перед повтором." }))
+      } finally {
+        setRevoking(null)
       }
     })
   }
@@ -115,7 +127,7 @@ export function TeamInvitationsPanel({ invitations, currentUserRole }: Props) {
             <select
               value={role}
               onChange={(e) => setRole(e.target.value as TeamRole)}
-              disabled={isPending}
+              disabled={isPending || needsRefresh}
               className={`${inputCn} cursor-pointer`}
             >
               {roles.map((r) => (
@@ -134,7 +146,7 @@ export function TeamInvitationsPanel({ invitations, currentUserRole }: Props) {
               placeholder="Анна Иванова"
               value={invitedName}
               onChange={(e) => setInvitedName(e.target.value)}
-              disabled={isPending}
+              disabled={isPending || needsRefresh}
               className={inputCn}
             />
           </div>
@@ -147,7 +159,7 @@ export function TeamInvitationsPanel({ invitations, currentUserRole }: Props) {
               placeholder="+7 900 000 00 00"
               value={invitedPhone}
               onChange={(e) => setInvitedPhone(e.target.value)}
-              disabled={isPending}
+              disabled={isPending || needsRefresh}
               className={inputCn}
             />
           </div>
@@ -160,20 +172,20 @@ export function TeamInvitationsPanel({ invitations, currentUserRole }: Props) {
               placeholder="florist@salon.ru"
               value={invitedEmail}
               onChange={(e) => setInvitedEmail(e.target.value)}
-              disabled={isPending}
+              disabled={isPending || needsRefresh}
               className={inputCn}
             />
           </div>
 
           {formError && (
-            <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">
+            <p role="alert" className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">
               {formError}
             </p>
           )}
 
           <button
             type="submit"
-            disabled={isPending}
+            disabled={isPending || needsRefresh}
             className="w-full rounded-lg bg-rose-500 hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2.5 text-sm font-medium text-white transition-colors"
           >
             {isPending ? "Создаём..." : "Создать приглашение"}
@@ -255,7 +267,7 @@ export function TeamInvitationsPanel({ invitations, currentUserRole }: Props) {
                       </button>
                       <button
                         onClick={() => handleRevoke(inv.id)}
-                        disabled={isRevoking}
+                        disabled={isRevoking || needsRefresh}
                         className="rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1 text-xs font-medium text-red-600 transition-colors"
                       >
                         {isRevoking ? "..." : "Отозвать"}
@@ -264,7 +276,7 @@ export function TeamInvitationsPanel({ invitations, currentUserRole }: Props) {
                   </div>
 
                   {revokeErr && (
-                    <p className="text-xs text-red-500">{revokeErr}</p>
+                    <p role="alert" className="text-xs text-red-500">{revokeErr}</p>
                   )}
                 </div>
               )
