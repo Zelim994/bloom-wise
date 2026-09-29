@@ -99,7 +99,7 @@ export async function createTeamInvitation(input: {
     }
   )
 
-  if (rpcError) return { error: rpcError.message }
+  if (rpcError) return { error: "Не удалось получить результат. Обновите страницу и проверьте состояние приглашения перед повтором." }
 
   const result = rpcResult as {
     ok?: boolean
@@ -159,7 +159,7 @@ export async function revokeTeamInvitation(
     { p_invitation_id: invitationId }
   )
 
-  if (rpcError) return { error: rpcError.message }
+  if (rpcError) return { error: "Не удалось получить результат. Обновите страницу и проверьте состояние приглашения перед повтором." }
 
   const result = rpcResult as { ok?: boolean; error?: string; note?: string } | null
 
@@ -189,7 +189,7 @@ export async function acceptTeamInvitation(
     { p_token: token }
   )
 
-  if (rpcError) return { error: rpcError.message }
+  if (rpcError) return { error: "Не удалось получить результат. Обновите страницу и проверьте состояние приглашения перед повтором." }
 
   const result = rpcResult as {
     ok?: boolean
@@ -227,7 +227,7 @@ export async function getTeamInvitationPreview(
     { p_token: token }
   )
 
-  if (rpcError) return { error: rpcError.message }
+  if (rpcError) return { error: "Не удалось получить результат. Обновите страницу и проверьте состояние приглашения перед повтором." }
 
   const result = rpcResult as {
     ok?: boolean
