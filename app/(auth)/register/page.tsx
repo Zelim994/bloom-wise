@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { getSafeNext } from "@/lib/auth/next"
+import { getSignupErrorMessage } from "@/lib/auth/signupError"
 import {
   getPostSignupDestination,
   getSignupEmailRedirectTo,
@@ -33,42 +34,49 @@ function RegisterContent() {
     e.preventDefault()
     setError("")
     setLoading(true)
+    let navigating = false
 
-    const supabase = createClient()
+    try {
+      const supabase = createClient()
 
-    const userData = isInviteFlow
-      ? { full_name: fullName }
-      : { full_name: fullName, role: "owner", salon_name: salonName }
+      const userData = isInviteFlow
+        ? { full_name: fullName }
+        : { full_name: fullName, role: "owner", salon_name: salonName }
 
-    // Письмо подтверждения ведёт обратно в приглашение или на онбординг
-    const signUpOptions: Parameters<typeof supabase.auth.signUp>[0] = {
-      email,
-      password,
-      options: {
-        data: userData,
-        emailRedirectTo: getSignupEmailRedirectTo(window.location.origin, safeNext),
-      },
+      // Письмо подтверждения ведёт обратно в приглашение или на онбординг
+      const signUpOptions: Parameters<typeof supabase.auth.signUp>[0] = {
+        email,
+        password,
+        options: {
+          data: userData,
+          emailRedirectTo: getSignupEmailRedirectTo(window.location.origin, safeNext),
+        },
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.signUp(signUpOptions)
+
+      if (authError) {
+        setError(getSignupErrorMessage(authError))
+        return
+      }
+
+      // Нет сессии — письмо для подтверждения отправлено
+      if (!authData.session) {
+        setEmailSent(true)
+        return
+      }
+
+      // Сессия есть (подтверждение отключено): тот же адрес, что и из письма.
+      // Организацию не создаём — это делает только явная форма /onboarding.
+      router.push(getPostSignupDestination(safeNext))
+      router.refresh()
+      navigating = true
+    } catch (error: unknown) {
+      setError(getSignupErrorMessage(error))
+    } finally {
+      // Keep submission disabled until successful navigation replaces this form.
+      if (!navigating) setLoading(false)
     }
-
-    const { data: authData, error: authError } = await supabase.auth.signUp(signUpOptions)
-
-    if (authError) {
-      setError(authError.message)
-      setLoading(false)
-      return
-    }
-
-    // Нет сессии — письмо для подтверждения отправлено
-    if (!authData.session) {
-      setEmailSent(true)
-      setLoading(false)
-      return
-    }
-
-    // Сессия есть (подтверждение отключено): тот же адрес, что и из письма.
-    // Организацию не создаём — это делает только явная форма /onboarding.
-    router.push(getPostSignupDestination(safeNext))
-    router.refresh()
   }
 
   const loginHref = safeNext
@@ -198,7 +206,7 @@ function RegisterContent() {
             </div>
 
             {error && (
-              <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">
+              <p role="alert" className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">
                 {error}
               </p>
             )}
