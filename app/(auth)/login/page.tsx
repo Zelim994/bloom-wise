@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client"
 import { getSafeNext } from "@/lib/auth/next"
 import { getPostLoginDestination, isInvitePath } from "@/lib/auth/onboarding"
 import { getLoginErrorMessage } from "@/lib/auth/authReturn"
+import { getPasswordLoginErrorMessage } from "@/lib/auth/loginError"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -38,7 +39,7 @@ function LoginContent() {
     })
 
     if (signInError) {
-      setError("Неверный email или пароль")
+      setError(getPasswordLoginErrorMessage(signInError))
       setLoading(false)
       return
     }
