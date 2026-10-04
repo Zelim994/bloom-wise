@@ -346,7 +346,15 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
     const currentBouquet = bouquetData ?? (initialData?.bouquet ? {
       items: initialData.bouquet.items.map((item) => {
         const f = flowers.find((fl) => fl.id === item.flower_id)
-        return { flower_id: item.flower_id, name: f?.name ?? "", unit: f?.unit ?? "шт", quantity: item.quantity, unit_cost: item.unit_cost ?? 0 }
+        return {
+          flower_id: item.flower_id,
+          variety_id: item.variety_id ?? null,
+          color_id: item.color_id ?? null,
+          name: f?.name ?? "",
+          unit: f?.unit ?? "шт",
+          quantity: item.quantity,
+          unit_cost: item.unit_cost ?? 0,
+        }
       }),
       cost_price: initialData.bouquet.cost_price ?? 0,
       sale_price: initialData.bouquet.sale_price ?? 0,

@@ -16,7 +16,9 @@
     "test:db:order-bouquet": "npm run e2e:db:check && vitest run --config e2e/integration/vitest.integration.config.mts",
     "test:browser:forgot-password": "node --test scripts/forgot-password.browser.mjs",
     "test:browser:recipe-save": "node scripts/recipe-save.real-browser.mjs",
-    "test:browser:recipes": "node scripts/recipe-save.browser.mjs"
+    "test:browser:recipes": "node scripts/recipe-save.browser.mjs",
+    "test:db:order-stock": "npm run e2e:db:check && vitest run --config e2e/integration/vitest.integration.config.mts e2e/integration/order-stock-concurrency.dbtest.ts",
+    "test:browser:orders": "node scripts/order-regressions.browser.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

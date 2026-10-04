@@ -737,13 +737,34 @@ export async function cancelOrder(
     return { ok: true }
   }
 
-  const { error } = await supabase
+  const { data: cancelled, error } = await supabase
     .from("orders")
     .update({ status: "cancelled" })
     .eq("id", orderId)
     .eq("organization_id", orgId)
+    .eq("stock_written_off", false)
+    .neq("status", "cancelled")
+    .select("id")
 
   if (error) return { ok: false, error: error.message }
+
+  // A concurrent writeoff may have committed after the first read. PostgreSQL
+  // rechecks this conditional UPDATE after waiting; never cancel without return.
+  if (!cancelled?.length) {
+    const { data: current, error: readError } = await supabase
+      .from("orders")
+      .select("stock_written_off, stock_returned")
+      .eq("id", orderId)
+      .eq("organization_id", orgId)
+      .single()
+    if (readError) return { ok: false, error: readError.message }
+    if (!current) return { ok: false, error: "Заказ не найден" }
+    if (!current.stock_written_off || current.stock_returned) {
+      return { ok: false, error: "Заказ уже отменён" }
+    }
+    const result = await returnOrderStockViaRpc(supabase, orderId)
+    if (!result.ok) return { ok: false, error: result.error }
+  }
 
   revalidatePath("/orders")
   revalidatePath(`/orders/${orderId}`)
