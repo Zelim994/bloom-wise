@@ -34,8 +34,13 @@ export function OrderStatusActions({ orderId, status, totalAmount, paidAmount, p
   function advance() {
     if (isDirty) return
     if (!transition.next) return
+    setError(null)
     startTransition(async () => {
-      await updateOrderStatus(orderId, transition.next!)
+      const result = await updateOrderStatus(orderId, transition.next!)
+      if (result.error) {
+        setError(result.error)
+        return
+      }
       router.refresh()
     })
   }
@@ -74,7 +79,7 @@ export function OrderStatusActions({ orderId, status, totalAmount, paidAmount, p
 
   return (
     <div className="flex flex-col gap-2">
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     <div className="flex flex-wrap gap-2">
       {transition.next && (
         <button
