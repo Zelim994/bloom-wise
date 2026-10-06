@@ -173,6 +173,7 @@ function toBouquetRpcItems(items: NormalizedBouquetItem[]) {
 }
 
 export async function createOrder(formData: {
+  customer_id?: string
   customer_name: string
   customer_phone: string
   type: string
@@ -203,7 +204,20 @@ export async function createOrder(formData: {
 
   // Find or create customer
   let customerId: string | null = null
-  if (formData.customer_phone.trim()) {
+  if (formData.customer_id !== undefined) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(formData.customer_id)) {
+      return { error: "Выбранный клиент недоступен. Выберите клиента заново." }
+    }
+    const { data: selected, error: selectedError } = await supabase
+      .from("customers")
+      .select("id")
+      .eq("id", formData.customer_id)
+      .eq("organization_id", orgId)
+      .maybeSingle()
+    if (selectedError) return { error: "Не удалось проверить клиента. Попробуйте ещё раз." }
+    if (!selected) return { error: "Выбранный клиент недоступен. Выберите клиента заново." }
+    customerId = selected.id
+  } else if (formData.customer_phone.trim()) {
     // A query error here must not read as "no such customer": that would fall
     // through to the insert below and create a duplicate customer for a phone
     // number that already exists. Same control-flow defect as the bouquet

@@ -18,7 +18,9 @@
     "test:browser:recipe-save": "node scripts/recipe-save.real-browser.mjs",
     "test:browser:recipes": "node scripts/recipe-save.browser.mjs",
     "test:db:order-stock": "npm run e2e:db:check && vitest run --config e2e/integration/vitest.integration.config.mts e2e/integration/order-stock-concurrency.dbtest.ts",
-    "test:browser:orders": "node scripts/order-regressions.browser.mjs"
+    "test:browser:orders": "node scripts/order-regressions.browser.mjs",
+    "test:browser:purchase-customer": "node scripts/purchase-customer.real-browser.mjs",
+    "test:coordination": "python3 -m unittest discover -s scripts/coordination -p 'test_*.py' -v"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
