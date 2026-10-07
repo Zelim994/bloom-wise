@@ -374,9 +374,37 @@ try {
   const expectedExpiry=expiry==='unchanged-null'?null:(expiry||null)
   check(expiry==='unchanged-null'?'reloading null expiry and saving unchanged':expiry?'date and expiry propagate to batch':'clearing expiry propagates to batch',r.purchase_date==='2026-10-04'&&r.arrived_at===r.purchase_date&&r.line_expiry===expectedExpiry&&r.batch_expiry===r.line_expiry&&r.quantity_in===5&&r.quantity_remaining===5&&r.movements===0,r)
  }
+ // Real purchase creation with the Server Action reply deliberately dropped after commit.
+ await page.goto(`${server.origin}/purchases/new`)
+ await page.getByPlaceholder('Введите поставщика...').fill(`Supplier ${tag}`)
+ await page.getByText('Выбрать товар',{exact:true}).click()
+ await page.getByPlaceholder('Название, категория или SKU...').fill(`Flower ${tag}`)
+ await page.getByText(`Flower ${tag}`,{exact:true}).click()
+ const row=page.locator('tr').filter({has:page.getByText(`Flower ${tag}`,{exact:true})})
+ await row.locator('input[type=number]').nth(0).fill('2')
+ await row.locator('input[type=number]').nth(1).fill('100')
+ const initialCount=Number((await db.query('select count(*) n from purchases where organization_id=$1',[ids.org])).rows[0].n)
+ let dropped=false
+ await page.route('**/purchases/new',async route=>{
+  if(!dropped&&route.request().method()==='POST'&&route.request().headers()['next-action']){
+   const response=await route.fetch();await response.body();dropped=true;await route.abort('failed');return
+  }
+  await route.continue()
+ })
+ await page.getByRole('button',{name:'Провести поставку',exact:true}).click()
+ await page.getByRole('button',{name:'Проверить результат отправки',exact:true}).waitFor()
+ check('unknown response locks save before reconciliation',await page.getByRole('button',{name:'Провести поставку',exact:true}).isDisabled(),{droppedAfterServerResponse:dropped})
+ evidence.recoveryBeforeReload={receipts:(await db.query('select count(*)::int n from purchase_private.requests where organization_id=$1',[ids.org])).rows[0].n, purchases:(await db.query('select count(*)::int n from purchases where organization_id=$1',[ids.org])).rows[0].n, operationStored:await page.evaluate(()=>Boolean(sessionStorage.getItem('bw-purchase-save:new')))}
+ await page.reload()
+ await page.waitForURL(u=>/^\/purchases\/[0-9a-f-]{36}$/.test(u.pathname),{timeout:SAVE_TIMEOUT_MS})
+ const recoveredId=new URL(page.url()).pathname.split('/').at(-1)
+ const finalCount=Number((await db.query('select count(*) n from purchases where organization_id=$1',[ids.org])).rows[0].n)
+ const recovered=(await db.query('select count(*)::int n from purchase_items where purchase_id=$1',[recoveredId])).rows[0].n
+ check('reload recovers created purchase without duplicate',dropped&&finalCount===initialCount+1&&recovered===1,{newPurchases:finalCount-initialCount,lines:recovered})
  evidence.result=evidence.checks.every(c=>c.pass)?'PASS':'FAIL'
 } catch(error) {
  // Do not persist assertion values, request bodies, headers, links or raw server errors.
+ if(page){evidence.recoveryAtFailure=await page.evaluate(()=>({operationStored:Boolean(sessionStorage.getItem('bw-purchase-save:new')),readyState:document.readyState,buttons:Array.from(document.querySelectorAll('button')).filter(b=>/поставку|отправки/.test(b.textContent)).map(b=>({text:b.textContent,disabled:b.disabled}))})).catch(()=>null)}
  evidence.result='ERROR';evidence.error={type:error.name,code:error.code??null,step:evidence.checks.length}
  if(page&&!new URL(page.url()).pathname.includes('login')) await page.screenshot({path:path.join(evidenceDir,'failure.png')}).catch(()=>{})
 } finally {
@@ -384,18 +412,21 @@ try {
  if(db&&owned){
   try {
    await db.query('begin')
+   await db.query('delete from purchase_private.requests where organization_id=$1',[ids.org])
    for(const table of ['orders','customers','stock_movements','inventory_movements']) await db.query(`delete from ${table} where organization_id=$1`,[ids.org])
-   await db.query('delete from purchase_items where purchase_id=$1',[ids.purchase])
+   await db.query('delete from purchase_items where purchase_id in(select id from purchases where organization_id=$1)',[ids.org])
    await db.query('delete from inventory_items where organization_id=$1',[ids.org])
    await db.query('delete from purchases where organization_id=$1',[ids.org])
    await db.query('delete from flowers where organization_id=$1',[ids.org])
+   await db.query('delete from suppliers where organization_id=$1',[ids.org])
    await db.query('delete from organization_order_counters where organization_id=$1',[ids.org])
    if(userId) await db.query('delete from auth.users where id=$1',[userId])
    await db.query('delete from organizations where id=$1',[ids.org])
    await db.query('delete from customers where id=$1 and organization_id=$2',[ids.otherCustomer,ids.otherOrg])
    await db.query('delete from organizations where id=$1',[ids.otherOrg])
    const zero={}
-   for(const table of ['orders','customers','stock_movements','inventory_movements','inventory_items','purchases','flowers','profiles','organization_order_counters']) zero[table]=(await db.query(`select count(*)::int n from ${table} where organization_id=$1`,[ids.org])).rows[0].n
+   for(const table of ['orders','customers','stock_movements','inventory_movements','inventory_items','purchases','flowers','suppliers','profiles','organization_order_counters']) zero[table]=(await db.query(`select count(*)::int n from ${table} where organization_id=$1`,[ids.org])).rows[0].n
+   zero.save_requests=(await db.query('select count(*)::int n from purchase_private.requests where organization_id=$1',[ids.org])).rows[0].n
    zero.purchase_items=(await db.query('select count(*)::int n from purchase_items where purchase_id=$1',[ids.purchase])).rows[0].n
    zero.organizations=(await db.query('select count(*)::int n from organizations where id=$1',[ids.org])).rows[0].n
    zero.other_customers=(await db.query('select count(*)::int n from customers where id=$1',[ids.otherCustomer])).rows[0].n
