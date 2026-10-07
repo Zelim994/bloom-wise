@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react"
 import { useRouter } from "next/navigation"
+import { usePurchaseOperation } from "@/lib/purchases/usePurchaseOperation"
 import { ArrowLeft, Truck, Info, ChevronDown, Trash2, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -30,6 +31,7 @@ interface Props {
 
 export function EditPurchaseForm({ purchase, suppliers }: Props) {
   const router = useRouter()
+  const operation = usePurchaseOperation(`bw-purchase-save:edit:${purchase.id}`, id => { router.push(`/purchases/${id}`); router.refresh() })
   const [isPending, startTransition] = useTransition()
   const [isDeleting, startDeleteTransition] = useTransition()
   const [error, setError] = useState("")
@@ -93,8 +95,12 @@ export function EditPurchaseForm({ purchase, suppliers }: Props) {
     e.preventDefault()
     setError("")
 
+    const operationId = operation.begin()
+    if (!operationId) return
     startTransition(async () => {
+      try {
       const result = await updatePurchase(purchase.id, {
+        operation_id: operationId,
         supplier_name: supplierName,
         purchase_date: purchaseDate,
         comment,
@@ -117,11 +123,15 @@ export function EditPurchaseForm({ purchase, suppliers }: Props) {
       })
 
       if (result.error) {
+        operation.failed(result.uncertain)
         setError(result.error)
         return
       }
-      router.push(`/purchases/${purchase.id}`)
-      router.refresh()
+      operation.complete(result.id! )
+      } catch {
+        operation.failed(true)
+        setError("Ответ не получен. Проверьте результат отправки.")
+      }
     })
   }
 
@@ -141,6 +151,8 @@ export function EditPurchaseForm({ purchase, suppliers }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {operation.message && <p role="status">{operation.message}</p>}
+      {operation.uncertain && <button type="button" onClick={() => void operation.check()}>Проверить результат отправки</button>}
       {/* Шапка */}
       <div className="flex items-start gap-4 flex-wrap">
         <button

@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { Purchase, Supplier } from "@/lib/supabase/types"
-import { findOrCreateSupplier, validateAndDeleteInventoryBatch, createPurchaseAtomicViaRpc } from "@/lib/services/purchaseService"
+import { validateAndDeleteInventoryBatch, savePurchaseViaRpc } from "@/lib/services/purchaseService"
 import { getOrgId } from "@/lib/services/organizationService"
 
 export type PurchaseWithSupplier = Purchase & { suppliers: { name: string; phone: string | null } | null }
@@ -220,38 +220,50 @@ export async function getFlowersForPurchase(): Promise<FlowerForPurchase[]> {
 }
 
 export async function createPurchase(formData: {
+  operation_id: string
   supplier_name: string
   purchase_date: string
   comment: string
   delivery_cost: number
   items: PurchaseLineItem[]
-}): Promise<{ error?: string; id?: string }> {
+}): Promise<{ error?: string; id?: string; uncertain?: boolean }> {
   if (formData.items.length === 0) return { error: "Добавьте хотя бы один товар" }
 
   const supabase = await createClient()
 
-  const result = await createPurchaseAtomicViaRpc(supabase, {
-    supplier_name:  formData.supplier_name,
-    purchase_date:  formData.purchase_date,
-    comment:        formData.comment || null,
-    delivery_cost:  formData.delivery_cost ?? 0,
-    items: formData.items.map((i) => ({
-      flower_id:  i.flower_id,
-      variety_id: i.variety_id || null,
-      color_id:   i.color_id   || null,
-      quantity:   i.quantity,
-      cost_price: i.cost_price,
-      sale_price: i.sale_price && i.sale_price > 0 ? i.sale_price : null,
-      expires_at: i.expires_at || null,
-      comment:    i.comment    || null,
+  if (!isOperationId(formData.operation_id)) return { error: "Обновите форму перед сохранением." }
+  const result = await savePurchaseViaRpc(supabase, formData.operation_id, null, {
+    supplier_name: formData.supplier_name,
+    purchase_date: formData.purchase_date,
+    comment: formData.comment,
+    delivery_cost: formData.delivery_cost ?? 0,
+    items: formData.items.map(i => ({
+      flower_id: i.flower_id, variety_id: i.variety_id || null, color_id: i.color_id || null,
+      quantity: i.quantity, cost_price: i.cost_price, sale_price: i.sale_price && i.sale_price>0 ? i.sale_price : null,
+      expires_at: i.expires_at, comment: i.comment,
     })),
   })
-
-  if (!result.ok) return { error: result.error }
-
+  if (result.error) return result
   revalidatePath("/purchases")
   revalidatePath("/inventory")
-  return { id: result.purchaseId }
+  return result
+}
+
+function isOperationId(id: unknown): id is string {
+  return typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+}
+
+export async function getPurchaseSaveStatus(operationId: string): Promise<{status: "committed"|"absent"|"in_progress"|"unknown"; id?: string}> {
+  if (!isOperationId(operationId)) return {status:"unknown"}
+  try {
+    const supabase=await createClient()
+    const {data,error}=await supabase.rpc("purchase_save_status",{p_operation_id:operationId})
+    if(error)return {status:"unknown"}
+    const value=data as {status?:unknown;purchase_id?:unknown}|null
+    if(value?.status==="committed" && isOperationId(value.purchase_id))return {status:"committed",id:value.purchase_id}
+    if(value?.status==="absent" || value?.status==="in_progress")return {status:value.status}
+  } catch { /* No blind resubmit on an unknown outcome. */ }
+  return {status:"unknown"}
 }
 
 export type UpdatePurchaseItem = {
@@ -334,6 +346,7 @@ function isCalendarDate(value: unknown): value is string {
 export async function updatePurchase(
   purchaseId: string,
   formData: {
+    operation_id: string
     supplier_name: string
     purchase_date: string
     comment: string
@@ -341,113 +354,22 @@ export async function updatePurchase(
     items: UpdatePurchaseItem[]
     deleted_item_ids?: string[]
   }
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; id?: string; uncertain?: boolean }> {
   const supabase = await createClient()
   const orgId = await getOrgId(supabase)
   if (!orgId) return { error: "Организация не найдена" }
-
-  // Reject missing/malformed dates before supplier, header or line writes.
-  // Empty expiry is the explicit UI command to clear it; omission is not.
+  if (!isOperationId(formData.operation_id)) return { error: "Обновите форму перед сохранением." }
   if (!isCalendarDate(formData.purchase_date) || formData.items.some(
-    (item) => item.expires_at !== "" && !isCalendarDate(item.expires_at)
+    item => item.expires_at !== "" && !isCalendarDate(item.expires_at)
   )) return { error: "Проверьте дату закупки и сроки годности позиций." }
-
-  const { supplierId, error: supplierError } = await findOrCreateSupplier(supabase, orgId, formData.supplier_name)
-  if (supplierError) return { error: supplierError }
-
-  // Загружаем реальные quantity из БД — не доверяем client payload
-  const itemIds = formData.items.map((i) => i.item_id)
-  const dbQuantityMap = new Map<string, number>()
-  const batchIds = new Map<string, string | null>()
-  if (itemIds.length > 0) {
-    const { data: dbItems, error: dbErr } = await supabase
-      .from("purchase_items")
-      .select("id, purchase_id, quantity, inventory_item_id")
-      .in("id", itemIds)
-    if (dbErr || !dbItems) return { error: "Не удалось загрузить позиции закупки" }
-    if (dbItems.length !== itemIds.length) return { error: "Некоторые позиции не найдены" }
-    const wrongPurchase = dbItems.find((i) => i.purchase_id !== purchaseId)
-    if (wrongPurchase) return { error: "Позиции не принадлежат данной закупке" }
-    for (const i of dbItems) {
-      dbQuantityMap.set(i.id, i.quantity)
-      batchIds.set(i.id, i.inventory_item_id)
-    }
-  }
-
-  const totalAmount =
-    formData.items.reduce((s, i) => s + (dbQuantityMap.get(i.item_id) ?? 0) * i.cost_price, 0) +
-    (formData.delivery_cost ?? 0)
-
-  const { error: pe } = await supabase
-    .from("purchases")
-    .update({
-      supplier_id: supplierId,
-      purchase_date: formData.purchase_date,
-      total_amount: totalAmount,
-      comment: formData.comment || null,
-    })
-    .eq("id", purchaseId)
-
-  if (pe) return { error: pe.message }
-
-  // Удаляем позиции, отмеченные для удаления
-  for (const deletedId of formData.deleted_item_ids ?? []) {
-    const { data: pi } = await supabase
-      .from("purchase_items")
-      .select("inventory_item_id")
-      .eq("id", deletedId)
-      .single()
-
-    if (pi?.inventory_item_id) {
-      const result = await validateAndDeleteInventoryBatch(supabase, pi.inventory_item_id)
-      if (!result.ok) {
-        return { error: `Нельзя удалить позицию — из партии уже использовано ${result.usedCount} шт.` }
-      }
-    }
-
-    await supabase.from("purchase_items").delete().eq("id", deletedId)
-  }
-
-  for (const item of formData.items) {
-    const { error: itemError } = await supabase
-      .from("purchase_items")
-      .update({
-        cost_price: item.cost_price,
-        extra_costs: item.extra_costs,
-        expires_at: item.expires_at || null,
-        comment: item.comment || null,
-      })
-      .eq("id", item.item_id)
-
-    if (itemError) return { error: "Часть данных могла сохраниться. Не удалось сохранить позицию закупки. Обновите страницу и проверьте данные." }
-
-    // The batch relation comes from the loaded purchase line, never from the browser.
-    const batchId = batchIds.get(item.item_id)
-    if (batchId) {
-      const { data: batch, error: batchError } = await supabase
-        .from("inventory_items")
-        .update({
-          cost_price: item.effective_cost,
-          arrived_at: formData.purchase_date,
-          expires_at: item.expires_at || null,
-        })
-        .eq("id", batchId)
-        .eq("organization_id", orgId)
-        .select("id")
-        .maybeSingle()
-      if (batchError || !batch) return { error: "Часть данных могла сохраниться. Не удалось сохранить партию. Обновите страницу и проверьте данные закупки и склада." }
-    }
-
-    if (item.sale_price && item.sale_price > 0) {
-      await supabase
-        .from("flowers")
-        .update({ sale_price: item.sale_price })
-        .eq("id", item.flower_id)
-    }
-  }
-
+  const result = await savePurchaseViaRpc(supabase,formData.operation_id,purchaseId,{
+    supplier_name:formData.supplier_name,purchase_date:formData.purchase_date,comment:formData.comment,
+    delivery_cost:formData.delivery_cost??0,deleted_item_ids:formData.deleted_item_ids??[],
+    items:formData.items.map(i=>({item_id:i.item_id,cost_price:i.cost_price,sale_price:i.sale_price??null,expires_at:i.expires_at,comment:i.comment})),
+  })
+  if (result.error) return result
   revalidatePath("/purchases")
   revalidatePath(`/purchases/${purchaseId}`)
   revalidatePath("/inventory")
-  return {}
+  return result
 }

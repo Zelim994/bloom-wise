@@ -111,7 +111,11 @@ type ApplicationFunctions = Omit<
   | "create_purchase_atomic"
   | "create_writeoff_atomic"
   | "save_recipe_atomic"
+  | "save_purchase_atomic"
+  | "purchase_save_status"
 > & {
+  save_purchase_atomic: { Args: { p_operation_id: string; p_purchase_id: string | null; p_payload: Json }; Returns: Json }
+  purchase_save_status: { Args: { p_operation_id: string }; Returns: Json }
   save_recipe_atomic: SaveRecipeAtomicFunction
   create_team_invitation: Omit<
     GeneratedFunctions["create_team_invitation"],
