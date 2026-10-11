@@ -325,6 +325,12 @@ export async function deletePurchase(purchaseId: string): Promise<{ error?: stri
   return {}
 }
 
+function isCalendarDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00.000Z`)
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+}
+
 export async function updatePurchase(
   purchaseId: string,
   formData: {
@@ -340,22 +346,32 @@ export async function updatePurchase(
   const orgId = await getOrgId(supabase)
   if (!orgId) return { error: "Организация не найдена" }
 
+  // Reject missing/malformed dates before supplier, header or line writes.
+  // Empty expiry is the explicit UI command to clear it; omission is not.
+  if (!isCalendarDate(formData.purchase_date) || formData.items.some(
+    (item) => item.expires_at !== "" && !isCalendarDate(item.expires_at)
+  )) return { error: "Проверьте дату закупки и сроки годности позиций." }
+
   const { supplierId, error: supplierError } = await findOrCreateSupplier(supabase, orgId, formData.supplier_name)
   if (supplierError) return { error: supplierError }
 
   // Загружаем реальные quantity из БД — не доверяем client payload
   const itemIds = formData.items.map((i) => i.item_id)
   const dbQuantityMap = new Map<string, number>()
+  const batchIds = new Map<string, string | null>()
   if (itemIds.length > 0) {
     const { data: dbItems, error: dbErr } = await supabase
       .from("purchase_items")
-      .select("id, purchase_id, quantity")
+      .select("id, purchase_id, quantity, inventory_item_id")
       .in("id", itemIds)
     if (dbErr || !dbItems) return { error: "Не удалось загрузить позиции закупки" }
     if (dbItems.length !== itemIds.length) return { error: "Некоторые позиции не найдены" }
     const wrongPurchase = dbItems.find((i) => i.purchase_id !== purchaseId)
     if (wrongPurchase) return { error: "Позиции не принадлежат данной закупке" }
-    for (const i of dbItems) dbQuantityMap.set(i.id, i.quantity)
+    for (const i of dbItems) {
+      dbQuantityMap.set(i.id, i.quantity)
+      batchIds.set(i.id, i.inventory_item_id)
+    }
   }
 
   const totalAmount =
@@ -393,7 +409,7 @@ export async function updatePurchase(
   }
 
   for (const item of formData.items) {
-    await supabase
+    const { error: itemError } = await supabase
       .from("purchase_items")
       .update({
         cost_price: item.cost_price,
@@ -403,11 +419,23 @@ export async function updatePurchase(
       })
       .eq("id", item.item_id)
 
-    if (item.inventory_item_id) {
-      await supabase
+    if (itemError) return { error: "Часть данных могла сохраниться. Не удалось сохранить позицию закупки. Обновите страницу и проверьте данные." }
+
+    // The batch relation comes from the loaded purchase line, never from the browser.
+    const batchId = batchIds.get(item.item_id)
+    if (batchId) {
+      const { data: batch, error: batchError } = await supabase
         .from("inventory_items")
-        .update({ cost_price: item.effective_cost })
-        .eq("id", item.inventory_item_id)
+        .update({
+          cost_price: item.effective_cost,
+          arrived_at: formData.purchase_date,
+          expires_at: item.expires_at || null,
+        })
+        .eq("id", batchId)
+        .eq("organization_id", orgId)
+        .select("id")
+        .maybeSingle()
+      if (batchError || !batch) return { error: "Часть данных могла сохраниться. Не удалось сохранить партию. Обновите страницу и проверьте данные закупки и склада." }
     }
 
     if (item.sale_price && item.sale_price > 0) {
