@@ -3,6 +3,7 @@
 import { useState, useTransition, useMemo, useRef, useEffect } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
+import { usePurchaseOperation } from "@/lib/purchases/usePurchaseOperation"
 import { Plus, Trash2, ArrowLeft, ChevronDown, Truck, Info, Search, X, ChevronLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -359,6 +360,7 @@ interface Props {
 
 export function PurchaseForm({ flowers: initialFlowers, suppliers }: Props) {
   const router = useRouter()
+  const operation = usePurchaseOperation("bw-purchase-save:new", id => { router.push(`/purchases/${id}`); router.refresh() })
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState("")
   const [supplierName, setSupplierName] = useState("")
@@ -456,8 +458,12 @@ export function PurchaseForm({ flowers: initialFlowers, suppliers }: Props) {
       return
     }
 
+    const operationId = operation.begin()
+    if (!operationId) return
     startTransition(async () => {
+      try {
       const result = await createPurchase({
+        operation_id: operationId,
         supplier_name: supplierName,
         purchase_date: purchaseDate,
         comment,
@@ -482,12 +488,16 @@ export function PurchaseForm({ flowers: initialFlowers, suppliers }: Props) {
       })
 
       if (result.error) {
+        operation.failed(result.uncertain)
         setError(result.error)
         return
       }
 
-      router.push(`/purchases/${result.id}`)
-      router.refresh()
+      operation.complete(result.id! )
+      } catch {
+        operation.failed(true)
+        setError("Ответ не получен. Проверьте результат отправки.")
+      }
     })
   }
 
@@ -499,6 +509,8 @@ export function PurchaseForm({ flowers: initialFlowers, suppliers }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {operation.message && <p role="status">{operation.message}</p>}
+      {operation.uncertain && <button type="button" onClick={() => void operation.check()}>Проверить результат отправки</button>}
 
       {/* ── Fields row ───────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -834,7 +846,7 @@ export function PurchaseForm({ flowers: initialFlowers, suppliers }: Props) {
 
         <Button
           type="submit"
-          disabled={isPending}
+          disabled={isPending || operation.disabled}
           className="bg-rose-500 hover:bg-rose-600 text-white h-10 px-8"
         >
           {isPending ? "Сохраняем..." : "Провести поставку"}
