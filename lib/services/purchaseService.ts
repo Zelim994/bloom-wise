@@ -1,3 +1,4 @@
+import type { Json } from "@/lib/supabase/types"
 import type { createClient } from "@/lib/supabase/server"
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
@@ -107,7 +108,7 @@ export async function validateAndDeleteInventoryBatch(
 /**
  * Calls create_purchase_atomic RPC — single PostgreSQL transaction.
  * Computes delivery split server-side; does NOT write to tables directly.
- * Not yet wired to any UI — use createPurchase (purchases.ts) until switched.
+ * Legacy non-idempotent wrapper, not used by the purchase forms. New saves use savePurchaseViaRpc.
  */
 export async function createPurchaseAtomicViaRpc(
   supabase: SupabaseClient,
@@ -137,6 +138,7 @@ export async function createPurchaseAtomicViaRpc(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Legacy helper; transactional purchase saves resolve suppliers inside SQL.
  * Finds an existing supplier by name (case-insensitive) within the organization,
  * or creates a new one. Returns supplierId (null if name is empty) or an error.
  */
@@ -167,4 +169,31 @@ export async function findOrCreateSupplier(
 
   if (supErr) return { supplierId: null, error: supErr.message }
   return { supplierId: newSup?.id ?? null }
+}
+
+export type PurchaseSaveResult = {error?: string; id?: string; uncertain?: boolean}
+const saveMessages: Record<string,string> = {
+  BW_AUTH_REQUIRED: 'Войдите в аккаунт салона.',
+  BW_INVALID_PURCHASE: 'Проверьте даты, состав и суммы закупки.',
+  BW_PURCHASE_UNAVAILABLE: 'Закупка или её позиция недоступна.',
+  BW_LEGACY_LINE: 'В закупке есть позиция без товара. Обратитесь к администратору перед изменением закупки.',
+  BW_STALE_PURCHASE: 'Состав закупки изменился. Обновите страницу перед сохранением.',
+  BW_BATCH_USED: 'Нельзя удалить позицию: партия уже использована.',
+  BW_OPERATION_CONFLICT: 'Эта отправка уже сохранена с другими данными. Проверьте закупку перед новой правкой.',
+}
+export async function savePurchaseViaRpc(supabase: SupabaseClient, operationId: string, purchaseId: string|null, payload: Json): Promise<PurchaseSaveResult> {
+  try {
+    const {data,error}=await supabase.rpc('save_purchase_atomic',{p_operation_id:operationId,p_purchase_id:purchaseId,p_payload:payload})
+    const value=data as {purchase_id?:unknown}|null
+    if(!error && typeof value?.purchase_id==='string')return {id:value.purchase_id}
+    if(error && (/^[0-9A-Z]{5}$/.test(error.code??'') || error.code?.startsWith('PGRST'))) {
+      return {error:saveMessages[error.message]??'Не удалось сохранить закупку. Изменения этой отправки отменены. Проверьте данные.'}
+    }
+  } catch { /* A transport exception is not evidence of rollback. */ }
+  try {
+    const {data,error}=await supabase.rpc('purchase_save_status',{p_operation_id:operationId})
+    const value=data as {status?:unknown;purchase_id?:unknown}|null
+    if(!error && value?.status==='committed' && typeof value.purchase_id==='string')return {id:value.purchase_id}
+  } catch { /* Keep the operation ID; never create again with a fresh one. */ }
+  return {uncertain:true,error:'Ответ не получен. Проверьте результат отправки перед повторным сохранением.'}
 }

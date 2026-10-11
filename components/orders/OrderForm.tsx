@@ -198,6 +198,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
 
   const [customerPhone, setCustomerPhone] = useState(initialData?.customers?.phone ?? initialCustomer?.phone ?? "")
   const [customerName, setCustomerName] = useState(initialData?.customers?.full_name ?? initialCustomer?.full_name ?? "")
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>(initialCustomer?.id)
   const [customerFound, setCustomerFound] = useState<boolean | null>(initialCustomer ? true : null)
   const [searchResults, setSearchResults] = useState<CustomerSearchResult[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
@@ -316,6 +317,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
   }
 
   function handleSelectCustomer(customer: CustomerSearchResult) {
+    setSelectedCustomerId(customer.id)
     setCustomerName(customer.full_name)
     setCustomerPhone(customer.phone ?? "")
     setCustomerFound(true)
@@ -372,6 +374,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
         : undefined
 
     const payload = {
+      customer_id: selectedCustomerId,
       customer_name: customerName,
       customer_phone: customerPhone,
       type: orderType,
@@ -461,6 +464,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
                 value={customerPhone}
                 onChange={(e) => {
                   setCustomerPhone(e.target.value)
+                  setSelectedCustomerId(undefined)
                   setCustomerFound(null)
                   triggerSearch(e.target.value)
                 }}
@@ -480,6 +484,7 @@ export function OrderForm({ flowers, initialData, initialOrderDate, initialCusto
               value={customerName}
               onChange={(e) => {
                 setCustomerName(e.target.value)
+                setSelectedCustomerId(undefined)
                 setCustomerFound(null)
                 triggerSearch(e.target.value)
               }}

@@ -62,3 +62,7 @@ e2e/supabase/.branches/
 # Generated, non-secret, recreated on demand; the migration SQL beside it stays
 # tracked.
 supabase/.temp/
+
+# Local Python coordination caches; runtime receipts belong outside the repository.
+__pycache__/
+*.pyc
